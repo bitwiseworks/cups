@@ -508,9 +508,9 @@ static int				/* O - 0 if available */
 					/*    -1 error */
 cups_local_auth(http_t *http)		/* I - HTTP connection to server */
 {
-#if defined(WIN32) || defined(__EMX__)
+#if defined(WIN32) 
  /*
-  * Currently WIN32 and OS-2 do not support the CUPS server...
+  * Currently WIN32 does not support the CUPS server...
   */
 
   return (1);

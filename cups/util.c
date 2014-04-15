@@ -934,7 +934,7 @@ cupsGetPPD3(http_t     *http,		/* I  - HTTP connection or @code CUPS_HTTP_DEFAUL
     return (HTTP_NOT_ACCEPTABLE);
   }
 
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__OS2__)
  /*
   * See if the PPD file is available locally...
   */

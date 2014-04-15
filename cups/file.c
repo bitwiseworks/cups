@@ -292,7 +292,7 @@ cupsFileFind(const char *filename,	/* I - File to find */
 
   while (*path)
   {
-#ifdef WIN32
+#if defined(WIN32) || defined(__OS2__)
     if (*path == ';' || (*path == ':' && ((bufptr - buffer) > 1 || !isalpha(buffer[0] & 255))))
 #else
     if (*path == ';' || *path == ':')

@@ -80,7 +80,7 @@ install-data:
 install-exec:
 	$(INSTALL_DIR) -m 755 $(SERVERBIN)/monitor
 	for file in $(TARGETS); do \
-		$(INSTALL_BIN) $$file $(SERVERBIN)/monitor; \
+		$(INSTALL_BIN) $$file.exe $(SERVERBIN)/monitor; \
 	done
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \

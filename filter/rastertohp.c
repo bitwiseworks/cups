@@ -36,7 +36,12 @@
 #include <cups/i18n.h>
 #include <cups/raster.h>
 #include <stdlib.h>
-#include <unistd.h>
+#if defined(WIN32) || defined(__OS2__)
+#  include <io.h>
+#else
+#  include <unistd.h>
+#endif /* WIN32 || __OS2__ */
+
 #include <fcntl.h>
 #include <signal.h>
 #include <errno.h>

@@ -263,10 +263,15 @@ main(int  argc,				/* I - Number of command-line args */
     * Skip entries that are not executable files...
     */
 
+#ifndef __OS2__
     if (!S_ISREG(dent->fileinfo.st_mode) ||
         !isalnum(dent->filename[0] & 255) ||
         (dent->fileinfo.st_mode & (S_IRUSR | S_IXUSR)) != (S_IRUSR | S_IXUSR))
       continue;
+#else
+    if (!S_ISREG(dent->fileinfo.st_mode))
+      continue;
+#endif
 
    /*
     * Skip excluded or not included backends...
@@ -352,6 +357,9 @@ main(int  argc,				/* I - Number of command-line args */
 	kill(backends[i].pid, SIGTERM);
   }
 
+#ifdef __OS2__
+  fflush(stdout);
+#endif
   return (0);
 }
 

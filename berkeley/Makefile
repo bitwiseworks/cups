@@ -78,12 +78,12 @@ install-data:
 install-exec:
 	echo Installing Berkeley user printing commands in $(BINDIR)...
 	$(INSTALL_DIR) -m 755 $(BINDIR)
-	$(INSTALL_BIN) lpq $(BINDIR)
-	$(INSTALL_BIN) lpr $(BINDIR)
-	$(INSTALL_BIN) lprm $(BINDIR)
+	$(INSTALL_BIN) lpq.exe $(BINDIR)
+	$(INSTALL_BIN) lpr.exe $(BINDIR)
+	$(INSTALL_BIN) lprm.exe $(BINDIR)
 	echo Installing Berkeley admin printing commands in $(BINDIR)...
 	$(INSTALL_DIR) -m 755 $(SBINDIR)
-	$(INSTALL_BIN) lpc $(SBINDIR)
+	$(INSTALL_BIN) lpc.exe $(SBINDIR)
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \
 		for file in $(TARGETS); do \

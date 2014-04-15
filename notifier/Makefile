@@ -73,7 +73,7 @@ install-exec:
 	echo Installing notifiers in $(SERVERBIN)/notifier...
 	$(INSTALL_DIR) -m 755 $(SERVERBIN)/notifier
 	for file in $(NOTIFIERS); do \
-		$(INSTALL_BIN) $$file $(SERVERBIN)/notifier; \
+		$(INSTALL_BIN) $$file.exe $(SERVERBIN)/notifier; \
 	done
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \
@@ -131,7 +131,7 @@ dbus:	dbus.o ../cups/$(LIBCUPS)
 
 mailto:	mailto.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o mailto mailto.o $(LIBS)
+	$(CC) $(LDFLAGS) -o mailto mailto.o $(LIBS) $(LIBZ)
 
 
 #
@@ -149,7 +149,7 @@ rss:	rss.o ../cups/$(LIBCUPS)
 
 testnotify:	testnotify.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o testnotify testnotify.o $(LIBS)
+	$(CC) $(LDFLAGS) -o testnotify testnotify.o $(LIBS) $(LIBZ)
 
 
 $(OBJS):	../Makedefs

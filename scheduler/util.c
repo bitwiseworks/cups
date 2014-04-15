@@ -290,7 +290,11 @@ cupsdPipeCommand(int        *pid,	/* O - Process ID or 0 on error */
   * First create the pipe...
   */
 
+#ifndef __OS2__
   if (pipe(fds))
+#else
+  if (socketpair(AF_UNIX, SOCK_STREAM,0, fds))
+#endif
   {
     *pid = 0;
     return (NULL);

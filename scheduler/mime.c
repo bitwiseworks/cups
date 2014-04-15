@@ -408,6 +408,13 @@ add_fcache(cups_array_t *filtercache,	/* I - Filter cache */
   if (cupsFileFind(name, filterpath, 1, path, sizeof(path)))
     temp->path = strdup(path);
 
+#ifdef __OS2__
+  /* On OS/2, if we haven't found the filter 'name', append .exe and try again) */
+  if (!temp->path)
+     strcat(name, ".exe");
+  if (cupsFileFind(name, filterpath, 1, path, sizeof(path)))
+    temp->path = strdup(path);
+#endif
   cupsArrayAdd(filtercache, temp);
 
   return (temp->path);

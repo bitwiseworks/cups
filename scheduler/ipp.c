@@ -482,7 +482,6 @@ cupsdProcessIPPRequest(
 	* OK, all the checks pass so far; make sure requesting-user-name is
 	* not "root" from a remote host...
 	*/
-
         if ((username = ippFindAttribute(con->request, "requesting-user-name",
 	                                 IPP_TAG_NAME)) != NULL)
 	{
@@ -2596,6 +2595,15 @@ add_printer(cupsd_client_t  *con,	/* I - Client connection */
       */
 
       snprintf(srcfile, sizeof(srcfile), "%s/backend/%s", ServerBin, scheme);
+#ifdef __OS2__
+    /*
+     * On OS/2 - check for the presence of the executable - if not present - append .exe and try again
+     */
+     struct stat ChkBuf;
+     int rc=stat(srcfile,&ChkBuf);
+     if (rc)
+        strcat(srcfile, ".exe");
+#endif
       if (access(srcfile, X_OK))
       {
        /*
@@ -5211,7 +5219,11 @@ copy_model(cupsd_client_t *con,		/* I - Client connection */
 
   snprintf(buffer, sizeof(buffer), "%s/daemon/cups-driverd", ServerBin);
   snprintf(tempfile, sizeof(tempfile), "%s/%d.ppd", TempDir, con->http.fd);
+#ifndef __OS2__
   tempfd = open(tempfile, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+#else
+  tempfd = open(tempfile, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0600);
+#endif
   if (tempfd < 0)
     return (-1);
 
@@ -5292,6 +5304,9 @@ copy_model(cupsd_client_t *con,		/* I - Client connection */
       cupsdUpdateCGI();
   }
 
+#ifdef __EMX__
+  fflush(NULL);
+#endif
   close(temppipe[0]);
   close(tempfd);
 

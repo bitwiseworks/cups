@@ -420,6 +420,9 @@ main(int  argc,				/* I - Number of command-line args */
   ppdClose(ppd);
   cupsFreeOptions(num_options, options);
 
+#ifdef __OS2__
+  fflush(stdout);
+#endif
   cupsFileClose(fp);
 
   return (0);

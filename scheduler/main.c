@@ -179,7 +179,11 @@ main(int  argc,				/* I - Number of command-line args */
   * Check for command-line arguments...
   */
 
+#ifndef __OS2__
   fg = 0;
+#else
+  fg = 1; /* Start in foreground by default on OS/2 */
+#endif
 
 #ifdef HAVE_LAUNCHD
   if (getenv("CUPSD_LAUNCHD"))
@@ -1264,6 +1268,7 @@ cupsdOpenPipe(int *fds)			/* O - Pipe file descriptors (2) */
   * Create the pipe...
   */
 
+#ifndef __OS2__
   if (pipe(fds))
   {
     fds[0] = -1;
@@ -1271,6 +1276,14 @@ cupsdOpenPipe(int *fds)			/* O - Pipe file descriptors (2) */
 
     return (-1);
   }
+#else
+  if (socketpair(AF_UNIX, SOCK_STREAM,0, fds) < 0) {
+    cupsdLogMessage(CUPSD_LOG_DEBUG, "Socketpair failed!\n");
+    fds[0] = -1;
+    fds[1] = -1;
+    return (-1);
+  }
+#endif
 
  /*
   * Set the "close on exec" flag on each end of the pipe...

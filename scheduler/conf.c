@@ -548,6 +548,7 @@ cupsdReadConfiguration(void)
   * Find the default user...
   */
 
+#ifndef __OS2__
   if ((user = getpwnam(CUPS_DEFAULT_USER)) != NULL)
     User = user->pw_uid;
   else
@@ -592,7 +593,20 @@ cupsdReadConfiguration(void)
       Group = 65534;
     }
   }
+#else
+   /* on OS/2 - default user is meaningless - default user to 'nobody' */
+   /*
+    * Use the (historical) NFS nobody user ID (-2 as a 16-bit twos-
+    * complement number...)
+    */
+    User = 65534;
 
+     /*
+      * Use the (historical) NFS nobody group ID (-2 as a 16-bit twos-
+      * complement number...)
+      */
+    Group = 65534;
+#endif
  /*
   * Numeric options...
   */
@@ -3236,10 +3250,12 @@ read_configuration(cups_file_t *fp)	/* I - File to read from */
       * SystemGroup (admin) group(s)...
       */
 
+#ifndef __OS2__
       if (!parse_groups(value))
 	cupsdLogMessage(CUPSD_LOG_ERROR,
 	                "Unknown SystemGroup \"%s\" on line %d, ignoring!",
 	                value, linenum);
+#endif
     }
     else if (!strcasecmp(line, "HostNameLookups") && value)
     {

@@ -319,7 +319,11 @@ cupsImageOpen(
   * Figure out the file type...
   */
 
+#ifndef __OS2__
   if ((fp = fopen(filename, "r")) == NULL)
+#else
+  if ((fp = fopen(filename, "rb")) == NULL)
+#endif
     return (NULL);
 
   if (fread(header, 1, sizeof(header), fp) == 0)

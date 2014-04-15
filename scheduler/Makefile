@@ -155,8 +155,8 @@ install-data:
 		$(INSTALL_DIR) -m 755 $(STATEDIR); \
 	fi
 	echo Creating $(STATEDIR)/certs...
-	$(INSTALL_DIR) -m 511 -o $(CUPS_USER) -g $(CUPS_PRIMARY_SYSTEM_GROUP) \
-		$(STATEDIR)/certs
+#	$(INSTALL_DIR) -m 511 -o $(CUPS_USER) -g $(CUPS_PRIMARY_SYSTEM_GROUP) \
+#		$(STATEDIR)/certs
 	echo Creating $(LOGDIR)...
 	$(INSTALL_DIR) -m 755 $(LOGDIR)
 	echo Creating $(REQUESTS)...
@@ -174,8 +174,8 @@ install-data:
 install-exec:
 	echo Installing programs in $(SBINDIR)...
 	$(INSTALL_DIR) -m 755 $(SBINDIR)
-	$(INSTALL_BIN) -m 500 cupsd $(SBINDIR)
-	$(INSTALL_BIN) cupsfilter $(SBINDIR)
+	$(INSTALL_BIN) -m 500 cupsd.exe $(SBINDIR)
+	$(INSTALL_BIN) cupsfilter.exe $(SBINDIR)
 	-if test "x`uname`" = xDarwin; then \
 		$(INSTALL_DIR) $(BUILDROOT)/System/Library/Printers/Libraries; \
 		$(LN) $(sbindir)/cupsfilter $(BUILDROOT)/System/Library/Printers/Libraries/convert; \
@@ -183,10 +183,10 @@ install-exec:
 	echo Installing programs in $(SERVERBIN)/daemon...
 	$(INSTALL_DIR) -m 755 $(SERVERBIN)
 	$(INSTALL_DIR) -m 755 $(SERVERBIN)/daemon
-	$(INSTALL_BIN) cups-deviced $(SERVERBIN)/daemon
-	$(INSTALL_BIN) cups-driverd $(SERVERBIN)/daemon
-	$(INSTALL_BIN) cups-lpd $(SERVERBIN)/daemon
-	$(INSTALL_BIN) cups-polld $(SERVERBIN)/daemon
+	$(INSTALL_BIN) cups-deviced.exe $(SERVERBIN)/daemon
+	$(INSTALL_BIN) cups-driverd.exe $(SERVERBIN)/daemon
+	$(INSTALL_BIN) cups-lpd.exe $(SERVERBIN)/daemon
+	$(INSTALL_BIN) cups-polld.exe $(SERVERBIN)/daemon
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \
 		for file in $(DAEMONS); do \
@@ -330,7 +330,7 @@ cupsfilter:	cupsfilter.o $(LIBCUPSMIME) ../cups/$(LIBCUPS)
 
 cups-deviced:	cups-deviced.o util.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o cups-deviced cups-deviced.o util.o $(LIBS)
+	$(CC) $(LDFLAGS) -o cups-deviced cups-deviced.o util.o $(LIBS) -lpoll
 
 
 #

@@ -52,6 +52,10 @@
 
 #include "cupsd.h"
 
+#ifdef __OS2__
+#include <io.h>
+#endif
+
 #ifdef HAVE_CDSASSL
 #  include <Security/Security.h>
 #  ifdef HAVE_SECITEM_H
@@ -1791,7 +1795,11 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 
             cupsdSetStringf(&con->filename, "%s/%08x", RequestRoot,
 	                    request_id ++);
+#ifndef __OS2__
 	    con->file = open(con->filename, O_WRONLY | O_CREAT | O_TRUNC, 0640);
+#else
+	    con->file = open(con->filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0640);
+#endif
 
 	    if (con->file < 0)
 	    {
@@ -2119,7 +2127,11 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 
             cupsdSetStringf(&con->filename, "%s/%08x", RequestRoot,
 	                    request_id ++);
+#ifndef __OS2__
 	    con->file = open(con->filename, O_WRONLY | O_CREAT | O_TRUNC, 0640);
+#else
+	    con->file = open(con->filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0640);
+#endif
 
 	    if (con->file < 0)
 	    {
@@ -5229,7 +5241,11 @@ write_file(cupsd_client_t *con,		/* I - Client connection */
 	   char           *type,	/* I - File type */
 	   struct stat    *filestats)	/* O - File information */
 {
+#ifndef __OS2__
   con->file = open(filename, O_RDONLY);
+#else
+  con->file = open(filename, O_RDONLY | O_BINARY);
+#endif
 
   cupsdLogMessage(CUPSD_LOG_DEBUG2,
                   "write_file(con=%p(%d), code=%d, filename=\"%s\" (%d), "

@@ -748,6 +748,8 @@ cupsdAuthorize(cupsd_client_t *con)	/* I - Client connection */
 	      return;
 	    }
 
+#elif defined(__OS2__)
+/* Allow all users on OS/2 */
 #else
            /*
 	    * Use normal UNIX password file-based authentication...

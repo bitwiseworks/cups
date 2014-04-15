@@ -70,6 +70,7 @@ install:	all install-data install-headers install-libs install-exec
 #
 
 install-data:
+	mkdir -p $(SERVERROOT)
 	for file in $(KEEP); do \
 		if test -r $(SERVERROOT)/$$file ; then \
 			$(INSTALL_CONFIG) -g $(CUPS_GROUP) $$file $(SERVERROOT)/$$file.N ; \

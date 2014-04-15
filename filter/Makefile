@@ -125,10 +125,10 @@ install-data:
 install-exec:
 	$(INSTALL_DIR) -m 755 $(SERVERBIN)/filter
 	for file in $(FILTERS); do \
-		$(INSTALL_BIN) $$file $(SERVERBIN)/filter; \
+		$(INSTALL_BIN) $$file.exe $(SERVERBIN)/filter; \
 	done
-	$(RM) $(SERVERBIN)/filter/rastertodymo
-	$(LN) rastertolabel $(SERVERBIN)/filter/rastertodymo
+	$(RM) $(SERVERBIN)/filter/rastertodymo.exe
+	$(LN) rastertolabel.exe $(SERVERBIN)/filter/rastertodymo.exe
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \
 		for file in $(FILTERS); do \
@@ -284,6 +284,7 @@ framedhelp:
 bannertops:	bannertops.o pstext.o common.o ../cups/$(LIBCUPS) $(LIBCUPSIMAGE)
 	echo Linking $@...
 	$(CC) $(LDFLAGS) -o $@ bannertops.o pstext.o common.o $(LINKCUPSIMAGE) \
+		-ljpeg \
 		$(IMGLIBS) $(LIBS)
 
 
@@ -425,6 +426,7 @@ imagetops:	imagetops.o common.o $(LIBCUPSIMAGE) \
 		../cups/$(LIBCUPS)
 	echo Linking $@...
 	$(CC) $(LDFLAGS) -o $@ imagetops.o common.o $(LINKCUPSIMAGE) \
+		-ljpeg \
 		$(IMGLIBS) $(LIBS)
 
 
@@ -436,6 +438,7 @@ imagetoraster:	imagetoraster.o common.o $(LIBCUPSIMAGE) \
 		../cups/$(LIBCUPS)
 	echo Linking $@...
 	$(CC) $(LDFLAGS) -o $@ imagetoraster.o common.o $(LINKCUPSIMAGE) \
+		-ljpeg \
 		$(IMGLIBS) $(LIBS)
 
 

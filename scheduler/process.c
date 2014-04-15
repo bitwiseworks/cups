@@ -273,6 +273,15 @@ cupsdStartProcess(
   else
     user = User;
 
+#ifdef __OS2__
+    /*
+     * On OS/2 - check for the presence of the executable - if not present - append .exe and try again
+     */
+     struct stat ChkBuf;
+     int rc=stat(command,&ChkBuf);
+     if (rc)
+        strcat(command, ".exe");
+#endif
   if (stat(command, &commandinfo))
   {
     *pid = 0;
@@ -295,6 +304,7 @@ cupsdStartProcess(
 
     return (0);
   }
+#ifndef __OS2__ /* Not worried about file permissions on OS/2 */
   else if ((commandinfo.st_mode & (S_ISUID | S_IWOTH)) ||
            (!RunUser && commandinfo.st_uid))
   {
@@ -341,7 +351,7 @@ cupsdStartProcess(
     errno = EPERM;
     return (0);
   }
-
+#endif
 #if defined(__APPLE__)
   if (envp)
   {
@@ -442,7 +452,9 @@ cupsdStartProcess(
     * (this is not done for root processes...)
     */
 
+#ifndef __OS2__ /* all processes are root - we'd like to prioritise processes anyway */
     if (!root)
+#endif
       nice(FilterNice);
 
 #ifdef HAVE_SANDBOX_H
@@ -526,6 +538,16 @@ cupsdStartProcess(
 
     cupsdReleaseSignals();
 
+#ifdef __OS2__
+   /*
+    * On OS/2 - check for the presence of the executable - if not present - append .exe and try again
+    */
+    struct stat ChkBuf;
+    int rc=stat(command,&ChkBuf);
+    if (rc)
+       strcat(command, ".exe");
+    cupsdLogMessage(CUPSD_LOG_DEBUG2, "Launching command %s", command);
+#endif
    /*
     * Execute the command; if for some reason this doesn't work,
     * return the error code...

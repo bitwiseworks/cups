@@ -147,6 +147,10 @@ main(int  argc,				/* I - Number of command-line args */
 
   write_epilogue(num_pages);
 
+#ifdef __OS2__
+  fflush(stdout);
+#endif
+
   return (0);
 }
 

@@ -130,6 +130,8 @@ cupsTempFd(char *filename,		/* I - Pointer to buffer */
 #ifdef WIN32
     fd = open(filename, _O_CREAT | _O_RDWR | _O_TRUNC | _O_BINARY,
               _S_IREAD | _S_IWRITE);
+#elif __OS2__
+    fd = open(filename, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_BINARY, 0600);
 #elif defined(O_NOFOLLOW)
     fd = open(filename, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
 #else

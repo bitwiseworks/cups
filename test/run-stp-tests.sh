@@ -527,15 +527,15 @@ fi
 
 IPP_PORT=$port; export IPP_PORT
 
-while true; do
-	running=`../systemv/lpstat -r 2>/dev/null`
-	if test "x$running" = "xscheduler is running"; then
-		break
-	fi
-
-	echo "Waiting for scheduler to become ready..."
-	sleep 10
-done
+#while true; do
+#	running=`../systemv/lpstat -r 2>/dev/null`
+#	if test "x$running" = "xscheduler is running"; then
+#		break
+#	fi
+#
+#	echo "Waiting for scheduler to become ready..."
+#	sleep 10
+#done
 
 #
 # Create the test report source file...

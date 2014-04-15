@@ -36,6 +36,9 @@
 #include "data/escp.h"
 #include <signal.h>
 #include <errno.h>
+#ifdef __OS2__
+#include <sys/fcntl.h>
+#endif
 
 
 /*

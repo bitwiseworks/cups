@@ -981,7 +981,7 @@ checkrules(const char      *filename,	/* I - Filename */
 	  break;
 
       case MIME_MAGIC_LOCALE :
-#if defined(WIN32) || defined(__EMX__) || defined(__APPLE__)
+#if defined(WIN32) || defined(__APPLE__)
           result = (strcmp(rules->value.localev,
 	                   setlocale(LC_ALL, "")) == 0);
 #else

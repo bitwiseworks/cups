@@ -238,7 +238,7 @@ httpAddrLookup(
   }
 #endif /* HAVE_RES_INIT */
 
-#ifdef HAVE_GETNAMEINFO
+#if defined(HAVE_GETNAMEINFO) && !defined(__OS2__)
   {
    /*
     * STR #2486: httpAddrLookup() fails when getnameinfo() returns EAI_AGAIN

@@ -174,9 +174,13 @@ main(int  argc,				/* I - Number of command-line args */
   if ((cups_serverbin = getenv("CUPS_SERVERBIN")) == NULL)
     cups_serverbin = CUPS_SERVERBIN;
 
+#ifndef __OS2__
   snprintf(pstops_path, sizeof(pstops_path), "%s/filter/pstops",
            cups_serverbin);
-
+#else
+  snprintf(pstops_path, sizeof(pstops_path), "%s/filter/pstops.exe",
+           cups_serverbin);
+#endif
   pstops_options = strdup(argv[5]);
 
   if ((pstops_start = strstr(pstops_options, "fitplot")) != NULL &&
@@ -262,10 +266,18 @@ main(int  argc,				/* I - Number of command-line args */
   */
 
 #ifdef HAVE_PDFTOPS
+#ifndef __OS2__
   pdf_argv[0] = (char *)"pdftops";
+#else
+  pdf_argv[0] = (char *)"pdftops.exe";
+#endif
   pdf_argc    = 1;
 #else
+#ifndef __OS2__
   pdf_argv[0] = (char *)"gs";
+#else
+  pdf_argv[0] = (char *)"gsos2.exe";
+#endif
   pdf_argv[1] = (char *)"-q";
   pdf_argv[2] = (char *)"-dNOPAUSE";
   pdf_argv[3] = (char *)"-dBATCH";
@@ -407,7 +419,11 @@ main(int  argc,				/* I - Number of command-line args */
   * Execute "pdftops/gs | pstops"...
   */
 
+#ifndef __OS2__
   if (pipe(pstops_pipe))
+#else
+  if (socketpair(AF_UNIX, SOCK_STREAM,0, pstops_pipe))
+#endif
   {
     _cupsLangPrintError(_("ERROR: Unable to create pipe"));
 

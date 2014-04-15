@@ -18,7 +18,7 @@
 include ../Makedefs
 
 RBACKENDS =	ipp lpd $(DNSSD_BACKEND)
-UBACKENDS =	$(PAP) $(LEGACY_BACKENDS) serial snmp socket usb
+UBACKENDS =	$(PAP) $(LEGACY_BACKENDS) snmp socket usb
 UNITTESTS =	test1284 testbackend testsupplies
 TARGETS =	libbackend.a $(RBACKENDS) $(UBACKENDS)
 LIBOBJS	=	ieee1284.o network.o runloop.o snmp-supplies.o
@@ -84,10 +84,10 @@ install-data:
 install-exec:
 	$(INSTALL_DIR) -m 755 $(SERVERBIN)/backend
 	for file in $(RBACKENDS); do \
-		$(LIBTOOL) $(INSTALL_BIN) -m 700 $$file $(SERVERBIN)/backend; \
+		$(LIBTOOL) $(INSTALL_BIN) -m 700 $$file.exe $(SERVERBIN)/backend; \
 	done
 	for file in $(UBACKENDS); do \
-		$(INSTALL_BIN) $$file $(SERVERBIN)/backend; \
+		$(INSTALL_BIN) $$file.exe $(SERVERBIN)/backend; \
 	done
 	$(RM) $(SERVERBIN)/backend/http
 	$(LN) ipp $(SERVERBIN)/backend/http
@@ -266,7 +266,7 @@ socket:	socket.o ../cups/$(LIBCUPS) libbackend.a
 usb:	usb.o ../cups/$(LIBCUPS) libbackend.a
 	echo Linking $@...
 	$(CC) $(LDFLAGS) -o usb usb.o libbackend.a $(LIBUSB) \
-		$(BACKLIBS) $(LIBS)
+		$(BACKLIBS) $(LIBS) -lusb-1.0 -lusbcalls -lpoll
 usb.o:	usb.c usb-darwin.c usb-libusb.c usb-unix.c
 
 

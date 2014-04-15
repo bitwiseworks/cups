@@ -812,7 +812,7 @@ cupsSetDests2(http_t      *http,	/* I - Connection to server or @code CUPS_HTTP_
     return (-1);
   }
 
-#ifndef WIN32
+#if !defined(WIN32) && !defined(__OS2__)
  /*
   * Set the permissions to 0644 when saving to the /etc/cups/lpoptions
   * file...

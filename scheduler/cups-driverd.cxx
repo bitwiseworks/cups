@@ -381,6 +381,9 @@ cat_drv(const char *name,		/* I - PPD name */
 
     out = cupsFileStdout();
     d->write_ppd_file(out, NULL, locales, src, PPDC_LFONLY);
+#ifdef __OS2__
+    fflush(stdout);
+#endif
     cupsFileClose(out);
 
     locales->release();
@@ -675,6 +678,9 @@ cat_static(const char *name,		/* I - PPD name */
   while (cupsFileGets(fp, line, sizeof(line)))
     puts(line);
 
+#ifdef __OS2__
+  fflush(stdout);
+#endif
   cupsFileClose(fp);
 
   return (0);
@@ -2334,6 +2340,9 @@ load_ppds_dat(char   *filename,		/* I - Filename buffer */
     cups_cachedir = CUPS_CACHEDIR;
 
   snprintf(filename, filesize, "%s/ppds.dat", cups_cachedir);
+#ifdef __OS2__
+  unlink(filename);
+#endif
   if ((fp = cupsFileOpen(filename, "r")) != NULL)
   {
    /*

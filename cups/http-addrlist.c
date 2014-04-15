@@ -267,7 +267,7 @@ httpAddrGetList(const char *hostname,	/* I - Hostname, IP address, or NULL for p
 #endif /* AF_LOCAL */
   if (!hostname || strcasecmp(hostname, "localhost"))
   {
-#ifdef HAVE_GETADDRINFO
+#if defined(HAVE_GETADDRINFO) && !defined(__OS2__)
     struct addrinfo	hints,		/* Address lookup hints */
 			*results,	/* Address lookup results */
 			*current;	/* Current result */

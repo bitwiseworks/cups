@@ -33,6 +33,9 @@
 #    include <pthread.h>
 #  endif /* HAVE_PTHREAD_H */
 
+#  ifdef __OS2__
+#   undef AF_INET6
+#  endif
 
 /*
  * C++ magic...

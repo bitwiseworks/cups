@@ -81,31 +81,31 @@ install-data:
 install-exec:
 	echo Installing System V admin printing commands in $(SBINDIR)
 	$(INSTALL_DIR) -m 755 $(SBINDIR)
-	$(INSTALL_BIN) cupsaccept $(SBINDIR)
-	$(INSTALL_BIN) cupsaddsmb $(SBINDIR)
-	$(INSTALL_BIN) cupsctl $(SBINDIR)
-	$(INSTALL_BIN) lpadmin $(SBINDIR)
-	$(INSTALL_BIN) lpinfo $(SBINDIR)
-	$(INSTALL_BIN) lpmove $(SBINDIR)
-	$(RM) $(SBINDIR)/accept
-	$(LN) cupsaccept $(SBINDIR)/accept
-	$(RM) $(SBINDIR)/cupsdisable
-	$(LN) cupsaccept $(SBINDIR)/cupsdisable
-	$(RM) $(SBINDIR)/cupsenable
-	$(LN) cupsaccept $(SBINDIR)/cupsenable
-	$(RM) $(SBINDIR)/cupsreject
-	$(LN) cupsaccept $(SBINDIR)/cupsreject
-	$(RM) $(SBINDIR)/reject
-	$(LN) cupsaccept $(SBINDIR)/reject
+	$(INSTALL_BIN) cupsaccept.exe $(SBINDIR)
+	$(INSTALL_BIN) cupsaddsmb.exe $(SBINDIR)
+	$(INSTALL_BIN) cupsctl.exe $(SBINDIR)
+	$(INSTALL_BIN) lpadmin.exe $(SBINDIR)
+	$(INSTALL_BIN) lpinfo.exe $(SBINDIR)
+	$(INSTALL_BIN) lpmove.exe $(SBINDIR)
+	$(RM) $(SBINDIR)/accept.exe
+	$(LN) cupsaccept.exe $(SBINDIR)/accept.exe
+	$(RM) $(SBINDIR)/cupsdisable.exe
+	$(LN) cupsaccept.exe $(SBINDIR)/cupsdisable.exe
+	$(RM) $(SBINDIR)/cupsenable.exe
+	$(LN) cupsaccept.exe $(SBINDIR)/cupsenable.exe
+	$(RM) $(SBINDIR)/cupsreject.exe
+	$(LN) cupsaccept.exe $(SBINDIR)/cupsreject.exe
+	$(RM) $(SBINDIR)/reject.exe
+	$(LN) cupsaccept.exe $(SBINDIR)/reject.exe
 	echo Installing System V user printing commands in $(BINDIR)
 	$(INSTALL_DIR) -m 755 $(BINDIR)
-	$(INSTALL_BIN) cancel $(BINDIR)
-	$(INSTALL_BIN) cupstestdsc $(BINDIR)
-	$(INSTALL_BIN) cupstestppd $(BINDIR)
-	$(INSTALL_BIN) lp $(BINDIR)
-	$(INSTALL_BIN) lpoptions $(BINDIR)
-	$(INSTALL_BIN) lpstat $(BINDIR)
-	$(INSTALL_BIN) lppasswd $(BINDIR)
+	$(INSTALL_BIN) cancel.exe $(BINDIR)
+	$(INSTALL_BIN) cupstestdsc.exe $(BINDIR)
+	$(INSTALL_BIN) cupstestppd.exe $(BINDIR)
+	$(INSTALL_BIN) lp.exe $(BINDIR)
+	$(INSTALL_BIN) lpoptions.exe $(BINDIR)
+	$(INSTALL_BIN) lpstat.exe $(BINDIR)
+	$(INSTALL_BIN) lppasswd.exe $(BINDIR)
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \
 		for file in $(TARGETS); do \

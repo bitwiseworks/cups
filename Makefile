@@ -20,7 +20,7 @@ include Makedefs
 # Directories to make...
 #
 
-DIRS	=	cups filter backend berkeley cgi-bin driver locale man monitor \
+DIRS	=	cups filter backend berkeley cgi-bin driver locale monitor \
 		notifier ppdc scheduler systemv test \
 		$(PHPDIR) \
 		conf data doc examples $(FONTS) templates
@@ -170,22 +170,22 @@ install-data:
 	echo Installing cups-config script...
 	$(INSTALL_DIR) -m 755 $(BINDIR)
 	$(INSTALL_SCRIPT) cups-config $(BINDIR)/cups-config
-	if test "x$(INITDIR)" != x; then \
-		echo Installing init scripts...; \
-		$(INSTALL_DIR) -m 755 $(BUILDROOT)$(INITDIR)/init.d; \
-		$(INSTALL_SCRIPT) init/cups.sh $(BUILDROOT)$(INITDIR)/init.d/cups; \
-		for level in $(RCLEVELS); do \
-			$(INSTALL_DIR) -m 755 $(BUILDROOT)$(INITDIR)/rc$${level}.d; \
-			$(LN) ../init.d/cups $(BUILDROOT)$(INITDIR)/rc$${level}.d/S$(RCSTART)cups; \
-			if test `uname` = HP-UX; then \
-				level=`expr $$level - 1`; \
-				$(INSTALL_DIR) -m 755 $(BUILDROOT)$(INITDIR)/rc$${level}.d; \
-			fi; \
-			$(LN) ../init.d/cups $(BUILDROOT)$(INITDIR)/rc$${level}.d/K$(RCSTOP)cups; \
-		done; \
-		$(INSTALL_DIR) -m 755 $(BUILDROOT)$(INITDIR)/rc0.d; \
-		$(LN) ../init.d/cups $(BUILDROOT)$(INITDIR)/rc0.d/K$(RCSTOP)cups; \
-	fi
+#	if test "x$(INITDIR)" != x; then \
+#		echo Installing init scripts...; \
+#		$(INSTALL_DIR) -m 755 $(BUILDROOT)$(INITDIR)/init.d; \
+#		$(INSTALL_SCRIPT) init/cups.sh $(BUILDROOT)$(INITDIR)/init.d/cups; \
+#		for level in $(RCLEVELS); do \
+#			$(INSTALL_DIR) -m 755 $(BUILDROOT)$(INITDIR)/rc$${level}.d; \
+#			$(LN) ../init.d/cups $(BUILDROOT)$(INITDIR)/rc$${level}.d/S$(RCSTART)cups; \
+#			if test `uname` = HP-UX; then \
+#				level=`expr $$level - 1`; \
+#				$(INSTALL_DIR) -m 755 $(BUILDROOT)$(INITDIR)/rc$${level}.d; \
+#			fi; \
+#			$(LN) ../init.d/cups $(BUILDROOT)$(INITDIR)/rc$${level}.d/K$(RCSTOP)cups; \
+#		done; \
+#		$(INSTALL_DIR) -m 755 $(BUILDROOT)$(INITDIR)/rc0.d; \
+#		$(LN) ../init.d/cups $(BUILDROOT)$(INITDIR)/rc0.d/K$(RCSTOP)cups; \
+#	fi
 	if test "x$(INITDIR)" = x -a "x$(INITDDIR)" != x; then \
 		$(INSTALL_DIR) $(BUILDROOT)$(INITDDIR); \
 		if test "$(INITDDIR)" = "/System/Library/LaunchDaemons"; then \

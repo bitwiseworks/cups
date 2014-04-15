@@ -123,7 +123,7 @@ install-data:
 install-exec:
 	$(INSTALL_DIR) $(SERVERBIN)/filter
 	for file in $(FILTERS); do \
-		$(INSTALL_BIN) $$file $(SERVERBIN)/filter; \
+		$(INSTALL_BIN) $$file.exe $(SERVERBIN)/filter; \
 	done
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \

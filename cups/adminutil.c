@@ -2290,7 +2290,7 @@ get_cupsd_conf(
       status = HTTP_OK;
   }
   else
-#endif /* !WIN32 */
+#endif /* !WIN32 && !__OS2__ */
   {
    /*
     * Read cupsd.conf via a HTTP GET request...

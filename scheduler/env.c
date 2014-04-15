@@ -218,8 +218,15 @@ cupsdUpdateEnv(void)
   set_if_undefined("LD_PRELOAD", NULL);
   set_if_undefined("NLSPATH", NULL);
   if (find_env("PATH") < 0)
+#ifndef __OS2__
     cupsdSetEnvf("PATH", "%s/filter:" CUPS_BINDIR ":" CUPS_SBINDIR
 			 ":/bin:/usr/bin", ServerBin);
+#else
+    cupsdSetEnvf("PATH", "%s/filter;" CUPS_BINDIR ";" CUPS_SBINDIR
+                       ";/bin;/usr/bin", ServerBin);
+  cupsdSetEnv("COMSPEC", NULL);
+  cupsdSetEnv("ETC", NULL);
+#endif
   set_if_undefined("SERVER_ADMIN", ServerAdmin);
   set_if_undefined("SHLIB_PATH", NULL);
   set_if_undefined("SOFTWARE", CUPS_MINIMAL);

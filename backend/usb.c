@@ -55,7 +55,7 @@ int	print_device(const char *uri, const char *hostname,
  * Include the vendor-specific USB implementation...
  */
 
-#ifdef HAVE_USB_H
+#if defined(HAVE_USB_H) || defined(__OS2__)
 #  include "usb-libusb.c"
 #elif defined(__APPLE__)
 #  include "usb-darwin.c"

@@ -17,6 +17,11 @@
 
 include ../Makedefs
 
+OS2_LA_NAME=libcups
+OS2_DLL_NAME=cups
+OS2_DLL_OBJ=$(LIBOBJS:%.lo=%.o) 
+OS2_DLL_LIBS=-lssl -lcrypto -lpthread -lz
+
 #
 # Object files...
 #
@@ -118,7 +123,8 @@ LIBTARGETS =	\
 		$(LIBCUPS) \
 		$(LIB32CUPS) \
 		$(LIB64CUPS) \
-		libcups.a
+		libcups.a \
+		$(OS2_DLL_NAME).dll  
 
 UNITTARGETS =	\
 		testadmin \
@@ -225,6 +231,10 @@ install-libs: $(INSTALLSTATIC) $(INSTALL32) $(INSTALL64)
 	echo Installing libraries in $(LIBDIR)...
 	$(INSTALL_DIR) -m 755 $(LIBDIR)
 	$(INSTALL_LIB) $(LIBCUPS) $(LIBDIR)
+	$(INSTALL) $(OS2_DLL_NAME).dll $(LIBDIR)
+	$(INSTALL) libcups.a $(LIBDIR)
+	$(INSTALL) libcups_s.a $(LIBDIR)
+
 	if test $(LIBCUPS) = "libcups.so.2" -o $(LIBCUPS) = "libcups.sl.2"; then \
 		$(RM) $(LIBDIR)/`basename $(LIBCUPS) .2`; \
 		$(LN) $(LIBCUPS) $(LIBDIR)/`basename $(LIBCUPS) .2`; \
@@ -631,6 +641,17 @@ framedhelp:
 		--header api-filter.header --intro api-filter.shtml \
 		backchannel.c backend.h backend.c sidechannel.c sidechannel.h
 
+$(OS2_DLL_NAME).dll: 
+	rm -f $(OS2_DLL_NAME)*.a 
+	ar cru $(OS2_LA_NAME)_s.a $(OS2_DLL_OBJ) 
+	echo "LIBRARY $(OS2_DLL_NAME) INITINSTANCE TERMINSTANCE" > $(OS2_DLL_NAME).def 
+	echo "DATA MULTIPLE" >> $(OS2_DLL_NAME).def 
+	echo "EXPORTS" >> $(OS2_DLL_NAME).def 
+	emxexp $(OS2_DLL_OBJ) >> $(OS2_DLL_NAME).def 
+	gcc -g -Zbin-files -Zomf -Zdll $(OS2_DLL_NAME).def -o $@ $(OS2_DLL_OBJ) $(OS2_DLL_LIBS)  
+	emximp -o $(OS2_LA_NAME).a $(OS2_DLL_NAME).def 
+	emximp -o $(OS2_LA_NAME).lib $(OS2_DLL_NAME).def 
+	cp $@ .libs 
 
 #
 # Dependencies...

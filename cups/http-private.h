@@ -65,7 +65,7 @@
 #    include <Security/Authorization.h>
 #  endif /* HAVE_AUTHORIZATION_H */
 
-#  if defined(__sgi) || (defined(__APPLE__) && !defined(_SOCKLEN_T))
+#  if defined(__sgi) || defined(__KLIBC__) || (defined(__APPLE__) && !defined(_SOCKLEN_T))
 /*
  * IRIX and MacOS X 10.2.x do not define socklen_t, and in fact use an int instead of
  * unsigned type for length values...

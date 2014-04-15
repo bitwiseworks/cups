@@ -1112,6 +1112,15 @@ cupsdLoadAllPrinters(void)
           if ((valueptr = strchr(line + strlen(ServerBin), ':')) != NULL)
 	    *valueptr = '\0';		/* Chop everything but URI scheme */
 
+#ifdef __OS2__
+   /*
+    * On OS/2 - check for the presence of the executable - if not present - append .exe and try again
+    */
+    struct stat ChkBuf;
+    int rc=stat(line,&ChkBuf);
+    if (rc)
+       strcat(line, ".exe");
+#endif
           if (access(line, 0))
 	  {
 	   /*
@@ -3655,6 +3664,17 @@ add_printer_filter(
     else
       snprintf(filename, sizeof(filename), "%s/filter/%s", ServerBin, program);
 
+#ifdef __OS2__
+   /*
+    * On OS/2 - check for the presence of the executable - if not present - append .exe and try again
+    */
+    struct stat ChkBuf;
+    int rc=stat(filename,&ChkBuf);
+
+    if (rc)
+       strcat(filename, ".exe");
+
+#endif
     if (stat(filename, &fileinfo))
     {
       memset(&fileinfo, 0, sizeof(fileinfo));
@@ -3671,6 +3691,7 @@ add_printer_filter(
     * When running as root, do additional security checks...
     */
 
+#ifndef __OS2__ /* but don't bother on OS/2 */
     if (!RunUser)
     {
      /*
@@ -3722,6 +3743,7 @@ add_printer_filter(
 	}
       }
     }
+#endif /* __OS2 */
   }
 
  /*

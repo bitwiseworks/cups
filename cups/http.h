@@ -295,7 +295,7 @@ typedef union _http_addr_u		/**** Socket address union, which
 {
   struct sockaddr	addr;		/* Base structure for family value */
   struct sockaddr_in	ipv4;		/* IPv4 address */
-#ifdef AF_INET6
+#if defined(AF_INET6)&&!defined(__OS2__)
   struct sockaddr_in6	ipv6;		/* IPv6 address */
 #endif /* AF_INET6 */
 #ifdef AF_LOCAL

@@ -37,7 +37,7 @@
 #elif defined(HAVE_KQUEUE)
 #  include <sys/event.h>
 #  include <sys/time.h>
-#elif defined(HAVE_POLL)
+#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
 #  include <sys/poll.h>
 #elif defined(__hpux)
 #  include <sys/time.h>
@@ -219,7 +219,7 @@ static int		cupsd_in_select = 0;
 static int		cupsd_kqueue_fd = -1,
 			cupsd_kqueue_changes = 0;
 static struct kevent	*cupsd_kqueue_events = NULL;
-#elif defined(HAVE_POLL)
+#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
 static int		cupsd_alloc_pollfds = 0,
 			cupsd_update_pollfds = 0;
 static struct pollfd	*cupsd_pollfds = NULL;
@@ -347,7 +347,7 @@ cupsdAddSelect(int             fd,	/* I - File descriptor */
     }
   }
 
-#elif defined(HAVE_POLL)
+#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
 #  ifdef HAVE_EPOLL
   if (cupsd_epoll_fd >= 0)
   {
@@ -461,7 +461,7 @@ cupsdDoSelect(long timeout)		/* I - Timeout in seconds */
     release_fd(fdptr);
   }
 
-#elif defined(HAVE_POLL)
+#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
   struct pollfd		*pfd;		/* Current pollfd structure */
   int			count;		/* Number of file descriptors */
 
@@ -626,13 +626,72 @@ cupsdDoSelect(long timeout)		/* I - Timeout in seconds */
   {
     stimeout.tv_sec  = timeout;
     stimeout.tv_usec = 0;
-
     nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
                   &stimeout);
   }
   else
     nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
                   NULL);
+
+#ifdef __EMX__
+  /* libc's select() is flaky - pause 0.5 second and retry */	
+  if (nfds == -1) {
+    usleep(500000);
+    cupsdLogMessage(CUPSD_LOG_INFO, "cupsdDoSelect: select() returned %d... pause and retry select()",
+                  nfds);
+  if (timeout >= 0 && timeout < 86400)
+  {
+    stimeout.tv_sec  = timeout;
+    stimeout.tv_usec = 0;
+    nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
+                  &stimeout);
+  }
+  else
+    nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
+                  NULL);
+		}
+
+  if (nfds == -1) {
+
+
+  /* fcntl O_NONBLOCK doesn't always succeed on OS/2 - force the socket to be non-blocking */
+  char dontblock =1;
+  cupsdLogMessage(CUPSD_LOG_INFO, "cupsdDoSelect: select() returned %d (2nd failure)... setting socket to non-blocking mode",
+                  nfds);
+  os2_ioctl(maxfd, FIONBIO, &dontblock,sizeof(dontblock));
+
+  usleep(500000);
+  cupsdLogMessage(CUPSD_LOG_INFO, "cupsdDoSelect: select() returned %d (2nd failure)... pause and retry select()",
+                  nfds);
+  if (timeout >= 0 && timeout < 86400)
+  {
+    stimeout.tv_sec  = timeout;
+    stimeout.tv_usec = 0;
+    nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
+                  &stimeout);
+  }
+  else
+    nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
+                  NULL);
+		}
+
+  if (nfds == -1) {
+    usleep(500000);
+    cupsdLogMessage(CUPSD_LOG_INFO, "cupsdDoSelect: select() returned %d (3rd failure)... pause and retry select()",
+                  nfds);
+  if (timeout >= 0 && timeout < 86400)
+  {
+    stimeout.tv_sec  = timeout;
+    stimeout.tv_usec = 0;
+    nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
+                  &stimeout);
+  }
+  else
+    nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
+                  NULL);
+		}
+
+#endif
 
   if (nfds > 0)
   {
@@ -714,7 +773,7 @@ cupsdRemoveSelect(int fd)		/* I - File descriptor */
 #elif defined(HAVE_KQUEUE)
   struct kevent		event;		/* Event data */
   struct timespec	timeout;	/* Timeout value */
-#elif defined(HAVE_POLL)
+#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
   /* No variables for poll() */
 #endif /* HAVE_EPOLL */
 
@@ -771,7 +830,7 @@ cupsdRemoveSelect(int fd)		/* I - File descriptor */
     }
   }
 
-#elif defined(HAVE_POLL)
+#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
  /*
   * Update the pollfds array...
   */
@@ -831,7 +890,7 @@ cupsdStartSelect(void)
   cupsd_kqueue_changes = 0;
   cupsd_kqueue_events  = calloc(MaxFDs, sizeof(struct kevent));
 
-#elif defined(HAVE_POLL)
+#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
   cupsd_update_pollfds = 0;
 
 #else /* select() */
@@ -881,7 +940,7 @@ cupsdStopSelect(void)
 
   cupsd_kqueue_changes = 0;
 
-#elif defined(HAVE_POLL)
+#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
 #  ifdef HAVE_EPOLL
   if (cupsd_epoll_events)
   {

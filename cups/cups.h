@@ -47,6 +47,9 @@ typedef off_t ssize_t;			/* @private@ */
 #    define _CUPS_DEPRECATED
 #  endif /* __GNUC__ && __GNUC__ > 2 */
 
+#  ifdef __OS2__
+#   undef AF_INET6
+#  endif
 
 /*
  * C++ magic...

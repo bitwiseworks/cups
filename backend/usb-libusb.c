@@ -169,7 +169,8 @@ print_device(const char *uri,		/* I - Device URI */
 
       if (pfds[0].revents & (POLLIN | POLLHUP))
       {
-	if ((bytes = read(print_fd, buffer, sizeof(buffer))) > 0)
+//	if ((bytes = read(print_fd, buffer, sizeof(buffer))) > 0)
+	while (((bytes = read(print_fd, buffer, sizeof(buffer))) > 0) && errno != EAGAIN && errno != EINTR)
 	{
 	  if (usb_bulk_write(printer->handle, printer->write_endp, buffer,
 	                        bytes, 3600000) < 0)
@@ -183,8 +184,8 @@ print_device(const char *uri,		/* I - Device URI */
 
 	  tbytes += bytes;
 	}
-	else if (bytes == 0 || (bytes < 0 && errno != EAGAIN && errno != EINTR))
-	  break;
+//	else if (bytes == 0 || (bytes < 0 && errno != EAGAIN && errno != EINTR))
+//	  break;
       }
 
       if (pfds[1].revents & (POLLIN | POLLHUP))

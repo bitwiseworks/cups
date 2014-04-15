@@ -11928,7 +11928,8 @@ eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
 	 test ! -s conftest.err
        } && test -s conftest$ac_exeext &&
        $as_test_x conftest$ac_exeext; then
-  OPTIM="$OPTIM -fstack-protector"
+#  OPTIM="$OPTIM -fstack-protector"
+  OPTIM="$OPTIM "
 		{ echo "$as_me:$LINENO: result: yes" >&5
 echo "${ECHO_T}yes" >&6; }
 else

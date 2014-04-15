@@ -139,7 +139,7 @@ install-exec:
 	echo Installing PPD compiler programs...
 	$(INSTALL_DIR) $(BINDIR)
 	for file in $(EXECTARGETS); do \
-		$(INSTALL_BIN) $$file $(BINDIR); \
+		$(INSTALL_BIN) $$file.exe $(BINDIR); \
 	done
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \
