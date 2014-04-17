@@ -234,6 +234,13 @@ cupsdUpdateEnv(void)
   set_if_undefined("TZ", NULL);
   set_if_undefined("USER", "root");
   set_if_undefined("VG_ARGS", NULL);
+#if defined(__OS2__)
+  /*
+  * Always define UNIXROOT for child processes
+  */
+  if (getenv("UNIXROOT"))
+    set_if_undefined("UNIXROOT", getenv("UNIXROOT"));
+#endif	/* __OS2__ */
 }
 
 
