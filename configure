@@ -11563,7 +11563,7 @@ if test x$enable_shared != xno; then
 			LIBCUPSPPDC="cupspp.dll"
 			DSO="\$(CC)"
 			DSOXX="\$(CXX)"
-			DSOFLAGS="$DSOFLAGS -Zdll \$(OPTIM)"
+			DSOFLAGS="$DSOFLAGS -g -Zdll $LDFLAGS \$(OPTIM)"
 			PICFLAG=0
 			;;
 		*)
