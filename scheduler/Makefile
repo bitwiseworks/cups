@@ -365,11 +365,11 @@ cups-polld:	cups-polld.o ../cups/$(LIBCUPS)
 # libcupsmime.so.1, libcupsmime.sl.1
 #
 
-libcupsmime.so.1 libcupsmime.sl.1:	$(LIBOBJS)
+$(LIBCUPSMIME) libcupsmime.sl.1:	$(LIBOBJS)
 	echo Linking $@...
 	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(LIBOBJS) $(LIBS)
-	$(RM) `basename $@ .1`
-	$(LN) $@ `basename $@ .1`
+#	$(RM) `basename $@ .1`
+#	$(LN) $@ `basename $@ .1`
 
 
 #

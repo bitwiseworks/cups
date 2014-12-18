@@ -285,6 +285,7 @@ bannertops:	bannertops.o pstext.o common.o ../cups/$(LIBCUPS) $(LIBCUPSIMAGE)
 	echo Linking $@...
 	$(CC) $(LDFLAGS) -o $@ bannertops.o pstext.o common.o $(LINKCUPSIMAGE) \
 		-ljpeg \
+		$(LIBTIFF) $(LIBPNG) \
 		$(IMGLIBS) $(LIBS)
 
 
@@ -328,12 +329,12 @@ hpgltops:	$(HPGLOBJS) common.o ../cups/$(LIBCUPS)
 # libcupsimage.so.2, libcupsimage.sl.2
 #
 
-libcupsimage.so.2 libcupsimage.sl.2:	$(IMAGEOBJS)
+$(LIBCUPSIMAGE) libcupsimage.sl.2:	$(IMAGEOBJS)
 	echo Linking $@...
 	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(IMAGEOBJS) $(DSOLIBS) \
 		-L../cups $(LINKCUPS) -lm
-	$(RM) `basename $@ .2`
-	$(LN) $@ `basename $@ .2`
+#	$(RM) `basename $@ .2`
+#	$(LN) $@ `basename $@ .2`
 
 
 #
@@ -427,6 +428,7 @@ imagetops:	imagetops.o common.o $(LIBCUPSIMAGE) \
 	echo Linking $@...
 	$(CC) $(LDFLAGS) -o $@ imagetops.o common.o $(LINKCUPSIMAGE) \
 		-ljpeg \
+		$(LIBTIFF) $(LIBPNG) \
 		$(IMGLIBS) $(LIBS)
 
 
@@ -439,6 +441,7 @@ imagetoraster:	imagetoraster.o common.o $(LIBCUPSIMAGE) \
 	echo Linking $@...
 	$(CC) $(LDFLAGS) -o $@ imagetoraster.o common.o $(LINKCUPSIMAGE) \
 		-ljpeg \
+		$(LIBTIFF) $(LIBPNG) \
 		$(IMGLIBS) $(LIBS)
 
 

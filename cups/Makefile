@@ -123,8 +123,10 @@ LIBTARGETS =	\
 		$(LIBCUPS) \
 		$(LIB32CUPS) \
 		$(LIB64CUPS) \
-		libcups.a \
-		$(OS2_DLL_NAME).dll  
+		libcups.a 
+
+#\
+#		$(OS2_DLL_NAME).dll  
 
 UNITTARGETS =	\
 		testadmin \
@@ -231,7 +233,7 @@ install-libs: $(INSTALLSTATIC) $(INSTALL32) $(INSTALL64)
 	echo Installing libraries in $(LIBDIR)...
 	$(INSTALL_DIR) -m 755 $(LIBDIR)
 	$(INSTALL_LIB) $(LIBCUPS) $(LIBDIR)
-	$(INSTALL) $(OS2_DLL_NAME).dll $(LIBDIR)
+#	$(INSTALL) $(OS2_DLL_NAME).dll $(LIBDIR)
 	$(INSTALL) libcups.a $(LIBDIR)
 	$(INSTALL) libcups_s.a $(LIBDIR)
 
@@ -301,12 +303,13 @@ uninstall64bit:
 # libcups.so.2, libcups.sl.2
 #
 
-libcups.so.2 libcups.sl.2:	$(LIBOBJS)
+$(LIBCUPS) libcups.sl.2:	$(LIBOBJS)
 	echo Linking $@...
 	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(LIBOBJS) $(LIBGSSAPI) \
+		cups.def \
 		$(SSLLIBS) $(DNSSDLIBS) $(COMMONLIBS) $(LIBZ)
-	$(RM) `basename $@ .2`
-	$(LN) $@ `basename $@ .2`
+#	$(RM) `basename $@ .2`
+#	$(LN) $@ `basename $@ .2`
 
 
 #
@@ -386,6 +389,9 @@ libcups.a:	$(LIBOBJS)
 	$(RM) $@
 	$(AR) $(ARFLAGS) $@ $(LIBOBJS)
 	$(RANLIB) $@
+	mv libcups.a libcups_s.a
+	emximp -o libcups.a $(LIBCUPS)
+	emximp -o libcups.lib $(LIBCUPS)
 
 
 #
@@ -641,7 +647,7 @@ framedhelp:
 		--header api-filter.header --intro api-filter.shtml \
 		backchannel.c backend.h backend.c sidechannel.c sidechannel.h
 
-$(OS2_DLL_NAME).dll: 
+$(OS2_DLL_NAME).dll_: 
 	rm -f $(OS2_DLL_NAME)*.a 
 	ar cru $(OS2_LA_NAME)_s.a $(OS2_DLL_OBJ) 
 	echo "LIBRARY $(OS2_DLL_NAME) INITINSTANCE TERMINSTANCE" > $(OS2_DLL_NAME).def 

@@ -315,11 +315,11 @@ testrgb:		test testrgb.o libcupsdriver.a ../cups/libcups.a
 # libcupsdriver.so.1, libcupsdriver.sl.1
 #
 
-libcupsdriver.so.1 libcupsdriver.sl.1:	$(LIBOBJS)
+$(LIBCUPSDRIVER) libcupsdriver.sl.1:	$(LIBOBJS)
 	echo Linking $@...
 	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(LIBOBJS) $(LIBS)
-	$(RM) `basename $@ .1`
-	$(LN) $@ `basename $@ .1`
+#	$(RM) `basename $@ .1`
+#	$(LN) $@ `basename $@ .1`
 
 
 #

@@ -212,11 +212,11 @@ framedhelp:
 # libcupscgi.so.1, libcupscgi.sl.1
 #
 
-libcupscgi.so.1 libcupscgi.sl.1:	$(LIBOBJS)
+$(LIBCUPSCGI) libcupscgi.sl.1:	$(LIBOBJS)
 	echo Linking $@...
 	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(LIBOBJS) $(LIBS)
-	$(RM) `basename $@ .1`
-	$(LN) $@ `basename $@ .1`
+#	$(RM) `basename $@ .1`
+#	$(LN) $@ `basename $@ .1`
 
 
 #

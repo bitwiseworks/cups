@@ -237,11 +237,11 @@ framedhelp:
 # genstrings - generate GNU gettext strings.
 #
 
-genstrings:		genstrings.o libcupsppdc.a ../cups/libcups.a \
+genstrings:		genstrings.o libcupsppdc.a ../cups/libcups_s.a \
 			sample.drv ../data/media.defs
 	echo Linking $@...
 	$(CXX) $(ARCHFLAGS) $(LDFLAGS) -o genstrings genstrings.o \
-		libcupsppdc.a ../cups/libcups.a $(LIBGSSAPI) $(SSLLIBS) \
+		libcupsppdc.a ../cups/libcups_s.a $(LIBGSSAPI) $(SSLLIBS) \
 		$(DNSSDLIBS) $(COMMONLIBS) $(LIBZ)
 	echo Generating localization strings...
 	./genstrings >sample.c
@@ -335,11 +335,11 @@ testcatalog:		testcatalog.o libcupsppdc.a ../cups/libcups.a
 # libcupsppdc.so.1, libcupsppdc.sl.1
 #
 
-libcupsppdc.so.1 libcupsppdc.sl.1:	$(LIBOBJS) ../cups/$(LIBCUPS)
+$(LIBCUPSPPDC) libcupsppdc.sl.1:	$(LIBOBJS) ../cups/$(LIBCUPS)
 	echo Linking $@...
 	$(DSOXX) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(LIBOBJS) $(LINKCUPS)
-	$(RM) `basename $@ .1`
-	$(LN) $@ `basename $@ .1`
+#	$(RM) `basename $@ .1`
+#	$(LN) $@ `basename $@ .1`
 
 
 #

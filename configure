@@ -11137,7 +11137,7 @@ _ACEOF
 # Locale data
 if test "$localedir" = "\${datarootdir}/locale"; then
 	case "$uname" in
-		Linux | GNU | *BSD* | Darwin*)
+		Linux | GNU | *BSD* | Darwin* | OS/2*)
 			CUPS_LOCALEDIR="$datarootdir/locale"
 			;;
 
@@ -11553,6 +11553,18 @@ if test x$enable_shared != xno; then
 			DSO="\$(CC)"
 			DSOXX="\$(CXX)"
 			DSOFLAGS="$DSOFLAGS -Wl,-bexpall,-bM:SRE,-bnoentry,-blibpath:\$(libdir)"
+			;;
+		OS/2*)
+			LIBCUPS="cups.dll"
+			LIBCUPSCGI="cupscgi.dll"
+			LIBCUPSDRIVER="cupsdr.dll"
+			LIBCUPSIMAGE="cupsim.dll"
+			LIBCUPSMIME="cupsmim.dll"
+			LIBCUPSPPDC="cupspp.dll"
+			DSO="\$(CC)"
+			DSOXX="\$(CXX)"
+			DSOFLAGS="$DSOFLAGS -Zdll \$(OPTIM)"
+			PICFLAG=0
 			;;
 		*)
 			echo "Warning: shared libraries may not be supported.  Trying -shared"
