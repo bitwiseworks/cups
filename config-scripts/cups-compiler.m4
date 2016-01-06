@@ -141,8 +141,15 @@ if test -n "$GCC"; then
 	OLDCFLAGS="$CFLAGS"
 	CFLAGS="$CFLAGS -fstack-protector"
 	AC_TRY_LINK(,,
-		OPTIM="$OPTIM -fstack-protector"
-		AC_MSG_RESULT(yes),
+		[case "$uname" in
+		OS/2*)
+			OPTIM="$OPTIM"
+			;;
+		*)
+			OPTIM="$OPTIM -fstack-protector"
+			;;
+		esac
+		AC_MSG_RESULT(yes)],
 		AC_MSG_RESULT(no))
 	CFLAGS="$OLDCFLAGS"
 

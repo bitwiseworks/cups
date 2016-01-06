@@ -112,6 +112,17 @@ if test x$enable_shared != xno; then
 			DSOXX="\$(CXX)"
 			DSOFLAGS="$DSOFLAGS -Wl,-bexpall,-bM:SRE,-bnoentry,-blibpath:\$(libdir)"
 			;;
+		OS/2*)
+			LIBCUPS="cups.dll"
+			LIBCUPSCGI="cupscgi.dll"
+			LIBCUPSDRIVER="cupsdr.dll"
+			LIBCUPSIMAGE="cupsim.dll"
+			LIBCUPSMIME="cupsmim.dll"
+			LIBCUPSPPDC="cupspp.dll"
+			DSO="\$(CC)"
+			DSOXX="\$(CXX)"
+			DSOFLAGS="$DSOFLAGS -g -Zdll $LDFLAGS \$(OPTIM)"
+			;;
 		*)
 			echo "Warning: shared libraries may not be supported.  Trying -shared"
 			echo "         option with compiler."
