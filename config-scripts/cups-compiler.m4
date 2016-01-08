@@ -131,7 +131,14 @@ if test -n "$GCC"; then
 
 	# Generate position-independent code as needed...
 	if test $PICFLAG = 1 -a $uname != AIX; then
-    		OPTIM="-fPIC $OPTIM"
+	case "$uname" in
+		OS/2*)
+			OPTIM="$OPTIM"
+			;;
+		*)
+			OPTIM="-fPIC $OPTIM"
+			;;
+	esac
 	fi
 
 	# The -fstack-protector option is available with some versions of
