@@ -1271,19 +1271,16 @@ cupsdOpenPipe(int *fds)			/* O - Pipe file descriptors (2) */
 #ifndef __OS2__
   if (pipe(fds))
   {
+#else
+  if (socketpair(AF_UNIX, SOCK_STREAM,0, fds) < 0)
+  {
+    cupsdLogMessage(CUPSD_LOG_DEBUG, "Socketpair failed!\n");
+#endif
     fds[0] = -1;
     fds[1] = -1;
 
     return (-1);
   }
-#else
-  if (socketpair(AF_UNIX, SOCK_STREAM,0, fds) < 0) {
-    cupsdLogMessage(CUPSD_LOG_DEBUG, "Socketpair failed!\n");
-    fds[0] = -1;
-    fds[1] = -1;
-    return (-1);
-  }
-#endif
 
  /*
   * Set the "close on exec" flag on each end of the pipe...

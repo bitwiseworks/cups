@@ -482,6 +482,7 @@ cupsdProcessIPPRequest(
 	* OK, all the checks pass so far; make sure requesting-user-name is
 	* not "root" from a remote host...
 	*/
+
         if ((username = ippFindAttribute(con->request, "requesting-user-name",
 	                                 IPP_TAG_NAME)) != NULL)
 	{
@@ -2596,13 +2597,14 @@ add_printer(cupsd_client_t  *con,	/* I - Client connection */
 
       snprintf(srcfile, sizeof(srcfile), "%s/backend/%s", ServerBin, scheme);
 #ifdef __OS2__
-    /*
-     * On OS/2 - check for the presence of the executable - if not present - append .exe and try again
-     */
-     struct stat ChkBuf;
-     int rc=stat(srcfile,&ChkBuf);
-     if (rc)
-        strcat(srcfile, ".exe");
+     /*
+      * On OS/2 - check for the presence of the executable
+      * if not present - append .exe and try again
+      */
+      struct stat ChkBuf;
+      int rc = stat(srcfile, &ChkBuf);
+      if (rc)
+         strcat(srcfile, ".exe");
 #endif
       if (access(srcfile, X_OK))
       {

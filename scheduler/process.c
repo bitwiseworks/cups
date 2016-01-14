@@ -274,13 +274,14 @@ cupsdStartProcess(
     user = User;
 
 #ifdef __OS2__
-    /*
-     * On OS/2 - check for the presence of the executable - if not present - append .exe and try again
-     */
-     struct stat ChkBuf;
-     int rc=stat(command,&ChkBuf);
-     if (rc)
-        strcat(command, ".exe");
+ /*
+  * On OS/2 - check for the presence of the executable
+  * if not present - append .exe and try again
+  */
+  struct stat ChkBuf;
+  int rc = stat(command, &ChkBuf);
+  if (rc)
+     strcat(command, ".exe");
 #endif
   if (stat(command, &commandinfo))
   {
@@ -540,10 +541,11 @@ cupsdStartProcess(
 
 #ifdef __OS2__
    /*
-    * On OS/2 - check for the presence of the executable - if not present - append .exe and try again
+    * On OS/2 - check for the presence of the executable
+    * if not present - append .exe and try again
     */
     struct stat ChkBuf;
-    int rc=stat(command,&ChkBuf);
+    int rc = stat(command, &ChkBuf);
     if (rc)
        strcat(command, ".exe");
     cupsdLogMessage(CUPSD_LOG_DEBUG2, "Launching command %s", command);

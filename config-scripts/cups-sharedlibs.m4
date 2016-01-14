@@ -259,6 +259,9 @@ if test "$DSO" != ":"; then
 				EXPORT_LDFLAGS="-Wl,-rpath,$libdir"
 			fi
 			;;
+                OS/2*)
+			IMGLIBS="$DSOLIBS"
+			;;
 	esac
 else
 	DSOLIBS=""

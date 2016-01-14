@@ -330,7 +330,7 @@ cupsfilter:	cupsfilter.o $(LIBCUPSMIME) ../cups/$(LIBCUPS)
 
 cups-deviced:	cups-deviced.o util.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o cups-deviced cups-deviced.o util.o $(LIBS) -lpoll
+	$(CC) $(LDFLAGS) -o cups-deviced cups-deviced.o util.o $(LIBS)
 
 
 #

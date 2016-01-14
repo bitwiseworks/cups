@@ -131,7 +131,7 @@ dbus:	dbus.o ../cups/$(LIBCUPS)
 
 mailto:	mailto.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o mailto mailto.o $(LIBS) $(LIBZ)
+	$(CC) $(LDFLAGS) -o mailto mailto.o $(LIBS)
 
 
 #
@@ -149,7 +149,7 @@ rss:	rss.o ../cups/$(LIBCUPS)
 
 testnotify:	testnotify.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o testnotify testnotify.o $(LIBS) $(LIBZ)
+	$(CC) $(LDFLAGS) -o testnotify testnotify.o $(LIBS)
 
 
 $(OBJS):	../Makedefs

@@ -267,11 +267,10 @@ main(int  argc,				/* I - Number of command-line args */
     if (!S_ISREG(dent->fileinfo.st_mode) ||
         !isalnum(dent->filename[0] & 255) ||
         (dent->fileinfo.st_mode & (S_IRUSR | S_IXUSR)) != (S_IRUSR | S_IXUSR))
-      continue;
 #else
     if (!S_ISREG(dent->fileinfo.st_mode))
-      continue;
 #endif
+      continue;
 
    /*
     * Skip excluded or not included backends...

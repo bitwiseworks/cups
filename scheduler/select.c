@@ -633,7 +633,7 @@ cupsdDoSelect(long timeout)		/* I - Timeout in seconds */
     nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
                   NULL);
 
-#ifdef __EMX__
+#ifdef __EMX__ // @todo I doubt this part is needed 
   /* libc's select() is flaky - pause 0.5 second and retry */	
   if (nfds == -1) {
     usleep(500000);

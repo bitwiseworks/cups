@@ -55,13 +55,14 @@ int	print_device(const char *uri, const char *hostname,
  * Include the vendor-specific USB implementation...
  */
 
-#if defined(HAVE_USB_H) || defined(__OS2__)
+#ifdef HAVE_USB_H
 #  include "usb-libusb.c"
 #elif defined(__APPLE__)
 #  include "usb-darwin.c"
 #elif defined(__linux) || defined(__sun) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__) || defined(__FreeBSD_kernel__)
 #  include "usb-unix.c"
 #else
+#warn "Using dummy implementation"
 /*
  * Use dummy functions that do nothing on unsupported platforms...
  * These can be used as templates for implementing USB printing on new

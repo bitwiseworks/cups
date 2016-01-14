@@ -1113,13 +1113,14 @@ cupsdLoadAllPrinters(void)
 	    *valueptr = '\0';		/* Chop everything but URI scheme */
 
 #ifdef __OS2__
-   /*
-    * On OS/2 - check for the presence of the executable - if not present - append .exe and try again
-    */
-    struct stat ChkBuf;
-    int rc=stat(line,&ChkBuf);
-    if (rc)
-       strcat(line, ".exe");
+         /*
+          * On OS/2 - check for the presence of the executable
+          * if not present - append .exe and try again
+          */
+          struct stat ChkBuf;
+          int rc = stat(line, &ChkBuf);
+          if (rc)
+            strcat(line, ".exe");
 #endif
           if (access(line, 0))
 	  {
@@ -3666,10 +3667,11 @@ add_printer_filter(
 
 #ifdef __OS2__
    /*
-    * On OS/2 - check for the presence of the executable - if not present - append .exe and try again
+    * On OS/2 - check for the presence of the executable
+    * if not present - append .exe and try again
     */
     struct stat ChkBuf;
-    int rc=stat(filename,&ChkBuf);
+    int rc = stat(filename, &ChkBuf);
 
     if (rc)
        strcat(filename, ".exe");

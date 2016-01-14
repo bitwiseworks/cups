@@ -20,7 +20,7 @@ include Makedefs
 # Directories to make...
 #
 
-DIRS	=	cups filter backend berkeley cgi-bin driver locale monitor \
+DIRS	=	cups filter backend berkeley cgi-bin driver locale man monitor \
 		notifier ppdc scheduler systemv test \
 		$(PHPDIR) \
 		conf data doc examples $(FONTS) templates

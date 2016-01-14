@@ -4023,9 +4023,9 @@ start_job(cupsd_job_t     *job,		/* I - Job ID */
 
 #ifdef __OS2__
   /* fcntl O_NONBLOCK doesn't always succeed on OS/2 - force the socket to be non-blocking */
-  char dontblock =1;
-  os2_ioctl(job->back_pipes[0], FIONBIO, &dontblock,sizeof(dontblock));
-  os2_ioctl(job->back_pipes[1], FIONBIO, &dontblock,sizeof(dontblock));
+  char dontblock = 1;
+  os2_ioctl(job->back_pipes[0], FIONBIO, &dontblock, sizeof(dontblock));
+  os2_ioctl(job->back_pipes[1], FIONBIO, &dontblock, sizeof(dontblock));
 #endif
  /*
   * Create the side-channel pipes and make them non-blocking...
@@ -4057,8 +4057,8 @@ start_job(cupsd_job_t     *job,		/* I - Job ID */
 	fcntl(job->side_pipes[1], F_GETFL) | O_NONBLOCK);
 #ifdef __OS2__
   /* fcntl O_NONBLOCK doesn't always succeed on OS/2 - force the socket to be non-blocking */
-  os2_ioctl(job->side_pipes[0], FIONBIO, &dontblock,sizeof(dontblock));
-  os2_ioctl(job->side_pipes[1], FIONBIO, &dontblock,sizeof(dontblock));
+  os2_ioctl(job->side_pipes[0], FIONBIO, &dontblock, sizeof(dontblock));
+  os2_ioctl(job->side_pipes[1], FIONBIO, &dontblock, sizeof(dontblock));
 #endif
 
   fcntl(job->side_pipes[0], F_SETFD,
