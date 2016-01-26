@@ -328,13 +328,19 @@ hpgltops:	$(HPGLOBJS) common.o ../cups/$(LIBCUPS)
 # libcupsimage.so.2, libcupsimage.sl.2
 #
 
-$(LIBCUPSIMAGE) libcupsimage.sl.2:	$(IMAGEOBJS)
+$(LIBCUPSIMAGE) libcupsimage.sl.2:	$(IMAGEOBJS) cupsimage.def
 	echo Linking $@...
-	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(IMAGEOBJS) $(DSOLIBS) \
+	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ cupsimage.def $(IMAGEOBJS) $(DSOLIBS) \
 		-L../cups $(LINKCUPS) -lm
 #	$(RM) `basename $@ .2`
 #	$(LN) $@ `basename $@ .2`
 
+cupsimage.def:
+	echo Creating $@...
+	echo "LIBRARY cupsim INITINSTANCE TERMINSTANCE" > $@
+	echo "DATA MULTIPLE" >> $@
+	echo "EXPORTS" >> $@
+	emxexp $(IMAGEOBJS) >> $@
 
 #
 # 32bit/libcupsimage.so.2

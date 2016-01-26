@@ -366,12 +366,18 @@ cups-polld:	cups-polld.o ../cups/$(LIBCUPS)
 # libcupsmime.so.1, libcupsmime.sl.1
 #
 
-$(LIBCUPSMIME) libcupsmime.sl.1:	$(LIBOBJS)
+$(LIBCUPSMIME) libcupsmime.sl.1:	$(LIBOBJS) cupsmime.def
 	echo Linking $@...
-	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(LIBOBJS) $(LIBS)
+	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ cupsmime.def $(LIBOBJS) $(LIBS)
 #	$(RM) `basename $@ .1`
 #	$(LN) $@ `basename $@ .1`
 
+cupsmime.def:
+	echo Creating $@...
+	echo "LIBRARY cupsmim INITINSTANCE TERMINSTANCE" > $@
+	echo "DATA MULTIPLE" >> $@
+	echo "EXPORTS" >> $@
+	emxexp $(LIBOBJS) >> $@
 
 #
 # libcupsmime.1.dylib

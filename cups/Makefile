@@ -296,7 +296,7 @@ uninstall64bit:
 # libcups.so.2, libcups.sl.2
 #
 
-$(LIBCUPS) libcups.sl.2:	$(LIBOBJS)
+$(LIBCUPS) libcups.sl.2:	$(LIBOBJS) cups.def
 	echo Linking $@...
 	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(LIBOBJS) $(LIBGSSAPI) \
 		cups.def \
@@ -304,6 +304,12 @@ $(LIBCUPS) libcups.sl.2:	$(LIBOBJS)
 #	$(RM) `basename $@ .2`
 #	$(LN) $@ `basename $@ .2`
 
+cups.def:
+	echo Creating $@...
+	echo "LIBRARY cups INITINSTANCE TERMINSTANCE" > $@
+	echo "DATA MULTIPLE" >> $@
+	echo "EXPORTS" >> $@
+	emxexp $(LIBOBJS) >> $@
 
 #
 # 32bit/libcups.so.2
@@ -380,8 +386,9 @@ libcups.la:    $(LIBOBJS)
 libcups.a:	$(LIBOBJS)
 	echo Archiving $@...
 	$(RM) $@
-#	$(AR) $(ARFLAGS) $@ $(LIBOBJS)
-#	$(RANLIB) $@
+	$(AR) $(ARFLAGS) $@ $(LIBOBJS)
+	$(RANLIB) $@
+	mv $@ libcups_s.a
 	emximp -o $@ $(LIBCUPS)
 
 

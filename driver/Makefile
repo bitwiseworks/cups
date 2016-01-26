@@ -316,12 +316,18 @@ testrgb:		test testrgb.o libcupsdriver.a ../cups/libcups.a
 # libcupsdriver.so.1, libcupsdriver.sl.1
 #
 
-$(LIBCUPSDRIVER) libcupsdriver.sl.1:	$(LIBOBJS)
+$(LIBCUPSDRIVER) libcupsdriver.sl.1:	$(LIBOBJS) cupsdriver.def
 	echo Linking $@...
-	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(LIBOBJS) $(LIBS)
+	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(LIBOBJS) cupsdriver.def $(LIBS)
 #	$(RM) `basename $@ .1`
 #	$(LN) $@ `basename $@ .1`
 
+cupsdriver.def:
+	echo Creating $@...
+	echo "LIBRARY cupsdr INITINSTANCE TERMINSTANCE" > $@
+	echo "DATA MULTIPLE" >> $@
+	echo "EXPORTS" >> $@
+	emxexp $(LIBOBJS) >> $@
 
 #
 # libcupsdriver.1.dylib

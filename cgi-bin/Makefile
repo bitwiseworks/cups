@@ -41,8 +41,8 @@ CGIS	=	\
 		jobs.cgi \
 		printers.cgi
 LIBTARGETS =	\
-		libcupscgi.a \
 		$(LIBCUPSCGI) \
+		libcupscgi.a \
 		websearch
 
 UNITTARGETS =	\
@@ -213,12 +213,18 @@ framedhelp:
 # libcupscgi.so.1, libcupscgi.sl.1
 #
 
-$(LIBCUPSCGI) libcupscgi.sl.1:	$(LIBOBJS)
+$(LIBCUPSCGI) libcupscgi.sl.1:	$(LIBOBJS) cupscgi.def
 	echo Linking $@...
-	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(LIBOBJS) $(LIBS)
+	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ cupscgi.def $(LIBOBJS) $(LIBS)
 #	$(RM) `basename $@ .1`
 #	$(LN) $@ `basename $@ .1`
 
+cupscgi.def:
+	echo Creating $@...
+	echo "LIBRARY cupscgi INITINSTANCE TERMINSTANCE" > $@
+	echo "DATA MULTIPLE" >> $@
+	echo "EXPORTS" >> $@
+	emxexp $(LIBOBJS) >> $@
 
 #
 # libcupscgi.1.dylib

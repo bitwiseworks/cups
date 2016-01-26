@@ -336,12 +336,18 @@ testcatalog:		testcatalog.o libcupsppdc.a ../cups/libcups.a
 # libcupsppdc.so.1, libcupsppdc.sl.1
 #
 
-$(LIBCUPSPPDC) libcupsppdc.sl.1:	$(LIBOBJS) ../cups/$(LIBCUPS)
+$(LIBCUPSPPDC) libcupsppdc.sl.1:	$(LIBOBJS) ../cups/$(LIBCUPS) cupsppdc.def
 	echo Linking $@...
-	$(DSOXX) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(LIBOBJS) $(LINKCUPS)
+	$(DSOXX) $(ARCHFLAGS) $(DSOFLAGS) -o $@ cupsppdc.def $(LIBOBJS) $(LINKCUPS)
 #	$(RM) `basename $@ .1`
 #	$(LN) $@ `basename $@ .1`
 
+cupsppdc.def:
+	echo Creating $@...
+	echo "LIBRARY cupspp INITINSTANCE TERMINSTANCE" > $@
+	echo "DATA MULTIPLE" >> $@
+	echo "EXPORTS" >> $@
+	emxexp $(LIBOBJS) >> $@
 
 #
 # libcupsppdc.1.dylib
