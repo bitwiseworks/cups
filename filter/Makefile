@@ -153,6 +153,7 @@ install-headers:
 install-libs: $(INSTALLSTATIC) $(INSTALL32) $(INSTALL64)
 	$(INSTALL_DIR) -m 755 $(LIBDIR)
 	$(INSTALL_LIB) $(LIBCUPSIMAGE) $(LIBDIR)
+	$(INSTALL) libcupsimage.a $(LIBDIR)
 	-if test $(LIBCUPSIMAGE) = "libcupsimage.so.2" -o $(LIBCUPSIMAGE) = "libcupsimage.sl.2"; then \
 		$(RM) $(LIBDIR)/`basename $(LIBCUPSIMAGE) .2`; \
 		$(LN) $(LIBCUPSIMAGE) $(LIBDIR)/`basename $(LIBCUPSIMAGE) .2`; \
@@ -403,8 +404,9 @@ libcupsimage.la:       $(IMAGEOBJS)
 libcupsimage.a:	$(IMAGEOBJS)
 	echo Archiving $@...
 	$(RM) $@
-	$(AR) $(ARFLAGS) $@ $(IMAGEOBJS)
-	$(RANLIB) $@
+#	$(AR) $(ARFLAGS) $@ $(IMAGEOBJS)
+#	$(RANLIB) $@
+	emximp -o $@ $(LIBCUPSIMAGE)
 
 
 #

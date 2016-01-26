@@ -151,6 +151,7 @@ install-libs: $(INSTALLSTATIC)
 	echo Installing libraries in $(LIBDIR)...
 	$(INSTALL_DIR) -m 755 $(LIBDIR)
 	$(INSTALL_LIB) $(LIBCUPSDRIVER) $(LIBDIR)
+	$(INSTALL) libcupsdriver.a $(LIBDIR)
 	if test $(LIBCUPSDRIVER) = "libcupsdriver.so.1" -o $(LIBCUPSDRIVER) = "libcupsdriver.sl.1"; then \
 		$(RM) $(LIBDIR)/`basename $(LIBCUPSDRIVER) .1`; \
 		$(LN) $(LIBCUPSDRIVER) $(LIBDIR)/`basename $(LIBCUPSDRIVER) .1`; \
@@ -366,8 +367,9 @@ libcupsdriver.la:    $(LIBOBJS)
 libcupsdriver.a:	$(LIBOBJS)
 	echo Archiving $@...
 	$(RM) $@
-	$(AR) $(ARFLAGS) $@ $(LIBOBJS)
-	$(RANLIB) $@
+#	$(AR) $(ARFLAGS) $@ $(LIBOBJS)
+#	$(RANLIB) $@
+	emximp -o $@ $(LIBCUPSDRIVER)
 
 
 #

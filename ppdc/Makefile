@@ -167,6 +167,7 @@ install-libs: $(INSTALLSTATIC)
 	echo Installing libraries in $(LIBDIR)...
 	$(INSTALL_DIR) -m 755 $(LIBDIR)
 	$(INSTALL_LIB) $(LIBCUPSPPDC) $(LIBDIR)
+	$(INSTALL) libcupsppdc.a $(LIBDIR)
 	if test $(LIBCUPSPPDC) = "libcupsppdc.so.1" -o $(LIBCUPSPPDC) = "libcupsppdc.sl.1"; then \
 		$(RM) $(LIBDIR)/`basename $(LIBCUPSPPDC) .1`; \
 		$(LN) $(LIBCUPSPPDC) $(LIBDIR)/`basename $(LIBCUPSPPDC) .1`; \
@@ -388,8 +389,9 @@ libcupsppdc.la:    $(LIBOBJS) ../cups/$(LIBCUPS)
 libcupsppdc.a:	$(LIBOBJS)
 	echo Archiving $@...
 	$(RM) $@
-	$(AR) $(ARFLAGS) $@ $(LIBOBJS)
-	$(RANLIB) $@
+#	$(AR) $(ARFLAGS) $@ $(LIBOBJS)
+#	$(RANLIB) $@
+	emximp -o $@ $(LIBCUPSPPDC)
 
 
 #

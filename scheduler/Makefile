@@ -213,6 +213,7 @@ install-libs: $(INSTALLSTATIC)
 	echo Installing libraries in $(LIBDIR)...
 	$(INSTALL_DIR) -m 755 $(LIBDIR)
 	$(INSTALL_LIB) $(LIBCUPSMIME) $(LIBDIR)
+	$(INSTALL) libcupsmime.a $(LIBDIR)
 	if test $(LIBCUPSMIME) = "libcupsmime.so.1" -o $(LIBCUPSMIME) = "libcupsmime.sl.1"; then \
 		$(RM) $(LIBDIR)/`basename $(LIBCUPSMIME) .1`; \
 		$(LN) $(LIBCUPSMIME) $(LIBDIR)/`basename $(LIBCUPSMIME) .1`; \
@@ -416,8 +417,9 @@ libcupsmime.la:    $(LIBOBJS)
 libcupsmime.a:	$(LIBOBJS)
 	echo Archiving $@...
 	$(RM) $@
-	$(AR) $(ARFLAGS) $@ $(LIBOBJS)
-	$(RANLIB) $@
+#	$(AR) $(ARFLAGS) $@ $(LIBOBJS)
+#	$(RANLIB) $@
+	emximp -o $@ $(LIBCUPSMIME)
 
 
 #

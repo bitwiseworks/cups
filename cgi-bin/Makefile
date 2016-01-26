@@ -143,6 +143,7 @@ install-libs: $(INSTALLSTATIC)
 	echo Installing libraries in $(LIBDIR)...
 	$(INSTALL_DIR) -m 755 $(LIBDIR)
 	$(INSTALL_LIB) $(LIBCUPSCGI) $(LIBDIR)
+	$(INSTALL) libcupscgi.a $(LIBDIR)
 	if test $(LIBCUPSCGI) = "libcupscgi.so.1" -o $(LIBCUPSCGI) = "libcupscgi.sl.1"; then \
 		$(RM) $(LIBDIR)/`basename $(LIBCUPSCGI) .1`; \
 		$(LN) $(LIBCUPSCGI) $(LIBDIR)/`basename $(LIBCUPSCGI) .1`; \
@@ -263,8 +264,9 @@ libcupscgi.la:    $(LIBOBJS)
 libcupscgi.a:	$(LIBOBJS)
 	echo Archiving $@...
 	$(RM) $@
-	$(AR) $(ARFLAGS) $@ $(LIBOBJS)
-	$(RANLIB) $@
+#	$(AR) $(ARFLAGS) $@ $(LIBOBJS)
+#	$(RANLIB) $@
+	emximp -o $@ $(LIBCUPSCGI)
 
 
 #
