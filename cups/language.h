@@ -67,6 +67,7 @@ typedef enum cups_encoding_e		/**** Language Encodings ****/
   CUPS_ISO8859_11,			/* ISO-8859-11 */
   CUPS_ISO8859_16,			/* ISO-8859-16 */
   CUPS_MAC_ROMAN,			/* MacRoman */
+  CUPS_CP850,				/* CP850 */
   CUPS_ENCODING_SBCS_END = 63,		/* End of single-byte encodings @private@ */
 
   CUPS_WINDOWS_932,			/* Japanese JIS X0208-1990 */

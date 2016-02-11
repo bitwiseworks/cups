@@ -84,7 +84,7 @@ static const char * const lang_encodings[] =
 			  "windows-1258",	"koi8-r",
 			  "koi8-u",		"iso-8859-11",
 			  "iso-8859-16",	"mac-roman",
-			  "unknown",		"unknown",
+			  "cp850",		"unknown",
 			  "unknown",		"unknown",
 			  "unknown",		"unknown",
 			  "unknown",		"unknown",
@@ -403,7 +403,7 @@ cupsLangGet(const char *language)	/* I - Language or locale */
 		  "CP1250",	"CP1251",	"CP1252",	"CP1253",
 		  "CP1254",	"CP1255",	"CP1256",	"CP1257",
 		  "CP1258",	"KOI8R",	"KOI8U",	"ISO885911",
-		  "ISO885916",	"MACROMAN",	"",		"",
+		  "ISO885916",	"MACROMAN",	"CP850",	"",
 
 		  "",		"",		"",		"",
 		  "",		"",		"",		"",
@@ -792,7 +792,11 @@ cupsLangGet(const char *language)	/* I - Language or locale */
   if (encoding != CUPS_AUTO_ENCODING)
     lang->encoding = encoding;
   else
+#ifndef __OS2__
     lang->encoding = CUPS_UTF8;
+#else
+    lang->encoding = CUPS_CP850;
+#endif
 
  /*
   * Read the strings from the file...

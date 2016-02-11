@@ -65,7 +65,8 @@ CHARMAPS =	\
 		windows-932.txt \
 		windows-936.txt \
 		windows-949.txt \
-		windows-950.txt
+		windows-950.txt \
+		cp850.txt
 
 CHARSETS =	\
 		utf-8
