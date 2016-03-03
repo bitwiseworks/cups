@@ -213,7 +213,11 @@ main(int  argc,				/* I - Number of command-line arguments (6 or 7) */
   * See if there are any options...
   */
 
+#ifndef __OS2__
   mode          = MODE_STANDARD;
+#else
+  mode          = MODE_STREAM;
+#endif
   banner        = 0;
   format        = 'l';
   order         = ORDER_CONTROL_DATA;

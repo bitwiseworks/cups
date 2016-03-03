@@ -30,6 +30,9 @@
 #include <sys/wait.h>
 #include <errno.h>
 
+#ifdef __OS2__
+#define pipe(A) socketpair(AF_UNIX, SOCK_STREAM,0, A)
+#endif
 
 /*
  * Local functions...
@@ -411,11 +414,7 @@ main(int  argc,				/* I - Number of command-line args */
   * Execute "pdftops/gs | pstops"...
   */
 
-#ifndef __OS2__
   if (pipe(pstops_pipe))
-#else
-  if (socketpair(AF_UNIX, SOCK_STREAM,0, pstops_pipe))
-#endif
   {
     _cupsLangPrintError(_("ERROR: Unable to create pipe"));
 

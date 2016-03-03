@@ -38,6 +38,9 @@
 extern char **environ;
 #endif /* __APPLE__ */ 
 
+#ifdef __OS2__
+#define pipe(A) socketpair(AF_UNIX, SOCK_STREAM,0, A)
+#endif
 
 /*
  * 'cupsdCompareNames()' - Compare two names.
@@ -290,11 +293,7 @@ cupsdPipeCommand(int        *pid,	/* O - Process ID or 0 on error */
   * First create the pipe...
   */
 
-#ifndef __OS2__
   if (pipe(fds))
-#else
-  if (socketpair(AF_UNIX, SOCK_STREAM,0, fds))
-#endif
   {
     *pid = 0;
     return (NULL);

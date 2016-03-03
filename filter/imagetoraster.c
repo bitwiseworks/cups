@@ -40,6 +40,9 @@
 #include <unistd.h>
 #include <math.h>
 #include <cups/i18n.h>
+#ifdef __OS2__
+#define pipe(A) socketpair(AF_UNIX, SOCK_STREAM,0, A)
+#endif
 
 
 /*
@@ -229,11 +232,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 
     cupsFreeOptions(num_options, options);
 
-#ifndef __OS2__
     if (pipe(mypipes))
-#else
-    if (socketpair(AF_UNIX, SOCK_STREAM,0, mypipes))
-#endif
     {
       perror("ERROR: Unable to create pipes for imagetops | pstoraster");
       return (errno);

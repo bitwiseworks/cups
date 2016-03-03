@@ -44,6 +44,9 @@
 #define TEST_PAGES	16
 #define TEST_PASSES	20
 
+#ifdef __OS2__
+#define pipe(A) socketpair(AF_UNIX, SOCK_STREAM,0, A)
+#endif
 
 /*
  * Local functions...
@@ -219,11 +222,7 @@ run_read_test(void)
   int	pid;				/* Child process ID */
 
 
-#ifndef __OS2__
   if (pipe(ras_pipes))
-#else
-  if (socketpair(AF_UNIX, SOCK_STREAM,0, ras_pipes))
-#endif
     return (-1);
 
   if ((pid = fork()) < 0)

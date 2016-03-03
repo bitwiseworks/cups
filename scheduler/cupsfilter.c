@@ -45,6 +45,9 @@
 #  include <libgen.h>
 #endif /* __APPLE__ */
 
+#ifdef __OS2__
+#define pipe(A) socketpair(AF_UNIX, SOCK_STREAM,0, A)
+#endif
 
 /*
  * Local globals...

@@ -76,6 +76,9 @@
 #  include <dlfcn.h>
 #endif /* __APPLE__ && HAVE_DLFCN_H */
 
+#ifdef __OS2__
+#define pipe(A) socketpair(AF_UNIX, SOCK_STREAM,0, A)
+#endif
 
 /*
  * Local functions...
@@ -1268,14 +1271,9 @@ cupsdOpenPipe(int *fds)			/* O - Pipe file descriptors (2) */
   * Create the pipe...
   */
 
-#ifndef __OS2__
   if (pipe(fds))
   {
-#else
-  if (socketpair(AF_UNIX, SOCK_STREAM,0, fds) < 0)
-  {
-    cupsdLogMessage(CUPSD_LOG_DEBUG, "Socketpair failed!\n");
-#endif
+    cupsdLogMessage(CUPSD_LOG_DEBUG, "cupsdOpenPipe failed!\n");
     fds[0] = -1;
     fds[1] = -1;
 

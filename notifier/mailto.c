@@ -44,6 +44,9 @@ char	mailtoSubject[1024];		/* Subject prefix */
 char	mailtoSMTPServer[1024];		/* SMTP server to use */
 char	mailtoSendmail[1024];		/* Sendmail program to use */
 
+#ifdef __OS2__
+#define pipe(A) socketpair(AF_UNIX, SOCK_STREAM,0, A)
+#endif
 
 /*
  * Local functions...

@@ -37,6 +37,9 @@
 #include <sys/wait.h>
 #include <signal.h>
 
+#ifdef __OS2__
+#define pipe(A) socketpair(AF_UNIX, SOCK_STREAM,0, A)
+#endif
 
 /*
  * Local globals...
