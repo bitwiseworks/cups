@@ -1,9 +1,9 @@
 #
-# "$Id: Makefile 8497 2009-04-12 23:04:51Z mike $"
+# "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $"
 #
-#   Notifier makefile for the Common UNIX Printing System (CUPS).
+#   Notifier makefile for CUPS.
 #
-#   Copyright 2007-2008 by Apple Inc.
+#   Copyright 2007-2012 by Apple Inc.
 #   Copyright 1997-2007 by Easy Software Products, all rights reserved.
 #
 #   These coded instructions, statements, and computer programs are the
@@ -16,8 +16,8 @@
 include ../Makedefs
 
 
-NOTIFIERS =	$(DBUS_NOTIFIER) mailto rss
-TARGETS =	$(NOTIFIERS) testnotify
+NOTIFIERS =	$(DBUS_NOTIFIER) mailto$(EXEEXT) rss$(EXEEXT)
+TARGETS =	$(NOTIFIERS) testnotify$(EXEEXT)
 OBJS	=	dbus.o mailto.o rss.o testnotify.o
 
 
@@ -73,11 +73,14 @@ install-exec:
 	echo Installing notifiers in $(SERVERBIN)/notifier...
 	$(INSTALL_DIR) -m 755 $(SERVERBIN)/notifier
 	for file in $(NOTIFIERS); do \
-		$(INSTALL_BIN) $$file.exe $(SERVERBIN)/notifier; \
+		$(INSTALL_BIN) $$file $(SERVERBIN)/notifier; \
 	done
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \
-		cp $(NOTIFIERS) $(SYMROOT); \
+		for file in $(NOTIFIERS); do \
+			cp $$file $(SYMROOT); \
+			dsymutil $(SYMROOT)/$$file; \
+		done \
 	fi
 
 
@@ -113,43 +116,43 @@ uninstall:
 #
 
 depend:
-	makedepend -Y -I.. -fDependencies $(OBJS:.o=.c) >/dev/null 2>&1
+	$(CC) -MM $(ALL_CFLAGS) $(OBJS:.o=.c) >Dependencies
 
 
 #
 # dbus
 #
 
-dbus:	dbus.o ../cups/$(LIBCUPS)
+dbus$(EXEEXT):	dbus.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o dbus dbus.o $(DBUS_NOTIFIERLIBS) $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ dbus.o $(DBUS_NOTIFIERLIBS) $(LIBS)
 
 
 #
 # mailto
 #
 
-mailto:	mailto.o ../cups/$(LIBCUPS)
+mailto$(EXEEXT):	mailto.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o mailto mailto.o $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ mailto.o $(LIBS)
 
 
 #
 # rss
 #
 
-rss:	rss.o ../cups/$(LIBCUPS)
+rss$(EXEEXT):	rss.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o rss rss.o $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ rss.o $(LIBS)
 
 
 #
 # testnotify
 #
 
-testnotify:	testnotify.o ../cups/$(LIBCUPS)
+testnotify$(EXEEXT):	testnotify.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o testnotify testnotify.o $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ testnotify.o $(LIBS)
 
 
 $(OBJS):	../Makedefs
@@ -158,5 +161,5 @@ include Dependencies
 
 
 #
-# End of "$Id: Makefile 8497 2009-04-12 23:04:51Z mike $".
+# End of "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $".
 #

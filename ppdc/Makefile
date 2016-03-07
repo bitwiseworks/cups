@@ -1,16 +1,16 @@
 #
-# "$Id: Makefile 9423 2011-01-06 22:21:05Z mike $"
+# "$Id: Makefile 12615 2015-05-06 20:21:51Z msweet $"
 #
-#   Makefile for the CUPS PPD Compiler.
+# Makefile for the CUPS PPD Compiler.
 #
-#   Copyright 2007-2011 by Apple Inc.
-#   Copyright 2002-2006 by Easy Software Products.
+# Copyright 2007-2015 by Apple Inc.
+# Copyright 2002-2006 by Easy Software Products.
 #
-#   These coded instructions, statements, and computer programs are the
-#   property of Apple Inc. and are protected by Federal copyright
-#   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
-#   which should have been included with this file.  If this file is
-#   file is missing or damaged, see the license at "http://www.cups.org/".
+# These coded instructions, statements, and computer programs are the
+# property of Apple Inc. and are protected by Federal copyright
+# law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+# which should have been included with this file.  If this file is
+# file is missing or damaged, see the license at "http://www.cups.org/".
 #
 
 #
@@ -23,7 +23,7 @@ include ../Makedefs
 #
 # Object files...
 #
-
+DEFFILE =	cupsppdc.def
 LIBOBJS =	\
 		ppdc-array.o \
 		ppdc-attr.o \
@@ -57,20 +57,20 @@ LIBTARGETS =	\
 		$(LIBCUPSPPDC) \
 		libcupsppdc.a
 UNITTARGETS =	\
-		ppdc-static \
-		ppdi-static \
-		testcatalog
+		ppdc-static$(EXEEXT) \
+		ppdi-static$(EXEEXT) \
+		testcatalog$(EXEEXT)
 EXECTARGETS =	\
-		ppdc \
-		ppdhtml \
-		ppdi \
-		ppdmerge \
-		ppdpo
+		ppdc$(EXEEXT) \
+		ppdhtml$(EXEEXT) \
+		ppdi$(EXEEXT) \
+		ppdmerge$(EXEEXT) \
+		ppdpo$(EXEEXT)
 
 TARGETS	=	\
 		$(LIBTARGETS) \
 		$(EXECTARGETS) \
-		genstrings
+		genstrings$(EXEEXT)
 
 
 #
@@ -104,7 +104,8 @@ clean:
 	$(RM) $(TARGETS) $(UNITTARGETS)
 	$(RM) -r ppd ppd2
 	$(RM) sample-import.drv sample.c test.drv
-	$(RM) libcupsppdc.so libcupsppdc.sl libcupsppdc.dylib
+	$(RM) libcupsppdc.so libcupsppdc.dylib
+	$(RM) $(DEFFILE) libcupsppdc_s.a
 
 
 #
@@ -112,7 +113,7 @@ clean:
 #
 
 depend:
-	makedepend -Y -I.. -fDependencies $(OBJS:.o=.cxx) >/dev/null 2>&1
+	$(CXX) -MM $(ALL_CXXFLAGS) $(OBJS:.o=.cxx) >Dependencies
 
 
 #
@@ -139,12 +140,13 @@ install-exec:
 	echo Installing PPD compiler programs...
 	$(INSTALL_DIR) $(BINDIR)
 	for file in $(EXECTARGETS); do \
-		$(INSTALL_BIN) $$file.exe $(BINDIR); \
+		$(INSTALL_BIN) $$file $(BINDIR); \
 	done
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \
 		for file in $(EXECTARGETS); do \
 			cp $$file $(SYMROOT); \
+			dsymutil $(SYMROOT)/$$file; \
 		done \
 	fi
 
@@ -168,7 +170,7 @@ install-libs: $(INSTALLSTATIC)
 	$(INSTALL_DIR) -m 755 $(LIBDIR)
 	$(INSTALL_LIB) $(LIBCUPSPPDC) $(LIBDIR)
 	$(INSTALL) libcupsppdc.a $(LIBDIR)
-	if test $(LIBCUPSPPDC) = "libcupsppdc.so.1" -o $(LIBCUPSPPDC) = "libcupsppdc.sl.1"; then \
+	if test $(LIBCUPSPPDC) = "libcupsppdc.so.1"; then \
 		$(RM) $(LIBDIR)/`basename $(LIBCUPSPPDC) .1`; \
 		$(LN) $(LIBCUPSPPDC) $(LIBDIR)/`basename $(LIBCUPSPPDC) .1`; \
 	fi
@@ -179,6 +181,7 @@ install-libs: $(INSTALLSTATIC)
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \
 		cp $(LIBCUPSPPDC) $(SYMROOT); \
+		dsymutil $(SYMROOT)/$(LIBCUPSPPDC); \
 	fi
 
 installstatic:
@@ -201,9 +204,6 @@ uninstall:
 	$(RM) $(LIBDIR)/libcupsppdc.1.dylib
 	$(RM) $(LIBDIR)/libcupsppdc.a
 	$(RM) $(LIBDIR)/libcupsppdc.dylib
-	$(RM) $(LIBDIR)/libcupsppdc_s.a
-	$(RM) $(LIBDIR)/libcupsppdc.sl
-	$(RM) $(LIBDIR)/libcupsppdc.sl.1
 	$(RM) $(LIBDIR)/libcupsppdc.so
 	$(RM) $(LIBDIR)/libcupsppdc.so.1
 	-$(RMDIR) $(LIBDIR)
@@ -238,11 +238,11 @@ framedhelp:
 # genstrings - generate GNU gettext strings.
 #
 
-genstrings:		genstrings.o libcupsppdc.a ../cups/libcups_s.a \
+genstrings$(EXEEXT):		genstrings.o libcupsppdc_s.a ../cups/$(LIBCUPSSTATIC) \
 			sample.drv ../data/media.defs
 	echo Linking $@...
-	$(CXX) $(ARCHFLAGS) $(LDFLAGS) -o genstrings genstrings.o \
-		libcupsppdc.a ../cups/libcups_s.a $(LIBGSSAPI) $(SSLLIBS) \
+	$(CXX) $(ARCHFLAGS) $(LDFLAGS) -o $@ genstrings.o \
+		libcupsppdc_s.a ../cups/$(LIBCUPSSTATIC) $(LIBGSSAPI) $(SSLLIBS) \
 		$(DNSSDLIBS) $(COMMONLIBS) $(LIBZ)
 	echo Generating localization strings...
 	./genstrings >sample.c
@@ -252,15 +252,15 @@ genstrings:		genstrings.o libcupsppdc.a ../cups/libcups_s.a \
 # ppdc, the PPD compiler.
 #
 
-ppdc:			ppdc.o $(LIBCUPSPPDC) ../cups/$(LIBCUPS)
+ppdc$(EXEEXT):		ppdc.o $(LIBCUPSPPDC) ../cups/$(LIBCUPS)
 	echo Linking $@...
 	$(CXX) $(LDFLAGS) -o $@ ppdc.o -L. -lcupsppdc $(LIBS)
 
 
-ppdc-static:		ppdc.o libcupsppdc.a  ../cups/libcups.a foo.drv foo-fr.po
+ppdc-static$(EXEEXT):	ppdc.o libcupsppdc.a ../cups/$(LIBCUPSSTATIC) foo.drv foo-fr.po
 	echo Linking $@...
-	$(CXX) $(ARCHFLAGS) $(LDFLAGS) -o ppdc-static ppdc.o libcupsppdc.a \
-		../cups/libcups.a $(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) \
+	$(CXX) $(ARCHFLAGS) $(LDFLAGS) -o $@ ppdc.o libcupsppdc.a \
+		../cups/$(LIBCUPSSTATIC) $(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) \
 		$(COMMONLIBS) $(LIBZ)
 	echo Testing PPD compiler...
 	./ppdc-static -l en,fr -I ../data foo.drv
@@ -271,7 +271,7 @@ ppdc-static:		ppdc.o libcupsppdc.a  ../cups/libcups.a foo.drv foo-fr.po
 # ppdhtml, the PPD to HTML utility.
 #
 
-ppdhtml:			ppdhtml.o $(LIBCUPSPPDC) ../cups/$(LIBCUPS)
+ppdhtml$(EXEEXT):	ppdhtml.o $(LIBCUPSPPDC) ../cups/$(LIBCUPS)
 	echo Linking $@...
 	$(CXX) $(LDFLAGS) -o $@ ppdhtml.o -L. -lcupsppdc $(LIBS)
 
@@ -280,21 +280,21 @@ ppdhtml:			ppdhtml.o $(LIBCUPSPPDC) ../cups/$(LIBCUPS)
 # ppdi, import PPD files.
 #
 
-ppdi:			ppdi.o $(LIBCUPSPPDC) ../cups/$(LIBCUPS)
+ppdi$(EXEEXT):		ppdi.o $(LIBCUPSPPDC) ../cups/$(LIBCUPS)
 	echo Linking $@...
 	$(CXX) $(LDFLAGS) -o $@ ppdi.o -L. -lcupsppdc $(LIBS)
 
 
-ppdi-static:		ppdc-static ppdi.o libcupsppdc.a  ../cups/libcups.a
+ppdi-static$(EXEEXT):	ppdc-static ppdi.o libcupsppdc.a  ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
-	$(CXX) $(ARCHFLAGS) $(LDFLAGS) -o ppdi-static ppdi.o libcupsppdc.a \
-		../cups/libcups.a $(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) \
+	$(CXX) $(ARCHFLAGS) $(LDFLAGS) -o $@ ppdi.o libcupsppdc.a \
+		../cups/$(LIBCUPSSTATIC) $(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) \
 		$(COMMONLIBS) $(LIBZ)
 	echo Testing PPD importer...
 	$(RM) -r ppd ppd2 sample-import.drv
-	./ppdc-static -I ../data sample.drv
+	./ppdc-static -l en -I ../data sample.drv
 	./ppdi-static -I ../data -o sample-import.drv ppd/*
-	./ppdc-static -I ../data -d ppd2 sample-import.drv
+	./ppdc-static -l en -I ../data -d ppd2 sample-import.drv
 	if diff -r ppd ppd2 >/dev/null; then \
 		echo PPD import OK; \
 	else \
@@ -307,7 +307,7 @@ ppdi-static:		ppdc-static ppdi.o libcupsppdc.a  ../cups/libcups.a
 # ppdmerge, merge PPD files.
 #
 
-ppdmerge:			ppdmerge.o ../cups/$(LIBCUPS)
+ppdmerge$(EXEEXT):	ppdmerge.o ../cups/$(LIBCUPS)
 	echo Linking $@...
 	$(CXX) $(LDFLAGS) -o $@ ppdmerge.o $(LIBS)
 
@@ -316,7 +316,7 @@ ppdmerge:			ppdmerge.o ../cups/$(LIBCUPS)
 # ppdpo, create message catalog files.
 #
 
-ppdpo:			ppdpo.o $(LIBCUPSPPDC) ../cups/$(LIBCUPS)
+ppdpo$(EXEEXT):		ppdpo.o $(LIBCUPSPPDC) ../cups/$(LIBCUPS)
 	echo Linking $@...
 	$(CXX) $(LDFLAGS) -o $@ ppdpo.o -L. -lcupsppdc $(LIBS)
 
@@ -325,24 +325,24 @@ ppdpo:			ppdpo.o $(LIBCUPSPPDC) ../cups/$(LIBCUPS)
 # testcatalog, test ppdcCatalog class.
 #
 
-testcatalog:		testcatalog.o libcupsppdc.a ../cups/libcups.a
+testcatalog$(EXEEXT):	testcatalog.o libcupsppdc.a ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
 	$(CXX) $(LDFLAGS) -o $@ testcatalog.o libcupsppdc.a \
-		../cups/libcups.a $(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) \
+		../cups/$(LIBCUPSSTATIC) $(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) \
 		$(COMMONLIBS) $(LIBZ)
 
 
 #
-# libcupsppdc.so.1, libcupsppdc.sl.1
+# libcupsppdc.so.1
 #
 
-$(LIBCUPSPPDC) libcupsppdc.sl.1:	$(LIBOBJS) ../cups/$(LIBCUPS) cupsppdc.def
+$(LIBCUPSPPDC):	$(LIBOBJS) ../cups/$(LIBCUPS) $(DEFFILE)
 	echo Linking $@...
-	$(DSOXX) $(ARCHFLAGS) $(DSOFLAGS) -o $@ cupsppdc.def $(LIBOBJS) $(LINKCUPS)
+	$(DSOXX) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(DEFFILE) $(LIBOBJS) $(LINKCUPS)
 #	$(RM) `basename $@ .1`
 #	$(LN) $@ `basename $@ .1`
 
-cupsppdc.def:
+$(DEFFILE):
 	echo Creating $@...
 	echo "LIBRARY cupspp INITINSTANCE TERMINSTANCE" > $@
 	echo "DATA MULTIPLE" >> $@
@@ -362,20 +362,9 @@ libcupsppdc.1.dylib:	$(LIBOBJS) ../cups/$(LIBCUPS)
 		-current_version 1.0.0 \
 		-compatibility_version 1.0.0 \
 		-exported_symbols_list t.exp \
-		$(LIBOBJS) $(LINKCUPS)
+		$(LIBOBJS) $(LINKCUPS) $(COMMONLIBS)
 	$(RM) libcupsppdc.dylib t.exp
 	$(LN) $@ libcupsppdc.dylib
-
-
-#
-# libcupsppdc_s.a
-#
-
-libcupsppdc_s.a:	$(LIBOBJS) ../cups/$(LIBCUPS)
-	echo Creating $@...
-	$(DSOXX) $(DSOFLAGS) -o libcupsppdc_s.o $(LIBOBJS) $(LINKCUPS)
-	$(RM) $@
-	$(AR) $(ARFLAGS) $@ libcupsppdc_s.o
 
 
 #
@@ -399,6 +388,11 @@ libcupsppdc.a:	$(LIBOBJS)
 #	$(RANLIB) $@
 	emximp -o $@ $(LIBCUPSPPDC)
 
+libcupsppdc_s.a:	$(LIBOBJS)
+	echo Archiving $@...
+	$(RM) $@
+	$(AR) $(ARFLAGS) $@ $(LIBOBJS)
+	$(RANLIB) $@
 
 #
 # Include dependencies...
@@ -408,5 +402,5 @@ include Dependencies
 
 
 #
-# End of "$Id: Makefile 9423 2011-01-06 22:21:05Z mike $".
+# End of "$Id: Makefile 12615 2015-05-06 20:21:51Z msweet $".
 #

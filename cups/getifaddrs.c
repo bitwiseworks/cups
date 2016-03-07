@@ -1,10 +1,9 @@
 /*
- * "$Id: getifaddrs.c 6649 2007-07-11 21:46:42Z mike $"
+ * "$Id: getifaddrs.c 10996 2013-05-29 11:51:34Z msweet $"
  *
- *   Network interface functions for the Common UNIX Printing System
- *   (CUPS) scheduler.
+ *   Network interface functions for CUPS.
  *
- *   Copyright 2007 by Apple Inc.
+ *   Copyright 2007-2010 by Apple Inc.
  *   Copyright 1997-2006 by Easy Software Products, all rights reserved.
  *
  *   These coded instructions, statements, and computer programs are the
@@ -137,7 +136,7 @@ _cups_getifaddrs(struct ifaddrs **addrs)/* O - List of interfaces */
     temp->ifa_next  = *addrs;
     *addrs          = temp;
     temp->ifa_name  = strdup(ifp->ifr_name);
-    temp->ifa_flags = request.ifr_flags;
+    temp->ifa_flags = (unsigned int)request.ifr_flags;
     if ((temp->ifa_addr = calloc(1, sockaddr_len(&(ifp->ifr_addr)))) != NULL)
       memcpy(temp->ifa_addr, &(ifp->ifr_addr), sockaddr_len(&(ifp->ifr_addr)));
 
@@ -263,5 +262,5 @@ _cups_freeifaddrs(struct ifaddrs *addrs)/* I - Interface list to free */
 
 
 /*
- * End of "$Id: getifaddrs.c 6649 2007-07-11 21:46:42Z mike $".
+ * End of "$Id: getifaddrs.c 10996 2013-05-29 11:51:34Z msweet $".
  */

@@ -1,9 +1,9 @@
 #
-# "$Id: Makefile 8500 2009-04-13 22:53:03Z mike $"
+# "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $"
 #
-#   Berkeley commands makefile for the Common UNIX Printing System (CUPS).
+#   Berkeley commands makefile for CUPS.
 #
-#   Copyright 2007-2009 by Apple Inc.
+#   Copyright 2007-2012 by Apple Inc.
 #   Copyright 1997-2006 by Easy Software Products, all rights reserved.
 #
 #   These coded instructions, statements, and computer programs are the
@@ -16,7 +16,7 @@
 include ../Makedefs
 
 
-TARGETS	=	lpc lpq lpr lprm
+TARGETS	=	lpc$(EXEEXT) lpq$(EXEEXT) lpr$(EXEEXT) lprm$(EXEEXT)
 OBJS	=	lpc.o lpq.o lpr.o lprm.o
 
 
@@ -54,7 +54,7 @@ clean:
 #
 
 depend:
-	makedepend -Y -I.. -fDependencies $(OBJS:.o=.c) >/dev/null 2>&1
+	$(CC) -MM $(ALL_CFLAGS) $(OBJS:.o=.c) >Dependencies
 
 
 #
@@ -78,16 +78,17 @@ install-data:
 install-exec:
 	echo Installing Berkeley user printing commands in $(BINDIR)...
 	$(INSTALL_DIR) -m 755 $(BINDIR)
-	$(INSTALL_BIN) lpq.exe $(BINDIR)
-	$(INSTALL_BIN) lpr.exe $(BINDIR)
-	$(INSTALL_BIN) lprm.exe $(BINDIR)
-	echo Installing Berkeley admin printing commands in $(BINDIR)...
+	$(INSTALL_BIN) lpq$(EXEEXT) $(BINDIR)
+	$(INSTALL_BIN) lpr$(EXEEXT) $(BINDIR)
+	$(INSTALL_BIN) lprm$(EXEEXT) $(BINDIR)
+	echo Installing Berkeley admin printing commands in $(SBINDIR)...
 	$(INSTALL_DIR) -m 755 $(SBINDIR)
-	$(INSTALL_BIN) lpc.exe $(SBINDIR)
+	$(INSTALL_BIN) lpc$(EXEEXT) $(SBINDIR)
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \
 		for file in $(TARGETS); do \
 			cp $$file $(SYMROOT); \
+			dsymutil $(SYMROOT)/$$file; \
 		done \
 	fi
 
@@ -123,36 +124,36 @@ uninstall:
 # lpc
 #
 
-lpc:	lpc.o ../cups/$(LIBCUPS)
+lpc$(EXEEXT):	lpc.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lpc lpc.o $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ lpc.o $(LIBS)
 
 
 #
 # lpq
 #
 
-lpq:	lpq.o ../cups/$(LIBCUPS)
+lpq$(EXEEXT):	lpq.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lpq lpq.o $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ lpq.o $(LIBS)
 
 
 #
 # lpr
 #
 
-lpr:	lpr.o ../cups/$(LIBCUPS)
+lpr$(EXEEXT):	lpr.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lpr lpr.o $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ lpr.o $(LIBS)
 
 
 #
 # lprm
 #
 
-lprm:	lprm.o ../cups/$(LIBCUPS)
+lprm$(EXEEXT):	lprm.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lprm lprm.o $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ lprm.o $(LIBS)
 
 
 #
@@ -163,5 +164,5 @@ include Dependencies
 
 
 #
-# End of "$Id: Makefile 8500 2009-04-13 22:53:03Z mike $".
+# End of "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $".
 #

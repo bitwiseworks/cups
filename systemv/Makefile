@@ -1,25 +1,25 @@
 #
-# "$Id: Makefile 8572 2009-04-29 15:32:18Z mike $"
+# "$Id: Makefile 11776 2014-03-28 19:16:05Z msweet $"
 #
-#   System V commands makefile for the Common UNIX Printing System (CUPS).
+# System V commands makefile for CUPS.
 #
-#   Copyright 2007-2009 by Apple Inc.
-#   Copyright 1997-2006 by Easy Software Products, all rights reserved.
+# Copyright 2007-2014 by Apple Inc.
+# Copyright 1997-2006 by Easy Software Products, all rights reserved.
 #
-#   These coded instructions, statements, and computer programs are the
-#   property of Apple Inc. and are protected by Federal copyright
-#   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
-#   which should have been included with this file.  If this file is
-#   file is missing or damaged, see the license at "http://www.cups.org/".
+# These coded instructions, statements, and computer programs are the
+# property of Apple Inc. and are protected by Federal copyright
+# law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+# which should have been included with this file.  If this file is
+# file is missing or damaged, see the license at "http://www.cups.org/".
 #
 
 include ../Makedefs
 
-TARGETS	=	cancel cupsaccept cupsaddsmb cupsctl cupstestdsc cupstestppd \
-		lp lpadmin lpinfo lpmove lpoptions lppasswd lpstat
+TARGETS	=	cancel$(EXEEXT) cupsaccept$(EXEEXT) cupsaddsmb$(EXEEXT) cupsctl$(EXEEXT) cupstestdsc$(EXEEXT) cupstestppd$(EXEEXT) \
+		lp$(EXEEXT) lpadmin$(EXEEXT) lpinfo$(EXEEXT) lpmove$(EXEEXT) lpoptions$(EXEEXT) lpstat$(EXEEXT)
 OBJS	=	cancel.o cupsaccept.o cupsaddsmb.o cupsctl.o cupstestdsc.o \
 		cupstestppd.o lp.o lpadmin.o lpinfo.o lpmove.o lpoptions.o \
-		lppasswd.o lpstat.o
+		lpstat.o
 
 
 #
@@ -57,7 +57,7 @@ clean:
 #
 
 depend:
-	makedepend -Y -I.. -fDependencies $(OBJS:.o=.c) >/dev/null 2>&1
+	$(CC) -MM $(ALL_CFLAGS) $(OBJS:.o=.c) >Dependencies
 
 
 #
@@ -81,35 +81,35 @@ install-data:
 install-exec:
 	echo Installing System V admin printing commands in $(SBINDIR)
 	$(INSTALL_DIR) -m 755 $(SBINDIR)
-	$(INSTALL_BIN) cupsaccept.exe $(SBINDIR)
-	$(INSTALL_BIN) cupsaddsmb.exe $(SBINDIR)
-	$(INSTALL_BIN) cupsctl.exe $(SBINDIR)
-	$(INSTALL_BIN) lpadmin.exe $(SBINDIR)
-	$(INSTALL_BIN) lpinfo.exe $(SBINDIR)
-	$(INSTALL_BIN) lpmove.exe $(SBINDIR)
-	$(RM) $(SBINDIR)/accept.exe
-	$(LN) cupsaccept.exe $(SBINDIR)/accept.exe
-	$(RM) $(SBINDIR)/cupsdisable.exe
-	$(LN) cupsaccept.exe $(SBINDIR)/cupsdisable.exe
-	$(RM) $(SBINDIR)/cupsenable.exe
-	$(LN) cupsaccept.exe $(SBINDIR)/cupsenable.exe
-	$(RM) $(SBINDIR)/cupsreject.exe
-	$(LN) cupsaccept.exe $(SBINDIR)/cupsreject.exe
-	$(RM) $(SBINDIR)/reject.exe
-	$(LN) cupsaccept.exe $(SBINDIR)/reject.exe
+	$(INSTALL_BIN) cupsaccept$(EXEEXT) $(SBINDIR)
+	$(INSTALL_BIN) cupsaddsmb$(EXEEXT) $(SBINDIR)
+	$(INSTALL_BIN) cupsctl$(EXEEXT) $(SBINDIR)
+	$(INSTALL_BIN) lpadmin$(EXEEXT) $(SBINDIR)
+	$(INSTALL_BIN) lpinfo$(EXEEXT) $(SBINDIR)
+	$(INSTALL_BIN) lpmove$(EXEEXT) $(SBINDIR)
+	$(RM) $(SBINDIR)/accept$(EXEEXT)
+	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/accept$(EXEEXT)
+	$(RM) $(SBINDIR)/cupsdisable$(EXEEXT)
+	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/cupsdisable$(EXEEXT)
+	$(RM) $(SBINDIR)/cupsenable$(EXEEXT)
+	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/cupsenable$(EXEEXT)
+	$(RM) $(SBINDIR)/cupsreject$(EXEEXT)
+	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/cupsreject$(EXEEXT)
+	$(RM) $(SBINDIR)/reject$(EXEEXT)
+	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/reject$(EXEEXT)
 	echo Installing System V user printing commands in $(BINDIR)
 	$(INSTALL_DIR) -m 755 $(BINDIR)
-	$(INSTALL_BIN) cancel.exe $(BINDIR)
-	$(INSTALL_BIN) cupstestdsc.exe $(BINDIR)
-	$(INSTALL_BIN) cupstestppd.exe $(BINDIR)
-	$(INSTALL_BIN) lp.exe $(BINDIR)
-	$(INSTALL_BIN) lpoptions.exe $(BINDIR)
-	$(INSTALL_BIN) lpstat.exe $(BINDIR)
-	$(INSTALL_BIN) lppasswd.exe $(BINDIR)
+	$(INSTALL_BIN) cancel$(EXEEXT) $(BINDIR)
+	$(INSTALL_BIN) cupstestdsc$(EXEEXT) $(BINDIR)
+	$(INSTALL_BIN) cupstestppd$(EXEEXT) $(BINDIR)
+	$(INSTALL_BIN) lp$(EXEEXT) $(BINDIR)
+	$(INSTALL_BIN) lpoptions$(EXEEXT) $(BINDIR)
+	$(INSTALL_BIN) lpstat$(EXEEXT) $(BINDIR)
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \
 		for file in $(TARGETS); do \
 			cp $$file $(SYMROOT); \
+			dsymutil $(SYMROOT)/$$file; \
 		done \
 	fi
 
@@ -133,25 +133,24 @@ install-libs:
 #
 
 uninstall:
-	$(RM) $(BINDIR)/cancel
-	$(RM) $(BINDIR)/cupstestdsc
-	$(RM) $(BINDIR)/cupstestppd
-	$(RM) $(BINDIR)/lp
-	$(RM) $(BINDIR)/lpoptions
-	$(RM) $(BINDIR)/lppasswd
-	$(RM) $(BINDIR)/lpstat
+	$(RM) $(BINDIR)/cancel$(EXEEXT)
+	$(RM) $(BINDIR)/cupstestdsc$(EXEEXT)
+	$(RM) $(BINDIR)/cupstestppd$(EXEEXT)
+	$(RM) $(BINDIR)/lp$(EXEEXT)
+	$(RM) $(BINDIR)/lpoptions$(EXEEXT)
+	$(RM) $(BINDIR)/lpstat$(EXEEXT)
 	-$(RMDIR) $(BINDIR)
-	$(RM) $(SBINDIR)/accept
-	$(RM) $(SBINDIR)/cupsaccept
-	$(RM) $(SBINDIR)/cupsaddsmb
-	$(RM) $(SBINDIR)/cupsaccept
-	$(RM) $(SBINDIR)/cupsdisable
-	$(RM) $(SBINDIR)/cupsenable
-	$(RM) $(SBINDIR)/cupsreject
-	$(RM) $(SBINDIR)/lpadmin
-	$(RM) $(SBINDIR)/lpinfo
-	$(RM) $(SBINDIR)/lpmove
-	$(RM) $(SBINDIR)/reject
+	$(RM) $(SBINDIR)/accept$(EXEEXT)
+	$(RM) $(SBINDIR)/cupsaccept$(EXEEXT)
+	$(RM) $(SBINDIR)/cupsaddsmb$(EXEEXT)
+	$(RM) $(SBINDIR)/cupsaccept$(EXEEXT)
+	$(RM) $(SBINDIR)/cupsdisable$(EXEEXT)
+	$(RM) $(SBINDIR)/cupsenable$(EXEEXT)
+	$(RM) $(SBINDIR)/cupsreject$(EXEEXT)
+	$(RM) $(SBINDIR)/lpadmin$(EXEEXT)
+	$(RM) $(SBINDIR)/lpinfo$(EXEEXT)
+	$(RM) $(SBINDIR)/lpmove$(EXEEXT)
+	$(RM) $(SBINDIR)/reject$(EXEEXT)
 	-$(RMDIR) $(SBINDIR)
 
 
@@ -159,21 +158,21 @@ uninstall:
 # cancel
 #
 
-cancel:	cancel.o ../cups/$(LIBCUPS)
+cancel$(EXEEXT):	cancel.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o cancel cancel.o $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ cancel.o $(LIBS)
 
 
 #
 # cupsaccept
 #
 
-cupsaccept:	cupsaccept.o ../cups/$(LIBCUPS)
+cupsaccept$(EXEEXT):	cupsaccept.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o cupsaccept cupsaccept.o $(LIBS)
-	for file in accept cupsenable cupsdisable cupsreject reject; do \
+	$(CC) $(LDFLAGS) -o $@ cupsaccept.o $(LIBS)
+	for file in accept$(EXEEXT) cupsenable$(EXEEXT) cupsdisable$(EXEEXT) cupsreject$(EXEEXT) reject$(EXEEXT); do \
 		$(RM) $$file; \
-		$(LN) cupsaccept $$file; \
+		$(LN) $@ $$file; \
 	done
 
 
@@ -181,25 +180,25 @@ cupsaccept:	cupsaccept.o ../cups/$(LIBCUPS)
 # cupsaddsmb
 #
 
-cupsaddsmb:	cupsaddsmb.o ../cups/$(LIBCUPS)
+cupsaddsmb$(EXEEXT):	cupsaddsmb.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o cupsaddsmb cupsaddsmb.o $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ cupsaddsmb.o $(LIBS)
 
 
 #
 # cupsctl
 #
 
-cupsctl:	cupsctl.o ../cups/$(LIBCUPS)
+cupsctl$(EXEEXT):	cupsctl.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o cupsctl cupsctl.o $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ cupsctl.o $(LIBS)
 
 
 #
 # cupstestdsc
 #
 
-cupstestdsc:	cupstestdsc.o ../cups/$(LIBCUPS)
+cupstestdsc$(EXEEXT):	cupstestdsc.o ../cups/$(LIBCUPS)
 	echo Linking $@...
 	$(CC) $(LDFLAGS) -o $@ cupstestdsc.o $(LIBS)
 
@@ -208,77 +207,68 @@ cupstestdsc:	cupstestdsc.o ../cups/$(LIBCUPS)
 # cupstestppd
 #
 
-cupstestppd:	cupstestppd.o ../cups/$(LIBCUPS) ../filter/$(LIBCUPSIMAGE)
+cupstestppd$(EXEEXT):	cupstestppd.o ../cups/$(LIBCUPS) ../filter/$(LIBCUPSIMAGE)
 	echo Linking $@...
 	$(CC) $(LDFLAGS) -o $@ cupstestppd.o $(LINKCUPSIMAGE) $(IMGLIBS) $(LIBS)
 
-cupstestppd-static:	cupstestppd.o ../cups/libcups.a ../filter/libcupsimage.a
+cupstestppd-static$(EXEEXT):	cupstestppd.o ../cups/$(LIBCUPSSTATIC) ../filter/libcupsimage.a
 	echo Linking $@...
 	$(CC) $(LDFLAGS) -o $@ cupstestppd.o ../filter/libcupsimage.a \
-		../cups/libcups.a $(IMGLIBS) $(LIBGSSAPI) $(LIBS) $(LIBZ)
+		../cups/$(LIBCUPSSTATIC) $(IMGLIBS) $(LIBGSSAPI) $(LIBS) $(LIBZ)
 
 
 #
 # lp
 #
 
-lp:	lp.o ../cups/$(LIBCUPS)
+lp$(EXEEXT):	lp.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lp lp.o $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ lp.o $(LIBS)
 
 
 #
 # lpadmin
 #
 
-lpadmin:	lpadmin.o ../cups/$(LIBCUPS)
+lpadmin$(EXEEXT):	lpadmin.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lpadmin lpadmin.o $(LIBZ) $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ lpadmin.o $(LIBZ) $(LIBS)
 
 
 #
 # lpinfo
 #
 
-lpinfo:	lpinfo.o ../cups/$(LIBCUPS)
+lpinfo$(EXEEXT):	lpinfo.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lpinfo lpinfo.o $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ lpinfo.o $(LIBS)
 
 
 #
 # lpmove
 #
 
-lpmove:	lpmove.o ../cups/$(LIBCUPS)
+lpmove$(EXEEXT):	lpmove.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lpmove lpmove.o $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ lpmove.o $(LIBS)
 
 
 #
 # lpoptions
 #
 
-lpoptions:	lpoptions.o ../cups/$(LIBCUPS)
+lpoptions$(EXEEXT):	lpoptions.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lpoptions lpoptions.o $(LIBZ) $(LIBS)
-
-
-#
-# lppasswd
-#
-
-lppasswd:	lppasswd.o ../cups/$(LIBCUPS)
-	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lppasswd lppasswd.o $(LIBZ) $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ lpoptions.o $(LIBZ) $(LIBS)
 
 
 #
 # lpstat
 #
 
-lpstat:	lpstat.o ../cups/$(LIBCUPS)
+lpstat$(EXEEXT):	lpstat.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lpstat lpstat.o $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ lpstat.o $(LIBS)
 
 
 #
@@ -289,5 +279,5 @@ include Dependencies
 
 
 #
-# End of "$Id: Makefile 8572 2009-04-29 15:32:18Z mike $".
+# End of "$Id: Makefile 11776 2014-03-28 19:16:05Z msweet $".
 #

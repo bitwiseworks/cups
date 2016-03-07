@@ -1,9 +1,9 @@
 #
-# "$Id: Makefile 7871 2008-08-27 21:12:43Z mike $"
+# "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $"
 #
-#   Port monitor makefile for the Common UNIX Printing System (CUPS).
+#   Port monitor makefile for CUPS.
 #
-#   Copyright 2007-2008 by Apple Inc.
+#   Copyright 2007-2012 by Apple Inc.
 #   Copyright 2006 by Easy Software Products.
 #
 #   These coded instructions, statements, and computer programs are the
@@ -17,7 +17,7 @@
 
 include ../Makedefs
 
-TARGETS	=	bcp tbcp
+TARGETS	=	bcp$(EXEEXT) tbcp$(EXEEXT)
 
 OBJS	=	bcp.o tbcp.o
 
@@ -56,7 +56,7 @@ clean:
 #
 
 depend:
-	makedepend -Y -I.. -fDependencies $(OBJS:.o=.c) >/dev/null 2>&1
+	$(CC) -MM $(ALL_CFLAGS) $(OBJS:.o=.c) >Dependencies
 
 
 #
@@ -80,12 +80,13 @@ install-data:
 install-exec:
 	$(INSTALL_DIR) -m 755 $(SERVERBIN)/monitor
 	for file in $(TARGETS); do \
-		$(INSTALL_BIN) $$file.exe $(SERVERBIN)/monitor; \
+		$(INSTALL_BIN) $$file $(SERVERBIN)/monitor; \
 	done
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \
 		for file in $(TARGETS); do \
 			cp $$file $(SYMROOT); \
+			dsymutil $(SYMROOT)/$$file; \
 		done \
 	fi
 
@@ -120,7 +121,7 @@ uninstall:
 # bcp
 #
 
-bcp:	bcp.o ../cups/$(LIBCUPS)
+bcp$(EXEEXT):	bcp.o ../cups/$(LIBCUPS)
 	echo Linking $@...
 	$(CC) $(LDFLAGS) -o $@ bcp.o $(LIBS)
 
@@ -129,7 +130,7 @@ bcp:	bcp.o ../cups/$(LIBCUPS)
 # tbcp
 #
 
-tbcp:	tbcp.o ../cups/$(LIBCUPS)
+tbcp$(EXEEXT):	tbcp.o ../cups/$(LIBCUPS)
 	echo Linking $@...
 	$(CC) $(LDFLAGS) -o $@ tbcp.o $(LIBS)
 
@@ -137,10 +138,10 @@ tbcp:	tbcp.o ../cups/$(LIBCUPS)
 #
 # Dependencies...
 #
-  
+
 include Dependencies
 
 
 #
-# End of "$Id: Makefile 7871 2008-08-27 21:12:43Z mike $".
+# End of "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $".
 #

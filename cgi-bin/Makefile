@@ -1,20 +1,21 @@
 #
-# "$Id: Makefile 9120 2010-04-23 18:56:34Z mike $"
+# "$Id: Makefile 12519 2015-02-17 13:10:19Z msweet $"
 #
-#   CGI makefile for CUPS.
+# CGI makefile for CUPS.
 #
-#   Copyright 2007-2010 by Apple Inc.
-#   Copyright 1997-2006 by Easy Software Products.
+# Copyright 2007-2014 by Apple Inc.
+# Copyright 1997-2006 by Easy Software Products.
 #
-#   These coded instructions, statements, and computer programs are the
-#   property of Apple Inc. and are protected by Federal copyright
-#   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
-#   which should have been included with this file.  If this file is
-#   file is missing or damaged, see the license at "http://www.cups.org/".
+# These coded instructions, statements, and computer programs are the
+# property of Apple Inc. and are protected by Federal copyright
+# law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+# which should have been included with this file.  If this file is
+# file is missing or damaged, see the license at "http://www.cups.org/".
 #
 
 include ../Makedefs
 
+DEFFILE =	cupscgi.def
 LIBOBJS	=	\
 		help-index.o \
 		html.o \
@@ -32,8 +33,7 @@ OBJS	=	\
 		printers.o \
 		testcgi.o \
 		testhi.o \
-		testtemplate.o \
-		websearch.o
+		testtemplate.o
 CGIS	=	\
 		admin.cgi \
 		classes.cgi \
@@ -42,13 +42,12 @@ CGIS	=	\
 		printers.cgi
 LIBTARGETS =	\
 		$(LIBCUPSCGI) \
-		libcupscgi.a \
-		websearch
+		libcupscgi.a
 
 UNITTARGETS =	\
-		testcgi \
-		testhi \
-		testtemplate
+		testcgi$(EXEEXT) \
+		testhi$(EXEEXT) \
+		testtemplate$(EXEEXT)
 
 TARGETS	=	\
 		$(LIBTARGETS) \
@@ -82,15 +81,15 @@ unittests:	$(UNITTARGETS)
 
 clean:
 	$(RM) $(OBJS) $(TARGETS) $(UNITTARGETS) makedocset
-	$(RM) libcupscgi.so libcupscgi.sl libcupscgi.dylib
-
+	$(RM) libcupscgi.so libcupscgi.dylib
+	$(RM) $(DEFFILE)
 
 #
 # Update dependencies (without system header dependencies...)
 #
 
 depend:
-	makedepend -Y -I.. -fDependencies $(OBJS:.o=.c) >/dev/null 2>&1
+	$(CC) -MM $(ALL_CFLAGS) $(OBJS:.o=.c) >Dependencies
 
 
 #
@@ -120,6 +119,7 @@ install-exec:
 		$(INSTALL_DIR) $(SYMROOT); \
 		for file in $(CGIS); do \
 			cp $$file $(SYMROOT); \
+			dsymutil $(SYMROOT)/$$file; \
 		done \
 	fi
 
@@ -144,7 +144,7 @@ install-libs: $(INSTALLSTATIC)
 	$(INSTALL_DIR) -m 755 $(LIBDIR)
 	$(INSTALL_LIB) $(LIBCUPSCGI) $(LIBDIR)
 	$(INSTALL) libcupscgi.a $(LIBDIR)
-	if test $(LIBCUPSCGI) = "libcupscgi.so.1" -o $(LIBCUPSCGI) = "libcupscgi.sl.1"; then \
+	if test $(LIBCUPSCGI) = "libcupscgi.so.1"; then \
 		$(RM) $(LIBDIR)/`basename $(LIBCUPSCGI) .1`; \
 		$(LN) $(LIBCUPSCGI) $(LIBDIR)/`basename $(LIBCUPSCGI) .1`; \
 	fi
@@ -155,6 +155,7 @@ install-libs: $(INSTALLSTATIC)
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \
 		cp $(LIBCUPSCGI) $(SYMROOT); \
+		dsymutil $(SYMROOT)/$(LIBCUPSCGI); \
 	fi
 
 installstatic:
@@ -176,9 +177,6 @@ uninstall:
 	$(RM) $(LIBDIR)/libcupscgi.1.dylib
 	$(RM) $(LIBDIR)/libcupscgi.a
 	$(RM) $(LIBDIR)/libcupscgi.dylib
-	$(RM) $(LIBDIR)/libcupscgi_s.a
-	$(RM) $(LIBDIR)/libcupscgi.sl
-	$(RM) $(LIBDIR)/libcupscgi.sl.1
 	$(RM) $(LIBDIR)/libcupscgi.so
 	$(RM) $(LIBDIR)/libcupscgi.so.1
 	-$(RMDIR) $(LIBDIR)
@@ -210,16 +208,14 @@ framedhelp:
 
 
 #
-# libcupscgi.so.1, libcupscgi.sl.1
+# libcupscgi.so.1
 #
 
-$(LIBCUPSCGI) libcupscgi.sl.1:	$(LIBOBJS) cupscgi.def
+$(LIBCUPSCGI):	$(LIBOBJS) $(DEFFILE)
 	echo Linking $@...
-	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ cupscgi.def $(LIBOBJS) $(LIBS)
-#	$(RM) `basename $@ .1`
-#	$(LN) $@ `basename $@ .1`
+	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(DEFFILE) $(LIBOBJS) $(LIBS)
 
-cupscgi.def:
+$(DEFFILE):
 	echo Creating $@...
 	echo "LIBRARY cupscgi INITINSTANCE TERMINSTANCE" > $@
 	echo "DATA MULTIPLE" >> $@
@@ -240,17 +236,6 @@ libcupscgi.1.dylib:	$(LIBOBJS) libcupscgi.exp
 		$(LIBOBJS) $(LIBS)
 	$(RM) libcupscgi.dylib
 	$(LN) $@ libcupscgi.dylib
-
-
-#
-# libcupscgi_s.a
-#
-
-libcupscgi_s.a:	$(LIBOBJS)
-	echo Creating $@...
-	$(DSO) $(DSOFLAGS) -o libcupscgi_s.o $(LIBOBJS) $(LIBS)
-	$(RM) $@
-	$(AR) $(ARFLAGS) $@ libcupscgi_s.o
 
 
 #
@@ -281,8 +266,8 @@ libcupscgi.a:	$(LIBOBJS)
 
 admin.cgi:	admin.o ../Makedefs ../cups/$(LIBCUPS) $(LIBCUPSCGI)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ admin.o -lcupscgi $(LIBS)
-
+	$(CC) $(LDFLAGS) -Zexe -o $@ admin.o -lcupscgi $(LIBS)
+	$(RM) admin
 
 #
 # classes.cgi
@@ -290,7 +275,8 @@ admin.cgi:	admin.o ../Makedefs ../cups/$(LIBCUPS) $(LIBCUPSCGI)
 
 classes.cgi:	classes.o ../Makedefs ../cups/$(LIBCUPS) $(LIBCUPSCGI)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ classes.o -lcupscgi $(LIBS)
+	$(CC) $(LDFLAGS) -Zexe -o $@ classes.o -lcupscgi $(LIBS)
+	$(RM) classes
 
 
 #
@@ -299,7 +285,8 @@ classes.cgi:	classes.o ../Makedefs ../cups/$(LIBCUPS) $(LIBCUPSCGI)
 
 help.cgi:	help.o ../Makedefs ../cups/$(LIBCUPS) $(LIBCUPSCGI)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ help.o -lcupscgi $(LIBS)
+	$(CC) $(LDFLAGS) -Zexe -o $@ help.o -lcupscgi $(LIBS)
+	$(RM) help
 
 
 #
@@ -308,17 +295,18 @@ help.cgi:	help.o ../Makedefs ../cups/$(LIBCUPS) $(LIBCUPSCGI)
 
 jobs.cgi:	jobs.o ../Makedefs ../cups/$(LIBCUPS) $(LIBCUPSCGI)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ jobs.o -lcupscgi $(LIBS)
+	$(CC) $(LDFLAGS) -Zexe -o $@ jobs.o -lcupscgi $(LIBS)
+	$(RM) jobs
 
 
 #
 # makedocset
 #
 
-makedocset:	makedocset.o ../Makedefs libcupscgi.a ../cups/libcups.a
+makedocset$(EXEEXT):	makedocset.o ../Makedefs libcupscgi.a ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
 	$(CC) $(ARCHFLAGS) $(LDFLAGS) -o $@ makedocset.o libcupscgi.a \
-		../cups/libcups.a $(COMMONLIBS) $(SSLLIBS) $(DNSSDLIBS) \
+		../cups/$(LIBCUPSSTATIC) $(COMMONLIBS) $(SSLLIBS) $(DNSSDLIBS) \
 		$(LIBZ) $(LIBGSSAPI)
 
 
@@ -328,54 +316,44 @@ makedocset:	makedocset.o ../Makedefs libcupscgi.a ../cups/libcups.a
 
 printers.cgi:	printers.o ../Makedefs ../cups/$(LIBCUPS) $(LIBCUPSCGI)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ printers.o -L. -lcupscgi $(LIBS)
+	$(CC) $(LDFLAGS) -Zexe -o $@ printers.o -L. -lcupscgi $(LIBS)
+	$(RM) printers
 
 
 #
 # testcgi
 #
 
-testcgi:	testcgi.o ../Makedefs libcupscgi.a ../cups/libcups.a
+testcgi$(EXEEXT):	testcgi.o ../Makedefs libcupscgi.a ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
 	$(CC) $(ARCHFLAGS) $(LDFLAGS) -o $@ testcgi.o libcupscgi.a \
-		../cups/libcups.a $(COMMONLIBS) $(SSLLIBS) $(DNSSDLIBS) \
+		../cups/$(LIBCUPSSTATIC) $(COMMONLIBS) $(SSLLIBS) $(DNSSDLIBS) \
 		$(LIBZ) $(LIBGSSAPI)
 	echo Testing CGI API...
-	./testcgi
+	./testcgi$(EXEEXT)
 
 
 #
 # testhi
 #
 
-testhi:	testhi.o ../Makedefs libcupscgi.a ../cups/libcups.a
+testhi$(EXEEXT):	testhi.o ../Makedefs libcupscgi.a ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
 	$(CC) $(ARCHFLAGS) $(LDFLAGS) -o $@ testhi.o libcupscgi.a \
-		../cups/libcups.a $(COMMONLIBS) $(SSLLIBS) $(DNSSDLIBS) \
+		../cups/$(LIBCUPSSTATIC) $(COMMONLIBS) $(SSLLIBS) $(DNSSDLIBS) \
 		$(LIBZ) $(LIBGSSAPI)
 	echo Testing help index API...
-	./testhi
+	./testhi$(EXEEXT)
 
 
 #
 # testtemplate
 #
 
-testtemplate:	testtemplate.o ../Makedefs libcupscgi.a ../cups/libcups.a
+testtemplate$(EXEEXT):	testtemplate.o ../Makedefs libcupscgi.a ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ testtemplate.o libcupscgi.a ../cups/libcups.a \
+	$(CC) $(LDFLAGS) -o $@ testtemplate.o libcupscgi.a ../cups/$(LIBCUPSSTATIC) \
 		$(COMMONLIBS) $(SSLLIBS) $(DNSSDLIBS) $(LIBZ) $(LIBGSSAPI)
-
-
-#
-# websearch
-#
-
-websearch:	websearch.o ../Makedefs libcupscgi.a ../cups/libcups.a
-	echo Linking $@...
-	$(CC) $(ARCHFLAGS) $(LDFLAGS) -o $@ websearch.o libcupscgi.a \
-		../cups/libcups.a $(COMMONLIBS) $(SSLLIBS) $(DNSSDLIBS) \
-		$(LIBZ) $(LIBGSSAPI)
 
 
 #
@@ -386,5 +364,5 @@ include Dependencies
 
 
 #
-# End of "$Id: Makefile 9120 2010-04-23 18:56:34Z mike $".
+# End of "$Id: Makefile 12519 2015-02-17 13:10:19Z msweet $".
 #
