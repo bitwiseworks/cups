@@ -101,6 +101,11 @@ AC_ARG_WITH(rcstop, [  --with-rcstop           set stop number for rc scripts],r
 if test x$rcdir = x; then
 	if test x$LAUNCHD_DIR = x -a x$SYSTEMD_DIR = x -a x$SMFMANIFESTDIR = x; then
                 # Fall back on "init", the original service startup interface...
+	case "$uname" in
+        	OS/2*)
+                        rcdir="/@unixroot/etc/rc.d"
+                ;;
+                *)
                 if test -d /sbin/init.d; then
                         # SuSE
                         rcdir="/sbin/init.d"
@@ -111,6 +116,8 @@ if test x$rcdir = x; then
                         # RedHat, NetBSD
                         rcdir="/etc/rc.d"
                 fi
+                ;;
+        esac
         else
         	rcdir="no"
 	fi
