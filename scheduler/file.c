@@ -27,6 +27,9 @@ static int	overwrite_data(int fd, const char *buffer, int bufsize,
 		               int filesize);
 #endif /* HAVE_REMOVEFILE */
 
+#ifdef __OS2__
+#define pipe(A) socketpair(AF_UNIX, SOCK_STREAM,0, A)
+#endif
 
 /*
  * 'cupsdCleanFiles()' - Clean out old files.

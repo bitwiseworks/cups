@@ -220,8 +220,6 @@ cupsdUpdateEnv(void)
 #else
     cupsdSetEnvf("PATH", "%s/filter;" CUPS_BINDIR ";" CUPS_SBINDIR
                          ";/bin;/usr/bin", ServerBin);
-  cupsdSetEnv("COMSPEC", NULL);
-  cupsdSetEnv("ETC", NULL);
 #endif
   set_if_undefined("SERVER_ADMIN", ServerAdmin);
   set_if_undefined("SHLIB_PATH", NULL);

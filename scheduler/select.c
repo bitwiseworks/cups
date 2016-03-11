@@ -609,6 +609,7 @@ cupsdDoSelect(long timeout)		/* I - Timeout in seconds */
   {
     stimeout.tv_sec  = timeout;
     stimeout.tv_usec = 0;
+
     nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
                   &stimeout);
   }
