@@ -213,7 +213,14 @@ dnl Checks for wait functions.
 AC_CHECK_FUNCS(waitpid wait3)
 
 dnl Check for posix_spawn
+case "$uname" in
+	OS/2*)
+	   # Do not use posix_spawn on OS/2
+	   ;;
+	*)
 AC_CHECK_FUNCS(posix_spawn)
+	   ;;
+esac
 
 dnl See if the tm structure has the tm_gmtoff member...
 AC_MSG_CHECKING(for tm_gmtoff member in tm structure)

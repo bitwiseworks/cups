@@ -639,8 +639,6 @@ cupsdAuthorize(cupsd_client_t *con)	/* I - Client connection */
 
 	    pam_end(pamh, PAM_SUCCESS);
 
-#elif defined(__OS2__)
-/* Allow all users on OS/2 */
 #else
            /*
 	    * Use normal UNIX password file-based authentication...

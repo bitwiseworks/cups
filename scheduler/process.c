@@ -677,6 +677,7 @@ cupsdStartProcess(
     * processes it creates.
     */
 
+#ifndef __OS2__
 #  ifdef HAVE_SETPGID
     if (!RunUser && setpgid(0, 0))
       exit(errno + 100);
@@ -684,6 +685,7 @@ cupsdStartProcess(
     if (!RunUser && setpgrp())
       exit(errno + 100);
 #  endif /* HAVE_SETPGID */
+#endif
 
    /*
     * Update the remaining file descriptors as needed...
