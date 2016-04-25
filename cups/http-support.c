@@ -1033,6 +1033,12 @@ httpSeparateURI(
 
     *ptr = '\0';
 
+#ifdef __OS2__ // see if the scheme ends with .exe and remove it if found
+    ptr = strstr(scheme, ".exe");
+    if (ptr != NULL)
+       *ptr = '\0';
+#endif
+
     if (*uri != ':')
     {
       *scheme = '\0';
