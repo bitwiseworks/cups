@@ -778,7 +778,11 @@ cgi_initialize_multipart(
 
   while (fgets(line, sizeof(line), stdin))
   {
+#ifdef __OS2__
+    if (!strcmp(line, "\r\n") || !strcmp(line, "\n"))
+#else
     if (!strcmp(line, "\r\n"))
+#endif
     {
      /*
       * End of headers, grab value...
@@ -823,7 +827,11 @@ cgi_initialize_multipart(
 
         ptr = line;
 
+#ifdef __OS2__
+	while ((ch = getchar()) != EOF && ch != '\n')
+#else
 	while ((ch = getchar()) != EOF)
+#endif
 	{
 	  *ptr++ = (char)ch;
 
@@ -864,7 +872,11 @@ cgi_initialize_multipart(
         ptr = line;
 	end = line + sizeof(line) - 1;
 
+#ifdef __OS2__
+	while ((ch = getchar()) != EOF && ch != '\n')
+#else
 	while ((ch = getchar()) != EOF)
+#endif
 	{
 	  if (ptr < end)
 	    *ptr++ = (char)ch;
