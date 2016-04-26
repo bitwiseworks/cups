@@ -2109,7 +2109,11 @@ cupsdSendCommand(
 
   if (con->filename)
   {
+#ifdef __OS2__
+    fd = open(con->filename, O_RDONLY | O_BINARY);
+#else
     fd = open(con->filename, O_RDONLY);
+#endif
 
     if (fd < 0)
     {

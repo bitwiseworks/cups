@@ -617,64 +617,67 @@ cupsdDoSelect(long timeout)		/* I - Timeout in seconds */
     nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
                   NULL);
 
-#if 0 // #ifdef __EMX__ // @todo I doubt this part is needed 
-  /* libc's select() is flaky - pause 0.5 second and retry */	
-  if (nfds == -1) {
+#ifdef __OS2__
+  /* libc's select() is flaky - pause 0.5 second and retry
+   * @todo see why this is really needed
+   * my findings are, that it's only needed when gutenprint is installed
+   * somehow a cupsdPipeCommand needs very long to fork() execv() and so
+   * the socket isn't ready */
+  if (nfds == -1)
+  {
+    cupsdLogMessage(CUPSD_LOG_WARN, "cupsdDoSelect: select() returned %d... pause and retry select()",
+                  nfds);
     usleep(500000);
-    cupsdLogMessage(CUPSD_LOG_INFO, "cupsdDoSelect: select() returned %d... pause and retry select()",
-                  nfds);
-  if (timeout >= 0 && timeout < 86400)
-  {
-    stimeout.tv_sec  = timeout;
-    stimeout.tv_usec = 0;
-    nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
+    if (timeout >= 0 && timeout < 86400)
+    {
+      stimeout.tv_sec  = timeout;
+      stimeout.tv_usec = 0;
+      nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
                   &stimeout);
-  }
-  else
-    nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
+    }
+    else
+      nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
                   NULL);
-		}
+  }
 
-  if (nfds == -1) {
-
-
-  /* fcntl O_NONBLOCK doesn't always succeed on OS/2 - force the socket to be non-blocking */
-  char dontblock =1;
-  cupsdLogMessage(CUPSD_LOG_INFO, "cupsdDoSelect: select() returned %d (2nd failure)... setting socket to non-blocking mode",
-                  nfds);
-  os2_ioctl(maxfd, FIONBIO, &dontblock,sizeof(dontblock));
-
-  usleep(500000);
-  cupsdLogMessage(CUPSD_LOG_INFO, "cupsdDoSelect: select() returned %d (2nd failure)... pause and retry select()",
-                  nfds);
-  if (timeout >= 0 && timeout < 86400)
+  if (nfds == -1)
   {
-    stimeout.tv_sec  = timeout;
-    stimeout.tv_usec = 0;
-    nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
-                  &stimeout);
-  }
-  else
-    nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
-                  NULL);
-		}
 
-  if (nfds == -1) {
+    cupsdLogMessage(CUPSD_LOG_WARN, "cupsdDoSelect: select() returned %d (2nd failure)... pause and setting socket to non-blocking mode",
+                  nfds);
+    /* fcntl O_NONBLOCK doesn't always succeed on OS/2 - force the socket to be non-blocking */
+    char dontblock =1;
+    os2_ioctl(maxfd, FIONBIO, &dontblock,sizeof(dontblock));
+
     usleep(500000);
-    cupsdLogMessage(CUPSD_LOG_INFO, "cupsdDoSelect: select() returned %d (3rd failure)... pause and retry select()",
-                  nfds);
-  if (timeout >= 0 && timeout < 86400)
-  {
-    stimeout.tv_sec  = timeout;
-    stimeout.tv_usec = 0;
-    nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
+    if (timeout >= 0 && timeout < 86400)
+    {
+      stimeout.tv_sec  = timeout;
+      stimeout.tv_usec = 0;
+      nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
                   &stimeout);
-  }
-  else
-    nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
+    }
+    else
+      nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
                   NULL);
-		}
+  }
 
+  if (nfds == -1)
+  {
+    cupsdLogMessage(CUPSD_LOG_WARN, "cupsdDoSelect: select() returned %d (3rd failure)... pause and retry select()",
+                  nfds);
+    usleep(500000);
+    if (timeout >= 0 && timeout < 86400)
+    {
+      stimeout.tv_sec  = timeout;
+      stimeout.tv_usec = 0;
+      nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
+                  &stimeout);
+    }
+    else
+      nfds = select(maxfd, &cupsd_current_input, &cupsd_current_output, NULL,
+                  NULL);
+  }
 #endif
 
   if (nfds > 0)
