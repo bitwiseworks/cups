@@ -769,7 +769,7 @@ copy_comments(cups_file_t  *fp,		/* I - File to read from */
     * Apple uses RBI comments for various non-PPD options...
     */
 
-    doc_puts(doc, "%RBINumCopies: 1\n");
+    doc_puts(doc, "%%RBINumCopies: 1\n");
   }
 
   doc_puts(doc, "%%Pages: (atend)\n");
@@ -1114,7 +1114,7 @@ copy_non_dsc(cups_file_t  *fp,		/* I - File to read from */
     * Apple uses RBI comments for various non-PPD options...
     */
 
-    puts("%RBINumCopies: 1");
+    puts("%%RBINumCopies: 1");
   }
 
   puts("%%EndComments");
