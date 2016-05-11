@@ -25,7 +25,7 @@
 #elif defined(HAVE_KQUEUE)
 #  include <sys/event.h>
 #  include <sys/time.h>
-#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
+#elif defined(HAVE_POLL)
 #  include <poll.h>
 #else
 #  include <sys/select.h>
@@ -204,7 +204,7 @@ static int		cupsd_in_select = 0;
 static int		cupsd_kqueue_fd = -1,
 			cupsd_kqueue_changes = 0;
 static struct kevent	*cupsd_kqueue_events = NULL;
-#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
+#elif defined(HAVE_POLL)
 static int		cupsd_alloc_pollfds = 0,
 			cupsd_update_pollfds = 0;
 static struct pollfd	*cupsd_pollfds = NULL;
@@ -332,7 +332,7 @@ cupsdAddSelect(int             fd,	/* I - File descriptor */
     }
   }
 
-#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
+#elif defined(HAVE_POLL)
 #  ifdef HAVE_EPOLL
   if (cupsd_epoll_fd >= 0)
   {
@@ -446,7 +446,7 @@ cupsdDoSelect(long timeout)		/* I - Timeout in seconds */
     release_fd(fdptr);
   }
 
-#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
+#elif defined(HAVE_POLL)
   struct pollfd		*pfd;		/* Current pollfd structure */
   int			count;		/* Number of file descriptors */
 
@@ -760,7 +760,7 @@ cupsdRemoveSelect(int fd)		/* I - File descriptor */
 #elif defined(HAVE_KQUEUE)
   struct kevent		event;		/* Event data */
   struct timespec	timeout;	/* Timeout value */
-#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
+#elif defined(HAVE_POLL)
   /* No variables for poll() */
 #endif /* HAVE_EPOLL */
 
@@ -817,7 +817,7 @@ cupsdRemoveSelect(int fd)		/* I - File descriptor */
     }
   }
 
-#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
+#elif defined(HAVE_POLL)
  /*
   * Update the pollfds array...
   */
@@ -877,7 +877,7 @@ cupsdStartSelect(void)
   cupsd_kqueue_changes = 0;
   cupsd_kqueue_events  = calloc((size_t)MaxFDs, sizeof(struct kevent));
 
-#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
+#elif defined(HAVE_POLL)
   cupsd_update_pollfds = 0;
 
 #else /* select() */
@@ -927,7 +927,7 @@ cupsdStopSelect(void)
 
   cupsd_kqueue_changes = 0;
 
-#elif defined(HAVE_POLL) && !defined(__OS2__) /* prefer select method than poll() emulation */
+#elif defined(HAVE_POLL)
 #  ifdef HAVE_EPOLL
   if (cupsd_epoll_events)
   {
