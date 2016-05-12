@@ -158,7 +158,11 @@ cupsCharsetToUTF8(
 
     _cupsCharmapFlush();
 
+#ifdef __OS2__
+    snprintf(toset, sizeof(toset), "%s", _cupsEncodingName(encoding));
+#else
     snprintf(toset, sizeof(toset), "%s//IGNORE", _cupsEncodingName(encoding));
+#endif
 
     map_encoding  = encoding;
     map_from_utf8 = iconv_open(_cupsEncodingName(encoding), "UTF-8");
@@ -287,7 +291,11 @@ cupsUTF8ToCharset(
 
     _cupsCharmapFlush();
 
+#ifdef __OS2__
+    snprintf(toset, sizeof(toset), "%s", _cupsEncodingName(encoding));
+#else
     snprintf(toset, sizeof(toset), "%s//IGNORE", _cupsEncodingName(encoding));
+#endif
 
     map_encoding  = encoding;
     map_from_utf8 = iconv_open(_cupsEncodingName(encoding), "UTF-8");
