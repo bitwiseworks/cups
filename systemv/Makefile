@@ -88,15 +88,15 @@ install-exec:
 	$(INSTALL_BIN) lpinfo$(EXEEXT) $(SBINDIR)
 	$(INSTALL_BIN) lpmove$(EXEEXT) $(SBINDIR)
 	$(RM) $(SBINDIR)/accept$(EXEEXT)
-	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/accept$(EXEEXT)
+	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/accept
 	$(RM) $(SBINDIR)/cupsdisable$(EXEEXT)
-	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/cupsdisable$(EXEEXT)
+	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/cupsdisable
 	$(RM) $(SBINDIR)/cupsenable$(EXEEXT)
-	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/cupsenable$(EXEEXT)
+	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/cupsenable
 	$(RM) $(SBINDIR)/cupsreject$(EXEEXT)
-	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/cupsreject$(EXEEXT)
+	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/cupsreject
 	$(RM) $(SBINDIR)/reject$(EXEEXT)
-	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/reject$(EXEEXT)
+	$(LN) cupsaccept$(EXEEXT) $(SBINDIR)/reject
 	echo Installing System V user printing commands in $(BINDIR)
 	$(INSTALL_DIR) -m 755 $(BINDIR)
 	$(INSTALL_BIN) cancel$(EXEEXT) $(BINDIR)
@@ -170,7 +170,7 @@ cancel$(EXEEXT):	cancel.o ../cups/$(LIBCUPS)
 cupsaccept$(EXEEXT):	cupsaccept.o ../cups/$(LIBCUPS)
 	echo Linking $@...
 	$(CC) $(LDFLAGS) -o $@ cupsaccept.o $(LIBS)
-	for file in accept$(EXEEXT) cupsenable$(EXEEXT) cupsdisable$(EXEEXT) cupsreject$(EXEEXT) reject$(EXEEXT); do \
+	for file in accept cupsenable cupsdisable cupsreject reject; do \
 		$(RM) $$file; \
 		$(LN) $@ $$file; \
 	done

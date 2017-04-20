@@ -133,7 +133,7 @@ install-exec:	$(INSTALLXPC)
 	done
 	for file in $(IPPALIASES); do \
 		$(RM) $(SERVERBIN)/backend/$$file; \
-		$(LN) ipp $(SERVERBIN)/backend/$$file; \
+		$(LN) ipp$(EXEEXT) $(SERVERBIN)/backend/$$file; \
 	done
 	if test "x$(DNSSD_BACKEND)" != x -a `uname` = Darwin; then \
 		$(RM) $(SERVERBIN)/backend/mdns; \
@@ -153,7 +153,7 @@ install-xpc:	ipp
 	$(LIBTOOL) $(INSTALL_BIN) ipp $(SERVERBIN)/apple
 	for file in $(IPPALIASES); do \
 		$(RM) $(SERVERBIN)/apple/$$file; \
-		$(LN) ipp $(SERVERBIN)/apple/$$file; \
+		$(LN) ipp$(EXEEXT) $(SERVERBIN)/apple/$$file; \
 	done
 
 
@@ -266,7 +266,7 @@ ipp$(EXEEXT):	ipp.o ../cups/$(LIBCUPS) libbackend.a
 	echo Linking $@...
 	$(CC) $(LDFLAGS) -o $@ ipp.o libbackend.a $(LIBS)
 	$(RM) http
-	$(LN) ipp http
+	$(LN) ipp$(EXEEXT) http
 
 
 #

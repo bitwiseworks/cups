@@ -106,7 +106,7 @@ install-exec:
 		$(INSTALL_BIN) $$file $(SERVERBIN)/filter; \
 	done
 	$(RM) $(SERVERBIN)/filter/rastertodymo.exe
-	$(LN) rastertolabel.exe $(SERVERBIN)/filter/rastertodymo.exe
+	$(LN) rastertolabel$(EXEEXT) $(SERVERBIN)/filter/rastertodymo
 	if test "x$(SYMROOT)" != "x"; then \
 		$(INSTALL_DIR) $(SYMROOT); \
 		for file in $(FILTERS); do \
