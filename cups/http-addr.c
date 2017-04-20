@@ -139,7 +139,11 @@ httpAddrLength(const http_addr_t *addr)	/* I - Address */
 #endif /* AF_INET6 */
 #ifdef AF_LOCAL
   if (addr->addr.sa_family == AF_LOCAL)
+#ifdef __OS2__
+    return (sizeof(struct sockaddr_un));
+#else
     return ((int)(offsetof(struct sockaddr_un, sun_path) + strlen(addr->un.sun_path) + 1));
+#endif
   else
 #endif /* AF_LOCAL */
   if (addr->addr.sa_family == AF_INET)
@@ -204,7 +208,9 @@ httpAddrListen(http_addr_t *addr,	/* I - Address to bind to */
     * Remove any existing domain socket file...
     */
 
+#ifndef __OS2__ // no real file on os2
     unlink(addr->un.sun_path);
+#endif
 
    /*
     * Save the current umask and set it to 0 so that all users can access
@@ -224,7 +230,9 @@ httpAddrListen(http_addr_t *addr,	/* I - Address to bind to */
     */
 
     umask(mask);
+#ifndef __OS2__ // no real file on os2
     chmod(addr->un.sun_path, 0140777);
+#endif
   }
   else
 #endif /* AF_LOCAL */

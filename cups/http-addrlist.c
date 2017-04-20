@@ -461,7 +461,11 @@ httpAddrGetList(const char *hostname,	/* I - Hostname, IP address, or NULL for p
   first = addr = NULL;
 
 #ifdef AF_LOCAL
+#ifdef __OS2__
+  if (hostname && (hostname[0] == '/' || hostname[0] == '\\'))
+#else
   if (hostname && hostname[0] == '/')
+#endif
   {
    /*
     * Domain socket address...
@@ -472,6 +476,15 @@ httpAddrGetList(const char *hostname,	/* I - Hostname, IP address, or NULL for p
       addr = first;
       first->addr.un.sun_family = AF_LOCAL;
       strlcpy(first->addr.un.sun_path, hostname, sizeof(first->addr.un.sun_path));
+#ifdef __OS2__
+      /* we need \socket\anything, so change / to \ */
+      char *p;
+      for (p = first->addr.un.sun_path; *p; p++)
+      {
+        if (*p == '/')
+          *p = '\\';
+      }
+#endif
     }
   }
   else
