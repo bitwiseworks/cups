@@ -3903,6 +3903,9 @@ valid_host(cupsd_client_t *con)		/* I - Client connection */
 	    !_cups_strcasecmp(con->clientname, "localhost.localdomain") ||
 #endif /* __linux */
             !strcmp(con->clientname, "127.0.0.1") ||
+#ifdef __OS2__
+            !strncmp(con->clientname, "\\socket\\", 8) ||
+#endif /* __OS2__ */
 	    !strcmp(con->clientname, "[::1]"));
   }
 
