@@ -946,6 +946,25 @@ get_file(const char *name,		/* I - Name */
   }
   else
 
+#elif defined(__OS2__)
+  if (!strncmp(name, "lsb/usr/", 8))
+  {
+   /*
+    * Map ppd-name to LSB standard /@unixroot/usr/share/ppd location...
+    */
+
+    snprintf(buffer, bufsize, "/@unixroot/usr/share/ppd/%s", name + 8);
+  }
+  else if (!strncmp(name, "lsb/local/", 10))
+  {
+   /*
+    * Map ppd-name to LSB standard /@unixroot/usr/local/share/ppd location...
+    */
+
+    snprintf(buffer, bufsize, "/@unixroot/usr/local/share/ppd/%s", name + 10);
+  }
+  else
+
 #endif /* __APPLE__ */
   {
     if ((datadir = getenv("CUPS_DATADIR")) == NULL)
@@ -1110,6 +1129,16 @@ list_ppds(int        request_id,	/* I - Request ID */
     load_ppds("/usr/share/ppd", "lsb/usr", 1);
   if (!access("/opt/share/ppd", 0))
     load_ppds("/opt/share/ppd", "lsb/opt", 1);
+
+#elif defined(__OS2__)
+ /*
+  * Load PPDs from LSB-defined locations...
+  */
+
+  if (!access("/@unixroot/usr/local/share/ppd", 0))
+    load_ppds("/@unixroot/usr/local/share/ppd", "lsb/local", 1);
+  if (!access("/@unixroot/usr/share/ppd", 0))
+    load_ppds("/@unixroot/usr/share/ppd", "lsb/usr", 1);
 #endif /* __APPLE__ */
 
  /*
