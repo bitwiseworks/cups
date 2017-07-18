@@ -462,6 +462,7 @@ $(LIBCUPSMIME):	$(LIBOBJS) $(DEFFILE)
 $(DEFFILE):
 	echo Creating $@...
 	echo "LIBRARY cupsmim INITINSTANCE TERMINSTANCE" > $@
+	echo "DESCRIPTION \"$(BUILDLEVEL_INFO)@@cupsmime\"" >> $@
 	echo "DATA MULTIPLE" >> $@
 	echo "EXPORTS" >> $@
 	emxexp $(LIBOBJS) >> $@

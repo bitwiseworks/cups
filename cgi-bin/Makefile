@@ -218,6 +218,7 @@ $(LIBCUPSCGI):	$(LIBOBJS) $(DEFFILE)
 $(DEFFILE):
 	echo Creating $@...
 	echo "LIBRARY cupscgi INITINSTANCE TERMINSTANCE" > $@
+	echo "DESCRIPTION \"$(BUILDLEVEL_INFO)@@cupscgi\"" >> $@
 	echo "DATA MULTIPLE" >> $@
 	echo "EXPORTS" >> $@
 	emxexp $(LIBOBJS) >> $@

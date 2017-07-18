@@ -278,6 +278,7 @@ $(LIBCUPSIMAGE) libcupsimage.sl.2:	$(IMAGEOBJS) $(DEFFILE)
 $(DEFFILE):
 	echo Creating $@...
 	echo "LIBRARY cupsim INITINSTANCE TERMINSTANCE" > $@
+	echo "DESCRIPTION \"$(BUILDLEVEL_INFO)@@cupsimage\"" >> $@
 	echo "DATA MULTIPLE" >> $@
 	echo "EXPORTS" >> $@
 	emxexp $(IMAGEOBJS) >> $@

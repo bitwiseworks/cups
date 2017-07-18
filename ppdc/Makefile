@@ -345,6 +345,7 @@ $(LIBCUPSPPDC):	$(LIBOBJS) ../cups/$(LIBCUPS) $(DEFFILE)
 $(DEFFILE):
 	echo Creating $@...
 	echo "LIBRARY cupspp INITINSTANCE TERMINSTANCE" > $@
+	echo "DESCRIPTION \"$(BUILDLEVEL_INFO)@@cupppdc\"" >> $@
 	echo "DATA MULTIPLE" >> $@
 	echo "EXPORTS" >> $@
 	emxexp $(LIBOBJS) >> $@

@@ -321,6 +321,7 @@ $(LIBCUPS):	$(LIBOBJS) $(DEFFILE)
 $(DEFFILE):
 	echo Creating $@...
 	echo "LIBRARY cups INITINSTANCE TERMINSTANCE" > $@
+	echo "DESCRIPTION \"$(BUILDLEVEL_INFO)@@cups\"" >> $@
 	echo "DATA MULTIPLE" >> $@
 	echo "EXPORTS" >> $@
 	emxexp $(LIBOBJS) >> $@
