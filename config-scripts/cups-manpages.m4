@@ -53,7 +53,7 @@ case "$uname" in
 		MAN8EXT=1m
 		MAN8DIR=1m
 		;;
-	Linux* | GNU* | Darwin*)
+	Linux* | GNU* | Darwin* | OS/2*)
 		# Linux, GNU Hurd, and OS X
 		MAN1EXT=1.gz
 		MAN5EXT=5.gz
