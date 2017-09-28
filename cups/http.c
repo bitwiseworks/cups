@@ -297,7 +297,11 @@ httpClearFields(http_t *http)		/* I - HTTP connection */
 
     if (http->mode == _HTTP_MODE_CLIENT)
     {
+#ifdef __OS2__
+      if (http->hostname[0] == '/' || http->hostname[0] == '\\')
+#else
       if (http->hostname[0] == '/')
+#endif
 	httpSetField(http, HTTP_FIELD_HOST, "localhost");
       else
 	httpSetField(http, HTTP_FIELD_HOST, http->hostname);
