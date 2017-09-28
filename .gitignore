@@ -1,2 +1,114 @@
+// configure stuff
 autom4te.cache/
+config.log
+config.status
+config.h
 configure
+cups-config
+Makedefs
+
+// templates
+templates/header.tmpl
+templates/*/header.tmpl
+
+// doc
+doc/index.html
+doc/*/index.html
+desktop/cups.desktop
+
+// conf
+conf/cupsd.conf
+conf/mime.convs
+conf/cups-files.conf
+conf/pam.std
+conf/snmp.conf
+
+// man 
+man/client.conf.man
+man/cups-files.conf.man
+man/cups-lpd.man
+man/cups-snmp.man
+man/cupsaddsmb.man
+man/cupsd.conf.man
+man/cupsd.man
+man/lpoptions.man
+
+// package files
+packaging/cups.list
+
+// scheduler files
+scheduler/cups-lpd.xinetd
+scheduler/cups.sh
+scheduler/cups.xml
+scheduler/org.cups.cups-lpd.plist
+scheduler/org.cups.cups-lpdAT.service
+scheduler/org.cups.cupsd.path
+scheduler/org.cups.cupsd.service
+scheduler/org.cups.cupsd.socket
+
+// ignore all built files
+*.o
+*.dll
+*.a
+*.def
+*.exe
+*.cgi
+backend/http
+ppdc/sample.c
+scheduler/convert
+systemv/accept
+systemv/cupsdisable
+systemv/cupsenable
+systemv/cupsreject
+systemv/reject
+
+// ignore new generated man files
+man/*1.gz
+man/*5.gz
+man/*7.gz
+man/*8.gz
+
+// ignore new generated man-*.html files
+doc/help/man-lpadmin.html
+doc/help/man-lpc.html
+doc/help/man-lpinfo.html
+doc/help/man-lpmove.html
+doc/help/man-lpoptions.html
+doc/help/man-lpq.html
+doc/help/man-lpr.html
+doc/help/man-lprm.html
+doc/help/man-lpstat.html
+doc/help/man-mailto.conf.html
+doc/help/man-mime.convs.html
+doc/help/man-mime.types.html
+doc/help/man-notifier.html
+doc/help/man-ppdc.html
+doc/help/man-ppdcfile.html
+doc/help/man-ppdhtml.html
+doc/help/man-ppdi.html
+doc/help/man-ppdmerge.html
+doc/help/man-ppdpo.html
+doc/help/man-printers.conf.html
+doc/help/man-subscriptions.conf.html
+doc/help/man-backend.html
+doc/help/man-cancel.html
+doc/help/man-classes.conf.html
+doc/help/man-client.conf.html
+doc/help/man-cups-config.html
+doc/help/man-cups-lpd.html
+doc/help/man-cups-snmp.conf.html
+doc/help/man-cupsaccept.html
+doc/help/man-cupsaddsmb.html
+doc/help/man-cupsctl.html
+doc/help/man-cupsd.conf.html
+doc/help/man-cupsd.html
+doc/help/man-cupsenable.html
+doc/help/man-cupsfilter.html
+doc/help/man-cupstestdsc.html
+doc/help/man-cupstestppd.html
+doc/help/man-filter.html
+doc/help/man-lp.html
+
+
+// my local build file
+build.txt
