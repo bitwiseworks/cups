@@ -229,11 +229,12 @@ cupsdUpdateEnv(void)
   set_if_undefined("USER", "root");
   set_if_undefined("VG_ARGS", NULL);
 #if defined(__OS2__)
-  /*
-  * Always define UNIXROOT for child processes
-  */
+  // Always define UNIXROOT for child processes
   if (getenv("UNIXROOT"))
     set_if_undefined("UNIXROOT", getenv("UNIXROOT"));
+  // Always define ETC for child processes (tcpip32.dll at least needs it)
+  if (getenv("ETC"))
+    set_if_undefined("ETC", getenv("ETC"));
 #endif	/* __OS2__ */
 
   cupsdSetEnvf("CUPS_MAX_MESSAGE", "%d", CUPSD_SB_BUFFER_SIZE - 1);
