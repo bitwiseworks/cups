@@ -1,16 +1,14 @@
 //
-// "$Id: ppdc-catalog.cxx 11800 2014-04-08 19:53:57Z msweet $"
-//
 // Shared message catalog class for the CUPS PPD Compiler.
 //
-// Copyright 2007-2014 by Apple Inc.
+// Copyright 2007-2017 by Apple Inc.
 // Copyright 2002-2006 by Easy Software Products.
 //
 // These coded instructions, statements, and computer programs are the
 // property of Apple Inc. and are protected by Federal copyright
 // law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 // which should have been included with this file.  If this file is
-// file is missing or damaged, see the license at "http://www.cups.org/".
+// missing or damaged, see the license at "http://www.cups.org/".
 //
 
 //
@@ -60,7 +58,7 @@ ppdcCatalog::ppdcCatalog(const char *l,	// I - Locale
   filename = new ppdcString(f);
   messages = new ppdcArray();
 
-  if (l)
+  if (l && strcmp(l, "en"))
   {
     // Try loading the base messages for this locale...
     char	pofile[1024];		// Message catalog file
@@ -80,7 +78,9 @@ ppdcCatalog::ppdcCatalog(const char *l,	// I - Locale
 
       if (!strncmp(l, "en", 2))
 	tl = "English";
-      else if (!strncmp(l, "nb", 2) || !strncmp(l, "nl", 2))
+      else if (!strncmp(l, "nb", 2))
+        tl = "no";
+      else if (!strncmp(l, "nl", 2))
 	tl = "Dutch";
       else if (!strncmp(l, "fr", 2))
 	tl = "French";
@@ -254,7 +254,7 @@ ppdcCatalog::load_messages(
   else if (!strcmp(ptr, ".strings"))
   {
    /*
-    * Read messages in OS X ".strings" format, which are either UTF-8/UTF-16
+    * Read messages in macOS ".strings" format, which are either UTF-8/UTF-16
     * text files of the format:
     *
     *     "id" = "str";
@@ -959,8 +959,3 @@ put_utf16(cups_file_t *fp,		// I - File to write to
 
   return (-1);
 }
-
-
-//
-// End of "$Id: ppdc-catalog.cxx 11800 2014-04-08 19:53:57Z msweet $".
-//

@@ -1,6 +1,4 @@
 /*
- * "$Id: dbus.c 11594 2014-02-14 20:09:01Z msweet $"
- *
  * D-Bus notifier for CUPS.
  *
  * Copyright 2008-2014 by Apple Inc.
@@ -12,7 +10,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -651,8 +649,3 @@ main(void)
   return (1);
 }
 #endif /* HAVE_DBUS */
-
-
-/*
- * End of "$Id: dbus.c 11594 2014-02-14 20:09:01Z msweet $".
- */

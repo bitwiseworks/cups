@@ -1,16 +1,14 @@
 #
-# "$Id: Makefile 12414 2015-01-21 00:02:04Z msweet $"
-#
 # Top-level Makefile for CUPS.
 #
-# Copyright 2007-2014 by Apple Inc.
+# Copyright 2007-2018 by Apple Inc.
 # Copyright 1997-2007 by Easy Software Products, all rights reserved.
 #
 # These coded instructions, statements, and computer programs are the
 # property of Apple Inc. and are protected by Federal copyright
 # law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 # which should have been included with this file.  If this file is
-# file is missing or damaged, see the license at "http://www.cups.org/".
+# missing or damaged, see the license at "http://www.cups.org/".
 #
 
 include Makedefs
@@ -129,6 +127,9 @@ depend:
 #    http://clang-analyzer.llvm.org
 #
 # At least checker-231 is required.
+#
+# Alternatively, use "--analyze -Xanalyzer -analyzer-output=text" for OPTIM (text
+# output instead of HTML...)
 #
 
 .PHONY: clang clang-changes
@@ -265,42 +266,10 @@ debugcheck:	all unittests
 #
 
 apihelp:
-	for dir in cgi-bin cups filter ppdc scheduler; do\
+	for dir in cups filter; do\
 		echo Generating API help in $$dir... ;\
 		(cd $$dir; $(MAKE) $(MFLAGS) apihelp) || exit 1;\
 	done
-
-framedhelp:
-	for dir in cgi-bin cups filter ppdc scheduler; do\
-		echo Generating framed API help in $$dir... ;\
-		(cd $$dir; $(MAKE) $(MFLAGS) framedhelp) || exit 1;\
-	done
-
-
-#
-# Create an Xcode docset using Mini-XML's mxmldoc (http://www.msweet.org/)...
-#
-
-docset:	apihelp
-	echo Generating docset directory tree...
-	$(RM) -r org.cups.docset
-	mkdir -p org.cups.docset/Contents/Resources/Documentation/help
-	mkdir -p org.cups.docset/Contents/Resources/Documentation/images
-	cd man; $(MAKE) $(MFLAGS) html
-	cd doc; $(MAKE) $(MFLAGS) docset
-	cd cgi-bin; $(MAKE) $(MFLAGS) makedocset
-	cgi-bin/makedocset org.cups.docset \
-		`svnversion . | sed -e '1,$$s/[a-zA-Z]//g'` \
-		doc/help/api-*.tokens
-	$(RM) doc/help/api-*.tokens
-	echo Indexing docset...
-	/Applications/Xcode.app/Contents/Developer/usr/bin/docsetutil index org.cups.docset
-	echo Generating docset archive and feed...
-	$(RM) org.cups.docset.atom
-	/Applications/Xcode.app/Contents/Developer/usr/bin/docsetutil package --output org.cups.docset.xar \
-		--atom org.cups.docset.atom \
-		--download-url http://www.cups.org/org.cups.docset.xar \
-		org.cups.docset
 
 
 #
@@ -319,22 +288,15 @@ sloc:
 
 EPMFLAGS	=	-v --output-dir dist $(EPMARCH)
 
-bsd deb pkg slackware:
+bsd deb epm pkg rpm slackware:
 	epm $(EPMFLAGS) -f $@ cups packaging/cups.list
 
-epm:
-	epm $(EPMFLAGS) -s packaging/installer.gif cups packaging/cups.list
-
-rpm:
-	epm $(EPMFLAGS) -f rpm -s packaging/installer.gif cups packaging/cups.list
-
-.PHONEY:	dist
+.PHONY:	dist
 dist:	all
 	$(RM) -r dist
 	$(MAKE) $(MFLAGS) epm
 	case `uname` in \
 		*BSD*) $(MAKE) $(MFLAGS) bsd;; \
-		Darwin*) $(MAKE) $(MFLAGS) osx;; \
 		Linux*) test ! -x /usr/bin/rpm || $(MAKE) $(MFLAGS) rpm;; \
 		SunOS*) $(MAKE) $(MFLAGS) pkg;; \
 	esac
@@ -345,8 +307,3 @@ dist:	all
 #
 
 .NOTPARALLEL:
-
-
-#
-# End of "$Id: Makefile 12414 2015-01-21 00:02:04Z msweet $".
-#

@@ -1,6 +1,4 @@
 /*
- * "$Id: gziptoany.c 12655 2015-05-22 17:26:40Z msweet $"
- *
  * GZIP/raw pre-filter for CUPS.
  *
  * Copyright 2007-2015 by Apple Inc.
@@ -10,7 +8,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -109,8 +107,3 @@ main(int  argc,				/* I - Number of command-line arguments */
 
   return (0);
 }
-
-
-/*
- * End of "$Id: gziptoany.c 12655 2015-05-22 17:26:40Z msweet $".
- */

@@ -1,16 +1,14 @@
 /*
- * "$Id: rastertoepson.c 12945 2015-10-26 19:46:02Z msweet $"
- *
  * EPSON ESC/P and ESC/P2 filter for CUPS.
  *
- * Copyright 2007-2015 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 1993-2007 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -309,7 +307,7 @@ StartPage(
 
   if (DotBytes)
   {
-    if ((LineBuffers[0] = calloc((size_t)DotBytes, header->cupsWidth * (size_t)(Shingling + 1))) == NULL)
+    if ((LineBuffers[0] = calloc((size_t)DotBytes, (header->cupsWidth + 7) * (size_t)(Shingling + 1))) == NULL)
     {
       fputs("ERROR: Unable to allocate memory\n", stderr);
       exit(1);
@@ -1171,8 +1169,3 @@ main(int  argc,				/* I - Number of command-line arguments */
   else
     return (0);
 }
-
-
-/*
- * End of "$Id: rastertoepson.c 12945 2015-10-26 19:46:02Z msweet $".
- */

@@ -1,16 +1,14 @@
 /*
- * "$Id: adminutil.c 12945 2015-10-26 19:46:02Z msweet $"
- *
  * Administration utility API definitions for CUPS.
  *
- * Copyright 2007-2015 by Apple Inc.
+ * Copyright 2007-2016 by Apple Inc.
  * Copyright 2001-2007 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -20,14 +18,15 @@
  */
 
 #include "cups-private.h"
+#include "ppd.h"
 #include "adminutil.h"
 #include <fcntl.h>
 #include <sys/stat.h>
-#ifdef WIN32
+#ifdef _WIN32
 #else
 #  include <unistd.h>
 #  include <sys/wait.h>
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
 
 /*
@@ -832,7 +831,7 @@ cupsAdminExportSamba(
  * The returned settings should be freed with cupsFreeOptions() when
  * you are done with them.
  *
- * @since CUPS 1.3/OS X 10.5@
+ * @since CUPS 1.3/macOS 10.5@
  */
 
 int					/* O - 1 on success, 0 on failure */
@@ -1148,7 +1147,7 @@ cupsAdminGetServerSettings(
 /*
  * 'cupsAdminSetServerSettings()' - Set settings on the server.
  *
- * @since CUPS 1.3/OS X 10.5@
+ * @since CUPS 1.3/macOS 10.5@
  */
 
 int					/* O - 1 on success, 0 on failure */
@@ -1195,6 +1194,7 @@ cupsAdminSetServerSettings(
   int		cupsd_num_settings;	/* New number of settings */
   int		old_share_printers,	/* Share local printers */
 		old_remote_admin,	/* Remote administration allowed? */
+		old_remote_any,		/* Remote access from anywhere? */
 		old_user_cancel_any,	/* Cancel-job policy set? */
 		old_debug_logging;	/* LogLevel debug set? */
   cups_option_t	*cupsd_settings,	/* New settings */
@@ -1260,12 +1260,12 @@ cupsAdminSetServerSettings(
 
   if ((val = cupsGetOption(CUPS_SERVER_REMOTE_ANY, cupsd_num_settings,
                            cupsd_settings)) != NULL)
-    remote_any = atoi(val);
+    old_remote_any = atoi(val);
   else
-    remote_any = 0;
+    old_remote_any = 0;
 
   DEBUG_printf(("1cupsAdminSetServerSettings: old remote_any=%d",
-                remote_any));
+                old_remote_any));
 
   if ((val = cupsGetOption(CUPS_SERVER_SHARE_PRINTERS, cupsd_num_settings,
                            cupsd_settings)) != NULL)
@@ -1311,12 +1311,23 @@ cupsAdminSetServerSettings(
   DEBUG_printf(("1cupsAdminSetServerSettings: debug_logging=%d",
                 debug_logging));
 
-  if ((val = cupsGetOption(CUPS_SERVER_REMOTE_ANY, num_settings,
-                           settings)) != NULL)
+  if ((val = cupsGetOption(CUPS_SERVER_REMOTE_ANY, num_settings, settings)) != NULL)
+  {
     remote_any = atoi(val);
 
-  DEBUG_printf(("1cupsAdminSetServerSettings: remote_any=%d",
-                remote_any));
+    if (remote_any == old_remote_any)
+    {
+     /*
+      * No change to this setting...
+      */
+
+      remote_any = -1;
+    }
+  }
+  else
+    remote_any = -1;
+
+  DEBUG_printf(("1cupsAdminSetServerSettings: remote_any=%d", remote_any));
 
   if ((val = cupsGetOption(CUPS_SERVER_REMOTE_ADMIN, num_settings,
                            settings)) != NULL)
@@ -1431,7 +1442,7 @@ cupsAdminSetServerSettings(
   while (cupsFileGetConf(cupsd, line, sizeof(line), &value, &linenum))
   {
     if ((!_cups_strcasecmp(line, "Port") || !_cups_strcasecmp(line, "Listen")) &&
-        (remote_admin >= 0 || remote_any > 0 || share_printers >= 0))
+        (remote_admin >= 0 || remote_any >= 0 || share_printers >= 0))
     {
       if (!wrote_port_listen)
       {
@@ -1617,7 +1628,7 @@ cupsAdminSetServerSettings(
 	                 remote_any > 0 ? "all" : "@LOCAL");
       }
       else if (in_root_location &&
-               (remote_admin >= 0 || remote_any > 0 || share_printers >= 0))
+               (remote_admin >= 0 || remote_any >= 0 || share_printers >= 0))
       {
 	wrote_root_location = 1;
 
@@ -1720,7 +1731,7 @@ cupsAdminSetServerSettings(
       in_cancel_job = 0;
     }
     else if ((((in_admin_location || in_conf_location || in_root_location) &&
-               (remote_admin >= 0 || remote_any > 0)) ||
+               (remote_admin >= 0 || remote_any >= 0)) ||
               (in_root_location && share_printers >= 0)) &&
              (!_cups_strcasecmp(line, "Allow") || !_cups_strcasecmp(line, "Deny") ||
 	      !_cups_strcasecmp(line, "Order")))
@@ -1812,7 +1823,7 @@ cupsAdminSetServerSettings(
   }
 
   if (!wrote_port_listen &&
-      (remote_admin >= 0 || remote_any > 0 || share_printers >= 0))
+      (remote_admin >= 0 || remote_any >= 0 || share_printers >= 0))
   {
     if (remote_admin > 0 || remote_any > 0 || share_printers > 0)
     {
@@ -1833,7 +1844,7 @@ cupsAdminSetServerSettings(
   }
 
   if (!wrote_root_location &&
-      (remote_admin >= 0 || remote_any > 0 || share_printers >= 0))
+      (remote_admin >= 0 || remote_any >= 0 || share_printers >= 0))
   {
     if (remote_admin > 0 && share_printers > 0)
       cupsFilePuts(temp,
@@ -2010,9 +2021,14 @@ cupsAdminSetServerSettings(
                                 	 old_remote_admin ? "1" : "0",
 					 cupsd_num_settings, &cupsd_settings);
 
-    cupsd_num_settings = cupsAddOption(CUPS_SERVER_REMOTE_ANY,
-                                       remote_any ? "1" : "0",
-				       cupsd_num_settings, &cupsd_settings);
+    if (remote_any >= 0)
+      cupsd_num_settings = cupsAddOption(CUPS_SERVER_REMOTE_ANY,
+					 remote_any ? "1" : "0",
+					 cupsd_num_settings, &cupsd_settings);
+    else
+      cupsd_num_settings = cupsAddOption(CUPS_SERVER_REMOTE_ANY,
+					 old_remote_any ? "1" : "0",
+					 cupsd_num_settings, &cupsd_settings);
 
     if (share_printers >= 0)
       cupsd_num_settings = cupsAddOption(CUPS_SERVER_SHARE_PRINTERS,
@@ -2071,7 +2087,7 @@ do_samba_command(const char *command,	/* I - Command to run */
 		 const char *authfile,	/* I - Samba authentication file */
 		 FILE *logfile)		/* I - Optional log file */
 {
-#ifdef WIN32
+#ifdef _WIN32
   return (1);				/* Always fail on Windows... */
 
 #else
@@ -2138,7 +2154,7 @@ do_samba_command(const char *command,	/* I - Command to run */
     return (WEXITSTATUS(status));
   else
     return (-WTERMSIG(status));
-#endif /* WIN32 */
+#endif /* _WIN32 */
 }
 
 
@@ -2156,9 +2172,9 @@ get_cupsd_conf(
     int             *remote)		/* O - Remote file? */
 {
   int		fd;			/* Temporary file descriptor */
-#ifndef WIN32
+#ifndef _WIN32
   struct stat	info;			/* cupsd.conf file information */
-#endif /* WIN32 */
+#endif /* _WIN32 */
   http_status_t	status;			/* Status of getting cupsd.conf */
   char		host[HTTP_MAX_HOST];	/* Hostname for connection */
 
@@ -2175,7 +2191,7 @@ get_cupsd_conf(
   snprintf(name, namesize, "%s/cupsd.conf", cg->cups_serverroot);
   *remote = 0;
 
-#ifndef WIN32
+#ifndef _WIN32
   if (!_cups_strcasecmp(host, "localhost") && !access(name, R_OK))
   {
    /*
@@ -2202,7 +2218,7 @@ get_cupsd_conf(
       status = HTTP_STATUS_OK;
   }
   else
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
   {
    /*
     * Read cupsd.conf via a HTTP GET request...
@@ -2366,8 +2382,3 @@ write_option(cups_file_t     *dstfp,	/* I - PPD file */
 
   cupsFilePrintf(dstfp, "*JCLCloseUI: *%s\n\n", name);
 }
-
-
-/*
- * End of "$Id: adminutil.c 12945 2015-10-26 19:46:02Z msweet $".
- */

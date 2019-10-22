@@ -1,6 +1,4 @@
 //
-// "$Id: ppdc.cxx 11800 2014-04-08 19:53:57Z msweet $"
-//
 // PPD file compiler main entry for the CUPS PPD Compiler.
 //
 // Copyright 2007-2014 by Apple Inc.
@@ -10,7 +8,7 @@
 // property of Apple Inc. and are protected by Federal copyright
 // law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 // which should have been included with this file.  If this file is
-// file is missing or damaged, see the license at "http://www.cups.org/".
+// missing or damaged, see the license at "http://www.cups.org/".
 //
 
 //
@@ -452,12 +450,7 @@ usage(void)
   _cupsLangPuts(stdout, _("  --crlf                  End lines with CR + LF "
                           "(Windows)."));
   _cupsLangPuts(stdout, _("  --lf                    End lines with LF "
-                          "(UNIX/Linux/OS X)."));
+                          "(UNIX/Linux/macOS)."));
 
   exit(1);
 }
-
-
-//
-// End of "$Id: ppdc.cxx 11800 2014-04-08 19:53:57Z msweet $".
-//

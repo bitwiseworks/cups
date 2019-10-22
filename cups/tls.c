@@ -1,6 +1,4 @@
 /*
- * "$Id: tls.c 12136 2014-08-29 15:19:40Z msweet $"
- *
  * TLS routines for CUPS.
  *
  * Copyright 2007-2014 by Apple Inc.
@@ -13,7 +11,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -25,20 +23,20 @@
 #include "cups-private.h"
 #include <fcntl.h>
 #include <math.h>
-#ifdef WIN32
+#ifdef _WIN32
 #  include <tchar.h>
 #else
 #  include <signal.h>
 #  include <sys/time.h>
 #  include <sys/resource.h>
-#endif /* WIN32 */
+#endif /* _WIN32 */
 #ifdef HAVE_POLL
 #  include <poll.h>
 #endif /* HAVE_POLL */
 
 
 /*
- * Local functions...
+ * Include platform-specific TLS code...
  */
 
 #ifdef HAVE_SSL
@@ -105,8 +103,3 @@ httpSaveCredentials(const char *path, cups_array_t *credentials, const char *com
   return (-1);
 }
 #endif /* HAVE_SSL */
-
-
-/*
- * End of "$Id: tls.c 12136 2014-08-29 15:19:40Z msweet $".
- */

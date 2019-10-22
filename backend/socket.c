@@ -1,9 +1,7 @@
 /*
- * "$Id: socket.c 11907 2014-06-09 18:35:32Z msweet $"
- *
  * AppSocket backend for CUPS.
  *
- * Copyright 2007-2014 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
@@ -25,7 +23,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 #  include <winsock.h>
 #else
 #  include <unistd.h>
@@ -34,7 +32,7 @@
 #  include <netinet/in.h>
 #  include <arpa/inet.h>
 #  include <netdb.h>
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
 
 /*
@@ -71,7 +69,6 @@ main(int  argc,				/* I - Number of command-line arguments (6 or 7) */
   int		contimeout;		/* Connection timeout */
   int		waiteof;		/* Wait for end-of-file? */
   int		port;			/* Port number */
-  char		portname[255];		/* Port name */
   int		delay;			/* Delay for retries... */
   int		device_fd;		/* AppSocket */
   int		error;			/* Error code (if any) */
@@ -266,23 +263,7 @@ main(int  argc,				/* I - Number of command-line arguments (6 or 7) */
 
   start_time = time(NULL);
 
-  sprintf(portname, "%d", port);
-
-  fputs("STATE: +connecting-to-device\n", stderr);
-  fprintf(stderr, "DEBUG: Looking up \"%s\"...\n", hostname);
-
-  while ((addrlist = httpAddrGetList(hostname, AF_UNSPEC, portname)) == NULL)
-  {
-    _cupsLangPrintFilter(stderr, "INFO",
-                         _("Unable to locate printer \"%s\"."), hostname);
-    sleep(10);
-
-    if (getenv("CLASS") != NULL)
-    {
-      fputs("STATE: -connecting-to-device\n", stderr);
-      return (CUPS_BACKEND_STOP);
-    }
-  }
+  addrlist = backendLookup(hostname, port, NULL);
 
  /*
   * See if the printer supports SNMP...
@@ -349,8 +330,7 @@ main(int  argc,				/* I - Number of command-line arguments (6 or 7) */
 
       fprintf(stderr, "DEBUG: Connection error: %s\n", strerror(error));
 
-      if (error == ECONNREFUSED || error == EHOSTDOWN ||
-          error == EHOSTUNREACH)
+      if (errno == ECONNREFUSED || errno == EHOSTDOWN || errno == EHOSTUNREACH || errno == ETIMEDOUT || errno == ENOTCONN)
       {
         if (contimeout && (time(NULL) - start_time) > contimeout)
 	{
@@ -368,13 +348,13 @@ main(int  argc,				/* I - Number of command-line arguments (6 or 7) */
 	      break;
 
 	  case EHOSTUNREACH :
+	  default :
 	      _cupsLangPrintFilter(stderr, "WARNING",
 				   _("The printer is unreachable at this "
 				     "time."));
 	      break;
 
 	  case ECONNREFUSED :
-	  default :
 	      _cupsLangPrintFilter(stderr, "WARNING",
 	                           _("The printer is in use."));
 	      break;
@@ -422,8 +402,10 @@ main(int  argc,				/* I - Number of command-line arguments (6 or 7) */
       lseek(print_fd, 0, SEEK_SET);
     }
 
-    tbytes = backendRunLoop(print_fd, device_fd, snmp_fd, &(addrlist->addr), 1,
-                            0, backendNetworkSideCB);
+    if ((bytes = backendRunLoop(print_fd, device_fd, snmp_fd, &(addrlist->addr), 1, 0, backendNetworkSideCB)) < 0)
+      tbytes = -1;
+    else
+      tbytes = bytes;
 
     if (print_fd != 0 && tbytes >= 0)
       _cupsLangPrintFilter(stderr, "INFO", _("Print file sent."));
@@ -431,7 +413,7 @@ main(int  argc,				/* I - Number of command-line arguments (6 or 7) */
 
   fputs("STATE: +cups-waiting-for-job-completed\n", stderr);
 
-  if (waiteof)
+  if (waiteof && tbytes >= 0)
   {
    /*
     * Shutdown the socket and wait for the other end to finish...
@@ -468,7 +450,7 @@ main(int  argc,				/* I - Number of command-line arguments (6 or 7) */
   if (print_fd != 0)
     close(print_fd);
 
-  return (CUPS_BACKEND_OK);
+  return (tbytes >= 0 ? CUPS_BACKEND_OK : CUPS_BACKEND_FAILED);
 }
 
 
@@ -514,8 +496,3 @@ wait_bc(int device_fd,			/* I - Socket */
   else
     return (-1);
 }
-
-
-/*
- * End of "$Id: socket.c 11907 2014-06-09 18:35:32Z msweet $".
- */

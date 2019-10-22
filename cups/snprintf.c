@@ -1,23 +1,16 @@
 /*
- * "$Id: snprintf.c 10996 2013-05-29 11:51:34Z msweet $"
+ * snprintf functions for CUPS.
  *
- *   snprintf functions for CUPS.
+ * Copyright © 2007-2019 by Apple Inc.
+ * Copyright © 1997-2007 by Easy Software Products.
  *
- *   Copyright 2007-2013 by Apple Inc.
- *   Copyright 1997-2007 by Easy Software Products.
+ * These coded instructions, statements, and computer programs are the
+ * property of Apple Inc. and are protected by Federal copyright
+ * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+ * which should have been included with this file.  If this file is
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
- *   These coded instructions, statements, and computer programs are the
- *   property of Apple Inc. and are protected by Federal copyright
- *   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
- *   which should have been included with this file.  If this file is
- *   file is missing or damaged, see the license at "http://www.cups.org/".
- *
- *   This file is subject to the Apple OS-Developed Software exception.
- *
- * Contents:
- *
- *   _cups_vsnprintf() - Format a string into a fixed size buffer.
- *   _cups_snprintf()  - Format a string into a fixed size buffer.
+ * This file is subject to the Apple OS-Developed Software exception.
  */
 
 /*
@@ -184,7 +177,7 @@ _cups_vsnprintf(char       *buffer,	/* O - Output buffer */
 	      break;
 
 	    sprintf(temp, tformat, va_arg(ap, double));
-	    templen = strlen(temp):
+	    templen = strlen(temp);
 
             bytes += (int)templen;
 
@@ -215,7 +208,7 @@ _cups_vsnprintf(char       *buffer,	/* O - Output buffer */
 	      break;
 
 	    sprintf(temp, tformat, va_arg(ap, int));
-	    templen = strlen(temp):
+	    templen = strlen(temp);
 
             bytes += (int)templen;
 
@@ -239,7 +232,7 @@ _cups_vsnprintf(char       *buffer,	/* O - Output buffer */
 	      break;
 
 	    sprintf(temp, tformat, va_arg(ap, void *));
-	    templen = strlen(temp):
+	    templen = strlen(temp);
 
             bytes += (int)templen;
 
@@ -358,9 +351,3 @@ _cups_snprintf(char       *buffer,	/* O - Output buffer */
   return (bytes);
 }
 #endif /* !HAVE_SNPRINTF */
-
-
-/*
- * End of "$Id: snprintf.c 10996 2013-05-29 11:51:34Z msweet $".
- */
-

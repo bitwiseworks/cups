@@ -1,12 +1,15 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<!doctype html>
 <html>
 <!-- SECTION: Programming -->
-<head>
-	<title>Developing PostScript Printer Drivers	</title>
-	<meta name="keywords" content="Programming">
-	<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
-	<meta name="creator" content="Mini-XML v2.7">
-<style type="text/css"><!--
+  <head>
+    <title>Developing PostScript Printer Drivers</title>
+    <meta name="keywords" content="Programming">
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+    <meta name="creator" content="Mini-XML v2.11">
+    <meta name="author" content="Unknown">
+    <meta name="copyright" content="Unknown">
+    <meta name="version" content="0.0">
+    <style type="text/css"><!--
 BODY {
   font-family: lucida grande, geneva, helvetica, arial, sans-serif;
 }
@@ -349,12 +352,9 @@ div.contents ul.subcontents li {
   text-indent: -1em;
 }
 --></style>
-</head>
-<body>
-<div class='body'>
+  </head>
+  <body>
 <!--
-  "$Id$"
-
   PostScript printer driver documentation for CUPS.
 
   Copyright 2007-2012 by Apple Inc.
@@ -369,7 +369,7 @@ div.contents ul.subcontents li {
 
 <h1 class='title'>Developing PostScript Printer Drivers</h1>
 
-<p>This document describes how to develop printer drivers for PostScript printers. Topics include: <a href='#BASICS'>printer driver basics</a>, <a href='#CREATE'>creating new PPD files</a>, <a href='#IMPORT'>importing existing PPD files</a>, <a href='#FILTERS'>using custom filters</a>, <a href='#COLOR'>implementing color management</a>, and <a href='#MACOSX'>adding OS X features</a>.</p>
+<p>This document describes how to develop printer drivers for PostScript printers. Topics include: <a href='#BASICS'>printer driver basics</a>, <a href='#CREATE'>creating new PPD files</a>, <a href='#IMPORT'>importing existing PPD files</a>, <a href='#FILTERS'>using custom filters</a>, <a href='#COLOR'>implementing color management</a>, and <a href='#MACOSX'>adding macOS features</a>.</p>
 
 <div class='summary'><table summary='General Information'>
 <tbody>
@@ -384,16 +384,19 @@ div.contents ul.subcontents li {
 </tr>
 </tbody>
 </table></div>
-<h2 class="title">Contents</h2>
-<ul class="contents">
-<li><a href="#BASICS">Printer Driver Basics</a></li>
-<li><a href="#CREATING">Creating New PPD Files</a><ul class="subcontents">
-	<li><a href="#IMPORT">Importing Existing PPD Files</a></li>
-</ul></li>
-<li><a href="#FILTERS">Using Custom Filters</a></li>
-<li><a href="#COLOR">Implementing Color Management</a></li>
-<li><a href="#MACOSX">Adding OS X Features</a></li>
-</ul>
+    <div class="contents">
+      <h2 class="title">Contents</h2>
+      <ul class="contents">
+        <li><a href="#BASICS">Printer Driver Basics</a></li>
+        <li><a href="#CREATING">Creating New PPD Files</a><ul class="subcontents">
+          <li><a href="#IMPORT">Importing Existing PPD Files</a></li>
+        </ul></li>
+        <li><a href="#FILTERS">Using Custom Filters</a></li>
+        <li><a href="#COLOR">Implementing Color Management</a></li>
+        <li><a href="#MACOSX">Adding macOS Features</a></li>
+      </ul>
+    </div>
+    <div class="body">
 <h2 class='title'><a name='BASICS'>Printer Driver Basics</a></h2>
 
 <p>A CUPS PostScript printer driver consists of a PostScript Printer Description (PPD) file that describes the features and capabilities of the device, zero or more <em>filter</em> programs that prepare print data for the device, and zero or more support files for color management, online help, and so forth. The PPD file includes references to all of the filters and support files used by the driver.</p>
@@ -660,9 +663,9 @@ information file.</P>
 <p>The options used for profile selection can be customized using the <tt>cupsICCQualifier2</tt> and <tt>cupsICCQualifier3</tt> attributes.</p>
 
 
-<h2 class='title'><a name='MACOSX'>Adding OS X Features</a></h2>
+<h2 class='title'><a name='MACOSX'>Adding macOS Features</a></h2>
 
-<p>OS X printer drivers can provide <a href='spec-ppd.html#MACOSX'>additional attributes</a> to specify additional option panes in the print dialog, an image of the printer, a help book, and option presets for the driver software:</p>
+<p>macOS printer drivers can provide <a href='spec-ppd.html#MACOSX'>additional attributes</a> to specify additional option panes in the print dialog, an image of the printer, a help book, and option presets for the driver software:</p>
 
 <pre class='example'>
 <a href='ref-ppdcfile.html#Attribute'>Attribute</a> APDialogExtension "" /Library/Printers/Vendor/filename.plugin
@@ -670,6 +673,6 @@ information file.</P>
 <a href='ref-ppdcfile.html#Attribute'>Attribute</a> APPrinterIconPath "" /Library/Printers/Vendor/filename.icns
 <a href='ref-ppdcfile.html#Attribute'>Attribute</a> APPrinterPreset "name/text" "*option choice ..."
 </pre>
-</div>
-</body>
+    </div>
+  </body>
 </html>

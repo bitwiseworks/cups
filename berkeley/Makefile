@@ -1,16 +1,14 @@
 #
-# "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $"
+# Berkeley commands makefile for CUPS.
 #
-#   Berkeley commands makefile for CUPS.
+# Copyright 2007-2017 by Apple Inc.
+# Copyright 1997-2006 by Easy Software Products, all rights reserved.
 #
-#   Copyright 2007-2012 by Apple Inc.
-#   Copyright 1997-2006 by Easy Software Products, all rights reserved.
-#
-#   These coded instructions, statements, and computer programs are the
-#   property of Apple Inc. and are protected by Federal copyright
-#   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
-#   which should have been included with this file.  If this file is
-#   file is missing or damaged, see the license at "http://www.cups.org/".
+# These coded instructions, statements, and computer programs are the
+# property of Apple Inc. and are protected by Federal copyright
+# law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+# which should have been included with this file.  If this file is
+# missing or damaged, see the license at "http://www.cups.org/".
 #
 
 include ../Makedefs
@@ -126,7 +124,8 @@ uninstall:
 
 lpc:	lpc.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lpc lpc.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o lpc lpc.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -135,7 +134,8 @@ lpc:	lpc.o ../cups/$(LIBCUPS)
 
 lpq:	lpq.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lpq lpq.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o lpq lpq.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -144,7 +144,8 @@ lpq:	lpq.o ../cups/$(LIBCUPS)
 
 lpr:	lpr.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lpr lpr.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o lpr lpr.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -153,7 +154,8 @@ lpr:	lpr.o ../cups/$(LIBCUPS)
 
 lprm:	lprm.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o lprm lprm.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o lprm lprm.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -161,8 +163,3 @@ lprm:	lprm.o ../cups/$(LIBCUPS)
 #
 
 include Dependencies
-
-
-#
-# End of "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $".
-#

@@ -1,16 +1,14 @@
 /*
- * "$Id: client.h 11717 2014-03-21 16:42:53Z msweet $"
- *
  * Client definitions for the CUPS scheduler.
  *
- * Copyright 2007-2014 by Apple Inc.
- * Copyright 1997-2007 by Easy Software Products, all rights reserved.
+ * Copyright © 2007-2018 by Apple Inc.
+ * Copyright © 1997-2007 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 #ifdef HAVE_AUTHORIZATION_H
@@ -32,6 +30,7 @@ struct cupsd_client_s
   struct timeval	start;		/* Request start time */
   http_state_t		operation;	/* Request operation */
   off_t			bytes;		/* Bytes transferred for this request */
+  int			is_browser;	/* Is the client a web browser? */
   int			type;		/* AuthType for username */
   char			username[HTTP_MAX_VALUE],
 					/* Username from Authorization: line */
@@ -81,9 +80,9 @@ typedef struct
   int			fd;		/* File descriptor for this server */
   http_addr_t		address;	/* Bind address of socket */
   http_encryption_t	encryption;	/* To encrypt or not to encrypt... */
-#if defined(HAVE_LAUNCHD) || defined(HAVE_SYSTEMD)
-  int			on_demand;	/* Is this a socket from launchd/systemd? */
-#endif /* HAVE_LAUNCHD || HAVE_SYSTEMD */
+#ifdef HAVE_ONDEMAND
+  int			on_demand;	/* Is this a socket from launchd/systemd/upstart? */
+#endif /* HAVE_ONDEMAND */
 } cupsd_listener_t;
 
 
@@ -145,8 +144,3 @@ extern void	cupsdWriteClient(cupsd_client_t *con);
 extern int	cupsdEndTLS(cupsd_client_t *con);
 extern int	cupsdStartTLS(cupsd_client_t *con);
 #endif /* HAVE_SSL */
-
-
-/*
- * End of "$Id: client.h 11717 2014-03-21 16:42:53Z msweet $".
- */

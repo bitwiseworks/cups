@@ -1,6 +1,4 @@
 /*
- * "$Id: statbuf.c 11594 2014-02-14 20:09:01Z msweet $"
- *
  * Status buffer routines for the CUPS scheduler.
  *
  * Copyright 2007-2014 by Apple Inc.
@@ -10,7 +8,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -321,8 +319,3 @@ cupsdStatBufUpdate(
 
   return (line);
 }
-
-
-/*
- * End of "$Id: statbuf.c 11594 2014-02-14 20:09:01Z msweet $".
- */

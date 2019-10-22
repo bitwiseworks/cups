@@ -1,6 +1,4 @@
 /*
- * "$Id: backend-private.h 11558 2014-02-06 18:33:34Z msweet $"
- *
  * Backend support definitions for CUPS.
  *
  * Copyright 2007-2014 by Apple Inc.
@@ -314,6 +312,7 @@ extern int		backendGetDeviceID(int fd, char *device_id,
 extern int		backendGetMakeModel(const char *device_id,
 			                    char *make_model,
 				            size_t make_model_size);
+extern http_addrlist_t	*backendLookup(const char *hostname, int port, int *cancel);
 extern int		backendNetworkSideCB(int print_fd, int device_fd,
 			                     int snmp_fd, http_addr_t *addr,
 					     int use_bc);
@@ -331,8 +330,3 @@ extern int		backendWaitLoop(int snmp_fd, http_addr_t *addr,
 }
 #  endif /* __cplusplus */
 #endif /* !_CUPS_BACKEND_PRIVATE_H_ */
-
-
-/*
- * End of "$Id: backend-private.h 11558 2014-02-06 18:33:34Z msweet $".
- */

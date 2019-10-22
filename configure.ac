@@ -1,23 +1,21 @@
 dnl
-dnl "$Id: configure.ac 13031 2016-01-04 14:43:04Z msweet $"
-dnl
 dnl Configuration script for CUPS.
 dnl
-dnl Copyright 2007-2016 by Apple Inc.
+dnl Copyright 2007-2019 by Apple Inc.
 dnl Copyright 1997-2007 by Easy Software Products, all rights reserved.
 dnl
 dnl These coded instructions, statements, and computer programs are the
 dnl property of Apple Inc. and are protected by Federal copyright
 dnl law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 dnl which should have been included with this file.  If this file is
-dnl file is missing or damaged, see the license at "http://www.cups.org/".
+dnl missing or damaged, see the license at "http://www.cups.org/".
 dnl
 
 dnl We need at least autoconf 2.60...
 AC_PREREQ(2.60)
 
 dnl Package name and version...
-AC_INIT([CUPS], [2.1.3], [https://www.cups.org/str.php], [cups], [https://www.cups.org/])
+AC_INIT([CUPS], [2.2.12], [https://github.com/apple/cups/issues], [cups], [https://www.cups.org/])
 
 sinclude(config-scripts/cups-opsys.m4)
 sinclude(config-scripts/cups-common.m4)
@@ -93,7 +91,3 @@ AC_OUTPUT(Makedefs
 	  $LANGFILES)
 
 chmod +x cups-config
-
-dnl
-dnl End of "$Id: configure.ac 13031 2016-01-04 14:43:04Z msweet $".
-dnl

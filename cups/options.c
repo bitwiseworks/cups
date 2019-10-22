@@ -1,16 +1,14 @@
 /*
- * "$Id: options.c 11558 2014-02-06 18:33:34Z msweet $"
- *
  * Option routines for CUPS.
  *
- * Copyright 2007-2014 by Apple Inc.
+ * Copyright 2007-2017 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -32,6 +30,31 @@ static int	cups_find_option(const char *name, int num_options,
 
 
 /*
+ * 'cupsAddIntegerOption()' - Add an integer option to an option array.
+ *
+ * New option arrays can be initialized simply by passing 0 for the
+ * "num_options" parameter.
+ *
+ * @since CUPS 2.2.4/macOS 10.13@
+ */
+
+int					/* O  - Number of options */
+cupsAddIntegerOption(
+    const char    *name,		/* I  - Name of option */
+    int           value,		/* I  - Value of option */
+    int           num_options,		/* I  - Number of options */
+    cups_option_t **options)		/* IO - Pointer to options */
+{
+  char	strvalue[32];			/* String value */
+
+
+  snprintf(strvalue, sizeof(strvalue), "%d", value);
+
+  return (cupsAddOption(name, strvalue, num_options, options));
+}
+
+
+/*
  * 'cupsAddOption()' - Add an option to an option array.
  *
  * New option arrays can be initialized simply by passing 0 for the
@@ -49,14 +72,18 @@ cupsAddOption(const char    *name,	/* I  - Name of option */
 		diff;			/* Result of search */
 
 
-  DEBUG_printf(("2cupsAddOption(name=\"%s\", value=\"%s\", num_options=%d, "
-                "options=%p)", name, value, num_options, options));
+  DEBUG_printf(("2cupsAddOption(name=\"%s\", value=\"%s\", num_options=%d, options=%p)", name, value, num_options, (void *)options));
 
   if (!name || !name[0] || !value || !options || num_options < 0)
   {
     DEBUG_printf(("3cupsAddOption: Returning %d", num_options));
     return (num_options);
   }
+
+  if (!_cups_strcasecmp(name, "cupsPrintQuality"))
+    num_options = cupsRemoveOption("print-quality", num_options, options);
+  else if (!_cups_strcasecmp(name, "print-quality"))
+    num_options = cupsRemoveOption("cupsPrintQuality", num_options, options);
 
  /*
   * Look for an existing option with the same name...
@@ -142,8 +169,7 @@ cupsFreeOptions(
   int	i;				/* Looping var */
 
 
-  DEBUG_printf(("cupsFreeOptions(num_options=%d, options=%p)", num_options,
-                options));
+  DEBUG_printf(("cupsFreeOptions(num_options=%d, options=%p)", num_options, (void *)options));
 
   if (num_options <= 0 || !options)
     return;
@@ -155,6 +181,38 @@ cupsFreeOptions(
   }
 
   free(options);
+}
+
+
+/*
+ * 'cupsGetIntegerOption()' - Get an integer option value.
+ *
+ * INT_MIN is returned when the option does not exist, is not an integer, or
+ * exceeds the range of values for the "int" type.
+ *
+ * @since CUPS 2.2.4/macOS 10.13@
+ */
+
+int					/* O - Option value or @code INT_MIN@ */
+cupsGetIntegerOption(
+    const char    *name,		/* I - Name of option */
+    int           num_options,		/* I - Number of options */
+    cups_option_t *options)		/* I - Options */
+{
+  const char	*value = cupsGetOption(name, num_options, options);
+					/* String value of option */
+  char		*ptr;			/* Pointer into string value */
+  long		intvalue;		/* Integer value */
+
+
+  if (!value || !*value)
+    return (INT_MIN);
+
+  intvalue = strtol(value, &ptr, 10);
+  if (intvalue < INT_MIN || intvalue > INT_MAX || *ptr)
+    return (INT_MIN);
+
+  return ((int)intvalue);
 }
 
 
@@ -171,8 +229,7 @@ cupsGetOption(const char    *name,	/* I - Name of option */
 	match;				/* Matching index */
 
 
-  DEBUG_printf(("2cupsGetOption(name=\"%s\", num_options=%d, options=%p)",
-                name, num_options, options));
+  DEBUG_printf(("2cupsGetOption(name=\"%s\", num_options=%d, options=%p)", name, num_options, (void *)options));
 
   if (!name || num_options <= 0 || !options)
   {
@@ -217,8 +274,7 @@ cupsParseOptions(
 	quote;				/* Quote character */
 
 
-  DEBUG_printf(("cupsParseOptions(arg=\"%s\", num_options=%d, options=%p)",
-                arg, num_options, options));
+  DEBUG_printf(("cupsParseOptions(arg=\"%s\", num_options=%d, options=%p)", arg, num_options, (void *)options));
 
  /*
   * Range check input...
@@ -425,7 +481,7 @@ cupsParseOptions(
 /*
  * 'cupsRemoveOption()' - Remove an option from an option array.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 int					/* O  - New number of options */
@@ -438,8 +494,7 @@ cupsRemoveOption(
   cups_option_t	*option;		/* Current option */
 
 
-  DEBUG_printf(("2cupsRemoveOption(name=\"%s\", num_options=%d, options=%p)",
-                name, num_options, options));
+  DEBUG_printf(("2cupsRemoveOption(name=\"%s\", num_options=%d, options=%p)", name, num_options, (void *)options));
 
  /*
   * Range check input...
@@ -600,9 +655,7 @@ cups_find_option(
   cups_option_t	key;			/* Search key */
 
 
-  DEBUG_printf(("7cups_find_option(name=\"%s\", num_options=%d, options=%p, "
-	        "prev=%d, rdiff=%p)", name, num_options, options, prev,
-		rdiff));
+  DEBUG_printf(("7cups_find_option(name=\"%s\", num_options=%d, options=%p, prev=%d, rdiff=%p)", name, num_options, (void *)options, prev, (void *)rdiff));
 
 #ifdef DEBUG
   for (left = 0; left < num_options; left ++)
@@ -691,8 +744,3 @@ cups_find_option(
 
   return (current);
 }
-
-
-/*
- * End of "$Id: options.c 11558 2014-02-06 18:33:34Z msweet $".
- */

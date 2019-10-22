@@ -1,16 +1,14 @@
 /*
- * "$Id: http-support.c 12970 2015-11-13 20:02:51Z msweet $"
- *
  * HTTP support routines for CUPS.
  *
- * Copyright 2007-2015 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -22,13 +20,13 @@
 #include "cups-private.h"
 #ifdef HAVE_DNSSD
 #  include <dns_sd.h>
-#  ifdef WIN32
+#  ifdef _WIN32
 #    include <io.h>
 #  elif defined(HAVE_POLL)
 #    include <poll.h>
 #  else
 #    include <sys/select.h>
-#  endif /* WIN32 */
+#  endif /* _WIN32 */
 #elif defined(HAVE_AVAHI)
 #  include <avahi-client/client.h>
 #  include <avahi-client/lookup.h>
@@ -152,7 +150,7 @@ static void	http_resolve_cb(AvahiServiceResolver *resolver,
  * place of traditional string functions whenever you need to create a
  * URI string.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 http_uri_status_t			/* O - URI status */
@@ -432,7 +430,7 @@ httpAssembleURI(
  * this function in place of traditional string functions whenever
  * you need to create a URI string.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 http_uri_status_t			/* O - URI status */
@@ -492,7 +490,7 @@ httpAssembleURIf(
  *
  * The buffer needs to be at least 46 bytes in size.
  *
- * @since CUPS 1.7/OS X 10.9@
+ * @since CUPS 1.7/macOS 10.9@
  */
 
 char *					/* I - UUID string */
@@ -504,7 +502,6 @@ httpAssembleUUID(const char *server,	/* I - Server name */
 		 size_t     bufsize)	/* I - Size of buffer */
 {
   char			data[1024];	/* Source string for MD5 */
-  _cups_md5_state_t	md5state;	/* MD5 state */
   unsigned char		md5sum[16];	/* MD5 digest/sum */
 
 
@@ -519,9 +516,7 @@ httpAssembleUUID(const char *server,	/* I - Server name */
            port, name ? name : server, number,
 	   (unsigned)CUPS_RAND() & 0xffff, (unsigned)CUPS_RAND() & 0xffff);
 
-  _cupsMD5Init(&md5state);
-  _cupsMD5Append(&md5state, (unsigned char *)data, (int)strlen(data));
-  _cupsMD5Finish(&md5state, md5sum);
+  cupsHashData("md5", (unsigned char *)data, strlen(data), md5sum, sizeof(md5sum));
 
  /*
   * Generate the UUID from the MD5...
@@ -545,7 +540,7 @@ httpAssembleUUID(const char *server,	/* I - Server name */
  * This function is deprecated. Use the httpDecode64_2() function instead
  * which provides buffer length arguments.
  *
- * @deprecated@
+ * @deprecated@ @exclude all@
  */
 
 char *					/* O - Decoded string */
@@ -568,7 +563,11 @@ httpDecode64(char       *out,		/* I - String to write to */
 /*
  * 'httpDecode64_2()' - Base64-decode a string.
  *
- * @since CUPS 1.1.21/OS X 10.4@
+ * The caller must initialize "outlen" to the maximum size of the decoded
+ * string before calling @code httpDecode64_2@.  On return "outlen" contains the
+ * decoded length of the string.
+ *
+ * @since CUPS 1.1.21/macOS 10.4@
  */
 
 char *					/* O  - Decoded string */
@@ -673,7 +672,7 @@ httpDecode64_2(char       *out,		/* I  - String to write to */
  * This function is deprecated. Use the httpEncode64_2() function instead
  * which provides buffer length arguments.
  *
- * @deprecated@
+ * @deprecated@ @exclude all@
  */
 
 char *					/* O - Encoded string */
@@ -687,12 +686,12 @@ httpEncode64(char       *out,		/* I - String to write to */
 /*
  * 'httpEncode64_2()' - Base64-encode a string.
  *
- * @since CUPS 1.1.21/OS X 10.4@
+ * @since CUPS 1.1.21/macOS 10.4@
  */
 
 char *					/* O - Encoded string */
 httpEncode64_2(char       *out,		/* I - String to write to */
-	       int        outlen,	/* I - Size of output string */
+	       int        outlen,	/* I - Maximum size of output string */
                const char *in,		/* I - String to read from */
 	       int        inlen)	/* I - Size of input string */
 {
@@ -780,11 +779,11 @@ httpEncode64_2(char       *out,		/* I - String to write to */
 /*
  * 'httpGetDateString()' - Get a formatted date/time string from a time value.
  *
- * @deprecated@
+ * @deprecated@ @exclude all@
  */
 
 const char *				/* O - Date/time string */
-httpGetDateString(time_t t)		/* I - UNIX time */
+httpGetDateString(time_t t)		/* I - Time in seconds */
 {
   _cups_globals_t *cg = _cupsGlobals();	/* Pointer to library globals */
 
@@ -796,11 +795,11 @@ httpGetDateString(time_t t)		/* I - UNIX time */
 /*
  * 'httpGetDateString2()' - Get a formatted date/time string from a time value.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 const char *				/* O - Date/time string */
-httpGetDateString2(time_t t,		/* I - UNIX time */
+httpGetDateString2(time_t t,		/* I - Time in seconds */
                    char   *s,		/* I - String buffer */
 		   int    slen)		/* I - Size of string buffer */
 {
@@ -821,7 +820,7 @@ httpGetDateString2(time_t t,		/* I - UNIX time */
  * 'httpGetDateTime()' - Get a time value from a formatted date/time string.
  */
 
-time_t					/* O - UNIX time */
+time_t					/* O - Time in seconds */
 httpGetDateTime(const char *s)		/* I - Date/time string */
 {
   int		i;			/* Looping var */
@@ -890,7 +889,7 @@ httpGetDateTime(const char *s)		/* I - Date/time string */
  *
  * This function is deprecated; use the httpSeparateURI() function instead.
  *
- * @deprecated@
+ * @deprecated@ @exclude all@
  */
 
 void
@@ -913,8 +912,8 @@ httpSeparate(const char *uri,		/* I - Universal Resource Identifier */
  *
  * This function is deprecated; use the httpSeparateURI() function instead.
  *
- * @since CUPS 1.1.21/OS X 10.4@
- * @deprecated@
+ * @since CUPS 1.1.21/macOS 10.4@
+ * @deprecated@ @exclude all@
  */
 
 void
@@ -938,7 +937,7 @@ httpSeparate2(const char *uri,		/* I - Universal Resource Identifier */
  * 'httpSeparateURI()' - Separate a Universal Resource Identifier into its
  *                       components.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 http_uri_status_t			/* O - Result of separation */
@@ -1033,7 +1032,7 @@ httpSeparateURI(
 
     *ptr = '\0';
 
-    if (*uri != ':')
+    if (*uri != ':' || *scheme == '.' || !*scheme)
     {
       *scheme = '\0';
       return (HTTP_URI_STATUS_BAD_SCHEME);
@@ -1304,6 +1303,152 @@ httpSeparateURI(
 
 
 /*
+ * '_httpSetDigestAuthString()' - Calculate a Digest authentication response
+ *                                using the appropriate RFC 2068/2617/7616
+ *                                algorithm.
+ */
+
+int					/* O - 1 on success, 0 on failure */
+_httpSetDigestAuthString(
+    http_t     *http,			/* I - HTTP connection */
+    const char *nonce,			/* I - Nonce value */
+    const char *method,			/* I - HTTP method */
+    const char *resource)		/* I - HTTP resource path */
+{
+  char		kd[65],			/* Final MD5/SHA-256 digest */
+		ha1[65],		/* Hash of username:realm:password */
+		ha2[65],		/* Hash of method:request-uri */
+		username[HTTP_MAX_VALUE],
+					/* username:password */
+		*password,		/* Pointer to password */
+		temp[1024],		/* Temporary string */
+		digest[1024];		/* Digest auth data */
+  unsigned char	hash[32];		/* Hash buffer */
+  size_t	hashsize;		/* Size of hash */
+
+
+  DEBUG_printf(("2_httpSetDigestAuthString(http=%p, nonce=\"%s\", method=\"%s\", resource=\"%s\")", http, nonce, method, resource));
+
+  if (nonce && *nonce && strcmp(nonce, http->nonce))
+  {
+    strlcpy(http->nonce, nonce, sizeof(http->nonce));
+
+    if (nonce == http->nextnonce)
+      http->nextnonce[0] = '\0';
+
+    http->nonce_count = 1;
+  }
+  else
+    http->nonce_count ++;
+
+  strlcpy(username, http->userpass, sizeof(username));
+  if ((password = strchr(username, ':')) != NULL)
+    *password++ = '\0';
+  else
+    return (0);
+
+  if (http->algorithm[0])
+  {
+   /*
+    * Follow RFC 2617/7616...
+    */
+
+    int		i;			/* Looping var */
+    char	cnonce[65];		/* cnonce value */
+    const char	*hashalg;		/* Hashing algorithm */
+
+    for (i = 0; i < 64; i ++)
+      cnonce[i] = "0123456789ABCDEF"[CUPS_RAND() & 15];
+    cnonce[64] = '\0';
+
+    if (!_cups_strcasecmp(http->algorithm, "MD5"))
+    {
+     /*
+      * RFC 2617 Digest with MD5
+      */
+
+      hashalg = "md5";
+    }
+    else if (!_cups_strcasecmp(http->algorithm, "SHA-256"))
+    {
+     /*
+      * RFC 7616 Digest with SHA-256
+      */
+
+      hashalg = "sha2-256";
+    }
+    else
+    {
+     /*
+      * Some other algorithm we don't support, skip this one...
+      */
+
+      return (0);
+    }
+
+   /*
+    * Calculate digest value...
+    */
+
+    /* H(A1) = H(username:realm:password) */
+    snprintf(temp, sizeof(temp), "%s:%s:%s", username, http->realm, password);
+    hashsize = (size_t)cupsHashData(hashalg, (unsigned char *)temp, strlen(temp), hash, sizeof(hash));
+    cupsHashString(hash, hashsize, ha1, sizeof(ha1));
+
+    /* H(A2) = H(method:uri) */
+    snprintf(temp, sizeof(temp), "%s:%s", method, resource);
+    hashsize = (size_t)cupsHashData(hashalg, (unsigned char *)temp, strlen(temp), hash, sizeof(hash));
+    cupsHashString(hash, hashsize, ha2, sizeof(ha2));
+
+    /* KD = H(H(A1):nonce:nc:cnonce:qop:H(A2)) */
+    snprintf(temp, sizeof(temp), "%s:%s:%08x:%s:%s:%s", ha1, http->nonce, http->nonce_count, cnonce, "auth", ha2);
+    hashsize = (size_t)cupsHashData(hashalg, (unsigned char *)temp, strlen(temp), hash, sizeof(hash));
+    cupsHashString(hash, hashsize, kd, sizeof(kd));
+
+   /*
+    * Pass the RFC 2617/7616 WWW-Authenticate header...
+    */
+
+    if (http->opaque[0])
+      snprintf(digest, sizeof(digest), "username=\"%s\", realm=\"%s\", nonce=\"%s\", algorithm=%s, qop=auth, opaque=\"%s\", cnonce=\"%s\", nc=%08x, uri=\"%s\", response=\"%s\"", cupsUser(), http->realm, http->nonce, http->algorithm, http->opaque, cnonce, http->nonce_count, resource, kd);
+    else
+      snprintf(digest, sizeof(digest), "username=\"%s\", realm=\"%s\", nonce=\"%s\", algorithm=%s, qop=auth, cnonce=\"%s\", nc=%08x, uri=\"%s\", response=\"%s\"", username, http->realm, http->nonce, http->algorithm, cnonce, http->nonce_count, resource, kd);
+  }
+  else
+  {
+   /*
+    * Use old RFC 2069 Digest method...
+    */
+
+    /* H(A1) = H(username:realm:password) */
+    snprintf(temp, sizeof(temp), "%s:%s:%s", username, http->realm, password);
+    hashsize = (size_t)cupsHashData("md5", (unsigned char *)temp, strlen(temp), hash, sizeof(hash));
+    cupsHashString(hash, hashsize, ha1, sizeof(ha1));
+
+    /* H(A2) = H(method:uri) */
+    snprintf(temp, sizeof(temp), "%s:%s", method, resource);
+    hashsize = (size_t)cupsHashData("md5", (unsigned char *)temp, strlen(temp), hash, sizeof(hash));
+    cupsHashString(hash, hashsize, ha2, sizeof(ha2));
+
+    /* KD = H(H(A1):nonce:H(A2)) */
+    snprintf(temp, sizeof(temp), "%s:%s:%s", ha1, http->nonce, ha2);
+    hashsize = (size_t)cupsHashData("md5", (unsigned char *)temp, strlen(temp), hash, sizeof(hash));
+    cupsHashString(hash, hashsize, kd, sizeof(kd));
+
+   /*
+    * Pass the old RFC 2069 WWW-Authenticate header...
+    */
+
+    snprintf(digest, sizeof(digest), "username=\"%s\", realm=\"%s\", nonce=\"%s\", uri=\"%s\", response=\"%s\"", username, http->realm, http->nonce, resource, kd);
+  }
+
+  httpSetAuthString(http, "Digest", digest);
+
+  return (1);
+}
+
+
+/*
  * 'httpStateString()' - Return the string describing a HTTP state value.
  *
  * @since CUPS 2.0/OS 10.10@
@@ -1357,6 +1502,9 @@ _httpStatus(cups_lang_t   *lang,	/* I - Language */
 	break;
     case HTTP_STATUS_MOVED_PERMANENTLY :
         s = _("Moved Permanently");
+	break;
+    case HTTP_STATUS_FOUND :
+        s = _("Found");
 	break;
     case HTTP_STATUS_SEE_OTHER :
         s = _("See Other");
@@ -1421,7 +1569,7 @@ _httpStatus(cups_lang_t   *lang,	/* I - Language */
  * 'httpStatus()' - Return a short string describing a HTTP status code.
  *
  * The returned string is localized to the current POSIX locale and is based
- * on the status strings defined in RFC 2616.
+ * on the status strings defined in RFC 7231.
  */
 
 const char *				/* O - Localized status string */
@@ -1580,9 +1728,7 @@ _httpResolveURI(
 #endif /* DEBUG */
 
 
-  DEBUG_printf(("4_httpResolveURI(uri=\"%s\", resolved_uri=%p, "
-                "resolved_size=" CUPS_LLFMT ")", uri, resolved_uri,
-		CUPS_LLCAST resolved_size));
+  DEBUG_printf(("_httpResolveURI(uri=\"%s\", resolved_uri=%p, resolved_size=" CUPS_LLFMT ", options=0x%x, cb=%p, context=%p)", uri, (void *)resolved_uri, CUPS_LLCAST resolved_size, options, (void *)cb, context));
 
  /*
   * Get the device URI...
@@ -1603,8 +1749,8 @@ _httpResolveURI(
     if (options & _HTTP_RESOLVE_STDERR)
       _cupsLangPrintFilter(stderr, "ERROR", _("Bad device-uri \"%s\"."), uri);
 
-    DEBUG_printf(("6_httpResolveURI: httpSeparateURI returned %d!", status));
-    DEBUG_puts("5_httpResolveURI: Returning NULL");
+    DEBUG_printf(("2_httpResolveURI: httpSeparateURI returned %d!", status));
+    DEBUG_puts("2_httpResolveURI: Returning NULL");
     return (NULL);
   }
 
@@ -1622,9 +1768,6 @@ _httpResolveURI(
     _http_uribuf_t	uribuf;		/* URI buffer */
     int			offline = 0;	/* offline-report state set? */
 #  ifdef HAVE_DNSSD
-#    ifdef WIN32
-#      pragma comment(lib, "dnssd.lib")
-#    endif /* WIN32 */
     DNSServiceRef	ref,		/* DNS-SD master service reference */
 			domainref = NULL,/* DNS-SD service reference for domain */
 			ippref = NULL,	/* DNS-SD service reference for network IPP */
@@ -1664,7 +1807,7 @@ _httpResolveURI(
 
     if (regtype <= hostname)
     {
-      DEBUG_puts("5_httpResolveURI: Bad hostname, returning NULL");
+      DEBUG_puts("2_httpResolveURI: Bad hostname, returning NULL");
       return (NULL);
     }
 
@@ -1693,7 +1836,7 @@ _httpResolveURI(
     uribuf.resource = resource;
     uribuf.uuid     = uuid;
 
-    DEBUG_printf(("6_httpResolveURI: Resolving hostname=\"%s\", regtype=\"%s\", "
+    DEBUG_printf(("2_httpResolveURI: Resolving hostname=\"%s\", regtype=\"%s\", "
                   "domain=\"%s\"\n", hostname, regtype, domain));
     if (options & _HTTP_RESOLVE_STDERR)
     {
@@ -1728,11 +1871,11 @@ _httpResolveURI(
 	while (time(NULL) < end_time)
 	{
 	  if (options & _HTTP_RESOLVE_STDERR)
-	    _cupsLangPrintFilter(stderr, "INFO", _("Looking for printer..."));
+	    _cupsLangPrintFilter(stderr, "INFO", _("Looking for printer."));
 
 	  if (cb && !(*cb)(context))
 	  {
-	    DEBUG_puts("5_httpResolveURI: callback returned 0 (stop)");
+	    DEBUG_puts("2_httpResolveURI: callback returned 0 (stop)");
 	    break;
 	  }
 
@@ -1753,11 +1896,11 @@ _httpResolveURI(
 	  FD_ZERO(&input_set);
 	  FD_SET(DNSServiceRefSockFD(ref), &input_set);
 
-#      ifdef WIN32
+#      ifdef _WIN32
 	  stimeout.tv_sec  = (long)timeout;
 #      else
 	  stimeout.tv_sec  = timeout;
-#      endif /* WIN32 */
+#      endif /* _WIN32 */
 	  stimeout.tv_usec = 0;
 
 	  fds = select(DNSServiceRefSockFD(ref)+1, &input_set, NULL, NULL,
@@ -1768,7 +1911,7 @@ _httpResolveURI(
 	  {
 	    if (errno != EINTR && errno != EAGAIN)
 	    {
-	      DEBUG_printf(("5_httpResolveURI: poll error: %s", strerror(errno)));
+	      DEBUG_printf(("2_httpResolveURI: poll error: %s", strerror(errno)));
 	      break;
 	    }
 	  }
@@ -1964,7 +2107,7 @@ _httpResolveURI(
     uri = resolved_uri;
   }
 
-  DEBUG_printf(("5_httpResolveURI: Returning \"%s\"", uri));
+  DEBUG_printf(("2_httpResolveURI: Returning \"%s\"", uri));
 
   return (uri);
 }
@@ -2151,11 +2294,7 @@ http_resolve_cb(
   uint8_t		valueLen;	/* Length of value */
 
 
-  DEBUG_printf(("7http_resolve_cb(sdRef=%p, flags=%x, interfaceIndex=%u, "
-	        "errorCode=%d, fullName=\"%s\", hostTarget=\"%s\", port=%u, "
-	        "txtLen=%u, txtRecord=%p, context=%p)", sdRef, flags,
-	        interfaceIndex, errorCode, fullName, hostTarget, port, txtLen,
-	        txtRecord, context));
+  DEBUG_printf(("4http_resolve_cb(sdRef=%p, flags=%x, interfaceIndex=%u, errorCode=%d, fullName=\"%s\", hostTarget=\"%s\", port=%u, txtLen=%u, txtRecord=%p, context=%p)", (void *)sdRef, flags, interfaceIndex, errorCode, fullName, hostTarget, port, txtLen, (void *)txtRecord, context));
 
  /*
   * If we have a UUID, compare it...
@@ -2176,7 +2315,7 @@ http_resolve_cb(
 	fprintf(stderr, "DEBUG: Found UUID %s, looking for %s.", uuid,
 		uribuf->uuid);
 
-      DEBUG_printf(("7http_resolve_cb: Found UUID %s, looking for %s.", uuid,
+      DEBUG_printf(("5http_resolve_cb: Found UUID %s, looking for %s.", uuid,
                     uribuf->uuid));
       return;
     }
@@ -2266,7 +2405,7 @@ http_resolve_cb(
     http_addrlist_t	*addrlist,	/* List of addresses */
 			*addr;		/* Current address */
 
-    DEBUG_printf(("8http_resolve_cb: Looking up \"%s\".", hostTarget));
+    DEBUG_printf(("5http_resolve_cb: Looking up \"%s\".", hostTarget));
 
     snprintf(fqdn, sizeof(fqdn), "%d", ntohs(port));
     if ((addrlist = httpAddrGetList(hostTarget, AF_UNSPEC, fqdn)) != NULL)
@@ -2277,7 +2416,7 @@ http_resolve_cb(
 
         if (!error)
 	{
-	  DEBUG_printf(("8http_resolve_cb: Found \"%s\".", fqdn));
+	  DEBUG_printf(("5http_resolve_cb: Found \"%s\".", fqdn));
 
 	  if ((hostptr = fqdn + strlen(fqdn) - 6) <= fqdn ||
 	      _cups_strcasecmp(hostptr, ".local"))
@@ -2288,7 +2427,7 @@ http_resolve_cb(
 	}
 #ifdef DEBUG
 	else
-	  DEBUG_printf(("8http_resolve_cb: \"%s\" did not resolve: %d",
+	  DEBUG_printf(("5http_resolve_cb: \"%s\" did not resolve: %d",
 	                httpAddrString(&(addr->addr), fqdn, sizeof(fqdn)),
 			error));
 #endif /* DEBUG */
@@ -2308,7 +2447,7 @@ http_resolve_cb(
   else
     httpAssembleURI(HTTP_URI_CODING_ALL, uribuf->buffer, (int)uribuf->bufsize, scheme, NULL, hostTarget, ntohs(port), resource);
 
-  DEBUG_printf(("8http_resolve_cb: Resolved URI is \"%s\"...", uribuf->buffer));
+  DEBUG_printf(("5http_resolve_cb: Resolved URI is \"%s\"...", uribuf->buffer));
 }
 
 #elif defined(HAVE_AVAHI)
@@ -2318,6 +2457,8 @@ http_resolve_cb(
  * Note: This function is needed because avahi_simple_poll_iterate is broken
  *       and always uses a timeout of 0 (!) milliseconds.
  *       (Avahi Ticket #364)
+ *
+ * @private@
  */
 
 static int				/* O - Number of file descriptors matching */
@@ -2367,7 +2508,7 @@ http_resolve_cb(
   size_t		valueLen = 0;	/* Length of "rp" key */
 
 
-  DEBUG_printf(("7http_resolve_cb(resolver=%p, "
+  DEBUG_printf(("4http_resolve_cb(resolver=%p, "
 		"interface=%d, protocol=%d, event=%d, name=\"%s\", "
 		"type=\"%s\", domain=\"%s\", hostTarget=\"%s\", address=%p, "
 		"port=%d, txt=%p, flags=%d, context=%p)",
@@ -2400,7 +2541,7 @@ http_resolve_cb(
 	fprintf(stderr, "DEBUG: Found UUID %s, looking for %s.", uuid,
 		uribuf->uuid);
 
-      DEBUG_printf(("7http_resolve_cb: Found UUID %s, looking for %s.", uuid,
+      DEBUG_printf(("5http_resolve_cb: Found UUID %s, looking for %s.", uuid,
                     uribuf->uuid));
       return;
     }
@@ -2504,7 +2645,7 @@ http_resolve_cb(
     http_addrlist_t	*addrlist,	/* List of addresses */
 			*addr;		/* Current address */
 
-    DEBUG_printf(("8http_resolve_cb: Looking up \"%s\".", hostTarget));
+    DEBUG_printf(("5http_resolve_cb: Looking up \"%s\".", hostTarget));
 
     snprintf(fqdn, sizeof(fqdn), "%d", ntohs(port));
     if ((addrlist = httpAddrGetList(hostTarget, AF_UNSPEC, fqdn)) != NULL)
@@ -2515,7 +2656,7 @@ http_resolve_cb(
 
         if (!error)
 	{
-	  DEBUG_printf(("8http_resolve_cb: Found \"%s\".", fqdn));
+	  DEBUG_printf(("5http_resolve_cb: Found \"%s\".", fqdn));
 
 	  if ((hostptr = fqdn + strlen(fqdn) - 6) <= fqdn ||
 	      _cups_strcasecmp(hostptr, ".local"))
@@ -2526,7 +2667,7 @@ http_resolve_cb(
 	}
 #ifdef DEBUG
 	else
-	  DEBUG_printf(("8http_resolve_cb: \"%s\" did not resolve: %d",
+	  DEBUG_printf(("5http_resolve_cb: \"%s\" did not resolve: %d",
 	                httpAddrString(&(addr->addr), fqdn, sizeof(fqdn)),
 			error));
 #endif /* DEBUG */
@@ -2540,15 +2681,10 @@ http_resolve_cb(
   * Assemble the final device URI using the resolved hostname...
   */
 
-  httpAssembleURI(HTTP_URI_CODING_ALL, uribuf->buffer, uribuf->bufsize, scheme,
+  httpAssembleURI(HTTP_URI_CODING_ALL, uribuf->buffer, (int)uribuf->bufsize, scheme,
                   NULL, hostTarget, port, resource);
-  DEBUG_printf(("8http_resolve_cb: Resolved URI is \"%s\".", uribuf->buffer));
+  DEBUG_printf(("5http_resolve_cb: Resolved URI is \"%s\".", uribuf->buffer));
 
   avahi_simple_poll_quit(uribuf->poll);
 }
 #endif /* HAVE_DNSSD */
-
-
-/*
- * End of "$Id: http-support.c 12970 2015-11-13 20:02:51Z msweet $".
- */

@@ -1,16 +1,14 @@
 /*
- * "$Id: cups-deviced.c 11782 2014-03-28 21:03:43Z msweet $"
- *
  * Device scanning mini-daemon for CUPS.
  *
- * Copyright 2007-2014 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 1997-2006 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -314,7 +312,7 @@ main(int  argc,				/* I - Number of command-line args */
 	      break;
 	    }
 	  }
-	  while (bpipe->ptr && memchr(bpipe->ptr, '\n', (size_t)(bpipe->end - bpipe->ptr)));
+	  while (_cupsFilePeekAhead(bpipe, '\n'));
         }
     }
 
@@ -790,8 +788,3 @@ start_backend(const char *name,		/* I - Backend to run */
 
   return (0);
 }
-
-
-/*
- * End of "$Id: cups-deviced.c 11782 2014-03-28 21:03:43Z msweet $".
- */

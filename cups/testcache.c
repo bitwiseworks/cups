@@ -1,6 +1,4 @@
 /*
- * "$Id: testcache.c 11832 2014-04-24 15:04:00Z msweet $"
- *
  * PPD cache testing program for CUPS.
  *
  * Copyright 2009-2014 by Apple Inc.
@@ -9,7 +7,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -91,8 +89,3 @@ main(int  argc,				/* I - Number of command-line args */
 
   return (0);
 }
-
-
-/*
- * End of "$Id: testcache.c 11832 2014-04-24 15:04:00Z msweet $".
- */

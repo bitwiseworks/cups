@@ -1,15 +1,13 @@
 /*
- * "$Id: pwg-media.c 11881 2014-05-16 20:59:22Z msweet $"
- *
  * PWG media name API implementation for CUPS.
  *
- * Copyright 2009-2014 by Apple Inc.
+ * Copyright 2009-2019 by Apple Inc.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -28,6 +26,7 @@
 
 #define _PWG_MEDIA_IN(p,l,a,x,y) {p, l, a, (int)(x * 2540), (int)(y * 2540)}
 #define _PWG_MEDIA_MM(p,l,a,x,y) {p, l, a, (int)(x * 100), (int)(y * 100)}
+#define _PWG_EPSILON	50		/* Matching tolerance */
 
 
 /*
@@ -39,8 +38,7 @@ static int	pwg_compare_pwg(pwg_media_t *a, pwg_media_t *b);
 static int	pwg_compare_ppd(pwg_media_t *a, pwg_media_t *b);
 static char	*pwg_format_inches(char *buf, size_t bufsize, int val);
 static char	*pwg_format_millimeters(char *buf, size_t bufsize, int val);
-static int	pwg_scan_measurement(const char *buf, char **bufptr, int numer,
-		                     int denom);
+static int	pwg_scan_measurement(const char *buf, char **bufptr, int numer, int denom);
 
 
 /*
@@ -63,7 +61,7 @@ static pwg_media_t const cups_pwg_media[] =
   _PWG_MEDIA_IN("na_index-5x8_5x8in", NULL, "5x8", 5, 8),
   _PWG_MEDIA_IN("na_number-14_5x11.5in", NULL, "Env14", 5, 11.5),
   _PWG_MEDIA_IN("na_invoice_5.5x8.5in", "invoice", "Statement", 5.5, 8.5),
-  _PWG_MEDIA_IN("na_index-4x6-ext_6x8in", NULL, NULL, 6, 8),
+  _PWG_MEDIA_IN("na_index-4x6-ext_6x8in", NULL, "6x8", 6, 8),
   _PWG_MEDIA_IN("na_6x9_6x9in", "na-6x9-envelope", "6x9", 6, 9),
   _PWG_MEDIA_IN("na_c5_6.5x9.5in", NULL, "6.5x9.5", 6.5, 9.5),
   _PWG_MEDIA_IN("na_7x9_7x9in", "na-7x9-envelope", "7x9", 7, 9),
@@ -88,7 +86,7 @@ static pwg_media_t const cups_pwg_media[] =
   _PWG_MEDIA_IN("na_10x15_10x15in", "na-10x15-envelope", "10x15", 10, 15),
   _PWG_MEDIA_IN("na_11x12_11x12in", NULL, "11x12", 11, 12),
   _PWG_MEDIA_IN("na_edp_11x14in", NULL, "11x14", 11, 14),
-  _PWG_MEDIA_IN("na_fanfold-us_11x14.875in", NULL, NULL, 11, 14.875),
+  _PWG_MEDIA_IN("na_fanfold-us_11x14.875in", NULL, "11x14.875", 11, 14.875),
   _PWG_MEDIA_IN("na_11x15_11x15in", NULL, "11x15", 11, 15),
   _PWG_MEDIA_IN("na_ledger_11x17in", "tabloid", "Tabloid", 11, 17),
   _PWG_MEDIA_IN("na_eur-edp_12x14in", NULL, NULL, 12, 14),
@@ -100,8 +98,8 @@ static pwg_media_t const cups_pwg_media[] =
   _PWG_MEDIA_IN("na_arch-c_18x24in", "arch-c", "ARCHC", 18, 24),
   _PWG_MEDIA_IN("na_d_22x34in", "d", "AnsiD", 22, 34),
   _PWG_MEDIA_IN("na_arch-d_24x36in", "arch-d", "ARCHD", 24, 36),
-  _PWG_MEDIA_IN("asme_f_28x40in", "f", NULL, 28, 40),
-  _PWG_MEDIA_IN("na_wide-format_30x42in", NULL, NULL, 30, 42),
+  _PWG_MEDIA_IN("asme_f_28x40in", "f", "28x40", 28, 40),
+  _PWG_MEDIA_IN("na_wide-format_30x42in", NULL, "30x42", 30, 42),
   _PWG_MEDIA_IN("na_e_34x44in", "e", "AnsiE", 34, 44),
   _PWG_MEDIA_IN("na_arch-e_36x48in", "arch-e", "ARCHE", 36, 48),
   _PWG_MEDIA_IN("na_f_44x68in", NULL, "AnsiF", 44, 68),
@@ -118,35 +116,35 @@ static pwg_media_t const cups_pwg_media[] =
   _PWG_MEDIA_MM("iso_a4-tab_225x297mm", NULL, "A4Tab", 225, 297),
   _PWG_MEDIA_MM("iso_a4-extra_235.5x322.3mm", NULL, "A4Extra", 235.5, 322.3),
   _PWG_MEDIA_MM("iso_a3_297x420mm", "iso-a3", "A3", 297, 420),
-  _PWG_MEDIA_MM("iso_a4x3_297x630mm", "iso-a4x3", NULL, 297, 630),
-  _PWG_MEDIA_MM("iso_a4x4_297x841mm", "iso-a4x4", NULL, 297, 841),
-  _PWG_MEDIA_MM("iso_a4x5_297x1051mm", "iso-a4x5", NULL, 297, 1051),
-  _PWG_MEDIA_MM("iso_a4x6_297x1261mm", "iso-a4x6", NULL, 297, 1261),
-  _PWG_MEDIA_MM("iso_a4x7_297x1471mm", "iso-a4x7", NULL, 297, 1471),
-  _PWG_MEDIA_MM("iso_a4x8_297x1682mm", "iso-a4x8", NULL, 297, 1682),
-  _PWG_MEDIA_MM("iso_a4x9_297x1892mm", "iso-a4x9", NULL, 297, 1892),
+  _PWG_MEDIA_MM("iso_a4x3_297x630mm", "iso-a4x3", "A4x3", 297, 630),
+  _PWG_MEDIA_MM("iso_a4x4_297x841mm", "iso-a4x4", "A4x4", 297, 841),
+  _PWG_MEDIA_MM("iso_a4x5_297x1051mm", "iso-a4x5", "A4x5", 297, 1051),
+  _PWG_MEDIA_MM("iso_a4x6_297x1261mm", "iso-a4x6", "A4x6", 297, 1261),
+  _PWG_MEDIA_MM("iso_a4x7_297x1471mm", "iso-a4x7", "A4x7", 297, 1471),
+  _PWG_MEDIA_MM("iso_a4x8_297x1682mm", "iso-a4x8", "A4x8", 297, 1682),
+  _PWG_MEDIA_MM("iso_a4x9_297x1892mm", "iso-a4x9", "A4x9", 297, 1892),
   _PWG_MEDIA_MM("iso_a3-extra_322x445mm", "iso-a3-extra", "A3Extra", 322, 445),
   _PWG_MEDIA_MM("iso_a2_420x594mm", "iso-a2", "A2", 420, 594),
-  _PWG_MEDIA_MM("iso_a3x3_420x891mm", "iso-a3x3", NULL, 420, 891),
-  _PWG_MEDIA_MM("iso_a3x4_420x1189mm", "iso-a3x4", NULL, 420, 1189),
-  _PWG_MEDIA_MM("iso_a3x5_420x1486mm", "iso-a3x5", NULL, 420, 1486),
-  _PWG_MEDIA_MM("iso_a3x6_420x1783mm", "iso-a3x6", NULL, 420, 1783),
-  _PWG_MEDIA_MM("iso_a3x7_420x2080mm", "iso-a3x7", NULL, 420, 2080),
+  _PWG_MEDIA_MM("iso_a3x3_420x891mm", "iso-a3x3", "A3x3", 420, 891),
+  _PWG_MEDIA_MM("iso_a3x4_420x1189mm", "iso-a3x4", "A3x4", 420, 1189),
+  _PWG_MEDIA_MM("iso_a3x5_420x1486mm", "iso-a3x5", "A3x6", 420, 1486),
+  _PWG_MEDIA_MM("iso_a3x6_420x1783mm", "iso-a3x6", "A3x6", 420, 1783),
+  _PWG_MEDIA_MM("iso_a3x7_420x2080mm", "iso-a3x7", "A3x7", 420, 2080),
   _PWG_MEDIA_MM("iso_a1_594x841mm", "iso-a1", "A1", 594, 841),
-  _PWG_MEDIA_MM("iso_a2x3_594x1261mm", "iso-a2x3", NULL, 594, 1261),
-  _PWG_MEDIA_MM("iso_a2x4_594x1682mm", "iso-a2x4", NULL, 594, 1682),
-  _PWG_MEDIA_MM("iso_a2x5_594x2102mm", "iso-a2x5", NULL, 594, 2102),
+  _PWG_MEDIA_MM("iso_a2x3_594x1261mm", "iso-a2x3", "A2x3", 594, 1261),
+  _PWG_MEDIA_MM("iso_a2x4_594x1682mm", "iso-a2x4", "A2x4", 594, 1682),
+  _PWG_MEDIA_MM("iso_a2x5_594x2102mm", "iso-a2x5", "A2x5", 594, 2102),
   _PWG_MEDIA_MM("iso_a0_841x1189mm", "iso-a0", "A0", 841, 1189),
-  _PWG_MEDIA_MM("iso_a1x3_841x1783mm", "iso-a1x3", NULL, 841, 1783),
-  _PWG_MEDIA_MM("iso_a1x4_841x2378mm", "iso-a1x4", NULL, 841, 2378),
-  _PWG_MEDIA_MM("iso_2a0_1189x1682mm", NULL, NULL, 1189, 1682),
-  _PWG_MEDIA_MM("iso_a0x3_1189x2523mm", NULL, NULL, 1189, 2523),
+  _PWG_MEDIA_MM("iso_a1x3_841x1783mm", "iso-a1x3", "A1x3", 841, 1783),
+  _PWG_MEDIA_MM("iso_a1x4_841x2378mm", "iso-a1x4", "A1x4", 841, 2378),
+  _PWG_MEDIA_MM("iso_2a0_1189x1682mm", NULL, "1189x1682mm", 1189, 1682),
+  _PWG_MEDIA_MM("iso_a0x3_1189x2523mm", NULL, "A0x3", 1189, 2523),
   _PWG_MEDIA_MM("iso_b10_31x44mm", "iso-b10", "ISOB10", 31, 44),
   _PWG_MEDIA_MM("iso_b9_44x62mm", "iso-b9", "ISOB9", 44, 62),
   _PWG_MEDIA_MM("iso_b8_62x88mm", "iso-b8", "ISOB8", 62, 88),
   _PWG_MEDIA_MM("iso_b7_88x125mm", "iso-b7", "ISOB7", 88, 125),
   _PWG_MEDIA_MM("iso_b6_125x176mm", "iso-b6", "ISOB6", 125, 176),
-  _PWG_MEDIA_MM("iso_b6c4_125x324mm", NULL, NULL, 125, 324),
+  _PWG_MEDIA_MM("iso_b6c4_125x324mm", NULL, "125x324mm", 125, 324),
   _PWG_MEDIA_MM("iso_b5_176x250mm", "iso-b5", "ISOB5", 176, 250),
   _PWG_MEDIA_MM("iso_b5-extra_201x276mm", NULL, "ISOB5Extra", 201, 276),
   _PWG_MEDIA_MM("iso_b4_250x353mm", "iso-b4", "ISOB4", 250, 353),
@@ -154,11 +152,11 @@ static pwg_media_t const cups_pwg_media[] =
   _PWG_MEDIA_MM("iso_b2_500x707mm", "iso-b2", "ISOB2", 500, 707),
   _PWG_MEDIA_MM("iso_b1_707x1000mm", "iso-b1", "ISOB1", 707, 1000),
   _PWG_MEDIA_MM("iso_b0_1000x1414mm", "iso-b0", "ISOB0", 1000, 1414),
-  _PWG_MEDIA_MM("iso_c10_28x40mm", "iso-c10", NULL, 28, 40),
-  _PWG_MEDIA_MM("iso_c9_40x57mm", "iso-c9", NULL, 40, 57),
-  _PWG_MEDIA_MM("iso_c8_57x81mm", "iso-c8", NULL, 57, 81),
+  _PWG_MEDIA_MM("iso_c10_28x40mm", "iso-c10", "EnvC10", 28, 40),
+  _PWG_MEDIA_MM("iso_c9_40x57mm", "iso-c9", "EnvC9", 40, 57),
+  _PWG_MEDIA_MM("iso_c8_57x81mm", "iso-c8", "EnvC8", 57, 81),
   _PWG_MEDIA_MM("iso_c7_81x114mm", "iso-c7", "EnvC7", 81, 114),
-  _PWG_MEDIA_MM("iso_c7c6_81x162mm", NULL, NULL, 81, 162),
+  _PWG_MEDIA_MM("iso_c7c6_81x162mm", NULL, "EnvC76", 81, 162),
   _PWG_MEDIA_MM("iso_c6_114x162mm", "iso-c6", "EnvC6", 114, 162),
   _PWG_MEDIA_MM("iso_c6c5_114x229mm", NULL, "EnvC65", 114, 229),
   _PWG_MEDIA_MM("iso_c5_162x229mm", "iso-c5", "EnvC5", 162, 229),
@@ -168,16 +166,16 @@ static pwg_media_t const cups_pwg_media[] =
   _PWG_MEDIA_MM("iso_c1_648x917mm", "iso-c1", "EnvC1", 648, 917),
   _PWG_MEDIA_MM("iso_c0_917x1297mm", "iso-c0", "EnvC0", 917, 1297),
   _PWG_MEDIA_MM("iso_dl_110x220mm", "iso-designated", "EnvDL", 110, 220),
-  _PWG_MEDIA_MM("iso_ra4_215x305mm", "iso-ra4", NULL, 215, 305),
-  _PWG_MEDIA_MM("iso_sra4_225x320mm", "iso-sra4", NULL, 225, 320),
-  _PWG_MEDIA_MM("iso_ra3_305x430mm", "iso-ra3", NULL, 305, 430),
-  _PWG_MEDIA_MM("iso_sra3_320x450mm", "iso-sra3", NULL, 320, 450),
-  _PWG_MEDIA_MM("iso_ra2_430x610mm", "iso-ra2", NULL, 430, 610),
-  _PWG_MEDIA_MM("iso_sra2_450x640mm", "iso-sra2", NULL, 450, 640),
-  _PWG_MEDIA_MM("iso_ra1_610x860mm", "iso-ra1", NULL, 610, 860),
-  _PWG_MEDIA_MM("iso_sra1_640x900mm", "iso-sra1", NULL, 640, 900),
-  _PWG_MEDIA_MM("iso_ra0_860x1220mm", "iso-ra0", NULL, 860, 1220),
-  _PWG_MEDIA_MM("iso_sra0_900x1280mm", "iso-sra0", NULL, 900, 1280),
+  _PWG_MEDIA_MM("iso_ra4_215x305mm", "iso-ra4", "RA4", 215, 305),
+  _PWG_MEDIA_MM("iso_sra4_225x320mm", "iso-sra4", "SRA4", 225, 320),
+  _PWG_MEDIA_MM("iso_ra3_305x430mm", "iso-ra3", "RA3", 305, 430),
+  _PWG_MEDIA_MM("iso_sra3_320x450mm", "iso-sra3", "SRA3", 320, 450),
+  _PWG_MEDIA_MM("iso_ra2_430x610mm", "iso-ra2", "RA2", 430, 610),
+  _PWG_MEDIA_MM("iso_sra2_450x640mm", "iso-sra2", "SRA2", 450, 640),
+  _PWG_MEDIA_MM("iso_ra1_610x860mm", "iso-ra1", "RA1", 610, 860),
+  _PWG_MEDIA_MM("iso_sra1_640x900mm", "iso-sra1", "SRA1", 640, 900),
+  _PWG_MEDIA_MM("iso_ra0_860x1220mm", "iso-ra0", "RA0", 860, 1220),
+  _PWG_MEDIA_MM("iso_sra0_900x1280mm", "iso-sra0", "SRA0", 900, 1280),
 
   /* Japanese Standard Sheet Media Sizes */
   _PWG_MEDIA_MM("jis_b10_32x45mm", "jis-b10", "B10", 32, 45),
@@ -191,7 +189,8 @@ static pwg_media_t const cups_pwg_media[] =
   _PWG_MEDIA_MM("jis_b2_515x728mm", "jis-b2", "B2", 515, 728),
   _PWG_MEDIA_MM("jis_b1_728x1030mm", "jis-b1", "B1", 728, 1030),
   _PWG_MEDIA_MM("jis_b0_1030x1456mm", "jis-b0", "B0", 1030, 1456),
-  _PWG_MEDIA_MM("jis_exec_216x330mm", NULL, NULL, 216, 330),
+  _PWG_MEDIA_MM("jis_exec_216x330mm", NULL, "216x330mm", 216, 330),
+  _PWG_MEDIA_MM("jpn_kaku1_270x382mm", NULL, "EnvKaku1", 270, 382),
   _PWG_MEDIA_MM("jpn_kaku2_240x332mm", NULL, "EnvKaku2", 240, 332),
   _PWG_MEDIA_MM("jpn_kaku3_216x277mm", NULL, "EnvKaku3", 216, 277),
   _PWG_MEDIA_MM("jpn_kaku4_197x267mm", NULL, "EnvKaku4", 197, 267),
@@ -206,7 +205,7 @@ static pwg_media_t const cups_pwg_media[] =
   _PWG_MEDIA_MM("jpn_chou3_120x235mm", NULL, "EnvChou3", 120, 235),
   _PWG_MEDIA_MM("jpn_chou40_90x225mm", NULL, "EnvChou40", 90, 225),
   _PWG_MEDIA_MM("jpn_oufuku_148x200mm", NULL, "DoublePostcardRotated", 148, 200),
-  _PWG_MEDIA_MM("jpn_kahu_240x322.1mm", NULL, NULL, 240, 322.1),
+  _PWG_MEDIA_MM("jpn_kahu_240x322.1mm", NULL, "240x322mm", 240, 322.1),
 
   /* Chinese Standard Sheet Media Sizes */
   _PWG_MEDIA_MM("prc_32k_97x151mm", NULL, "PRC32K", 97, 151),
@@ -217,9 +216,9 @@ static pwg_media_t const cups_pwg_media[] =
   _PWG_MEDIA_MM("prc_6_120x320mm", NULL, NULL, 120, 320),
   _PWG_MEDIA_MM("prc_16k_146x215mm", NULL, "PRC16K", 146, 215),
   _PWG_MEDIA_MM("prc_7_160x230mm", NULL, "EnvPRC7", 160, 230),
-  _PWG_MEDIA_MM("om_juuro-ku-kai_198x275mm", NULL, NULL, 198, 275),
-  _PWG_MEDIA_MM("om_pa-kai_267x389mm", NULL, NULL, 267, 389),
-  _PWG_MEDIA_MM("om_dai-pa-kai_275x395mm", NULL, NULL, 275, 395),
+  _PWG_MEDIA_MM("om_juuro-ku-kai_198x275mm", NULL, "198x275mm", 198, 275),
+  _PWG_MEDIA_MM("om_pa-kai_267x389mm", NULL, "267x389mm", 267, 389),
+  _PWG_MEDIA_MM("om_dai-pa-kai_275x395mm", NULL, "275x395mm", 275, 395),
 
   /* Chinese Standard Sheet Media Inch Sizes */
   _PWG_MEDIA_IN("roc_16k_7.75x10.75in", NULL, "roc16k", 7.75, 10.75),
@@ -229,13 +228,16 @@ static pwg_media_t const cups_pwg_media[] =
   _PWG_MEDIA_IN("oe_photo-l_3.5x5in", NULL, "3.5x5", 3.5, 5),
 
   /* Other Metric Standard Sheet Media Sizes */
-  _PWG_MEDIA_MM("om_small-photo_100x150mm", NULL, "om_small-photo", 100, 150),
+  _PWG_MEDIA_MM("om_small-photo_100x150mm", NULL, "100x150mm", 100, 150),
   _PWG_MEDIA_MM("om_italian_110x230mm", NULL, "EnvItalian", 110, 230),
-  _PWG_MEDIA_MM("om_large-photo_200x300", NULL, "om_large-photo", 200, 300),
+  _PWG_MEDIA_MM("om_large-photo_200x300", NULL, "200x300mm", 200, 300),
   _PWG_MEDIA_MM("om_folio_210x330mm", "folio", "Folio", 210, 330),
   _PWG_MEDIA_MM("om_folio-sp_215x315mm", NULL, "FolioSP", 215, 315),
   _PWG_MEDIA_MM("om_invite_220x220mm", NULL, "EnvInvite", 220, 220),
-  _PWG_MEDIA_MM("om_small-photo_100x200mm", NULL, "om_wide-photo", 100, 200)
+  _PWG_MEDIA_MM("om_small-photo_100x200mm", NULL, "100x200mm", 100, 200),
+
+  /* Disc Sizes */
+  _PWG_MEDIA_MM("disc_standard_40x118mm", NULL, "Disc", 118, 118)
 };
 
 
@@ -257,7 +259,7 @@ static pwg_media_t const cups_pwg_media[] =
  * units string is @code NULL@, otherwise inches ("in") or millimeters ("mm")
  * are used.
  *
- * @since CUPS 1.7/OS X 10.9@
+ * @since CUPS 1.7/macOS 10.9@
  */
 
 int					/* O - 1 on success, 0 on failure */
@@ -279,10 +281,7 @@ pwgFormatSizeName(char       *keyword,	/* I - Keyword buffer */
   * Range check input...
   */
 
-  DEBUG_printf(("pwgFormatSize(keyword=%p, keysize=" CUPS_LLFMT
-                ", prefix=\"%s\", name=\"%s\", width=%d, length=%d, "
-                "units=\"%s\")", keyword, CUPS_LLCAST keysize, prefix, name,
-                width, length, units));
+  DEBUG_printf(("pwgFormatSize(keyword=%p, keysize=" CUPS_LLFMT ", prefix=\"%s\", name=\"%s\", width=%d, length=%d, units=\"%s\")", (void *)keyword, CUPS_LLCAST keysize, prefix, name, width, length, units));
 
   if (keyword)
     *keyword = '\0';
@@ -316,6 +315,8 @@ pwgFormatSizeName(char       *keyword,	/* I - Keyword buffer */
   else
     name = usize;
 
+  if (prefix && !strcmp(prefix, "disc"))
+    width = 4000;			/* Disc sizes use hardcoded 40mm inner diameter */
 
   if (!units)
   {
@@ -378,11 +379,6 @@ pwgFormatSizeName(char       *keyword,	/* I - Keyword buffer */
   return (1);
 }
 
-/* For OS X 10.8 and earlier... */
-void _pwgGenerateSize(char *keyword, size_t keysize, const char *prefix,
-		      const char *name, int width, int length)
-{ pwgFormatSizeName(keyword, keysize, prefix, name, width, length, NULL); }
-
 
 /*
  * 'pwgInitSize()' - Initialize a pwg_size_t structure using IPP Job Template
@@ -396,7 +392,7 @@ void _pwgGenerateSize(char *keyword, size_t keysize, const char *prefix,
  * member attribute was specified in the "media-col" Job Template attribute,
  * otherwise it is initialized to 0.
  *
- * @since CUPS 1.7/OS X 10.9@
+ * @since CUPS 1.7/macOS 10.9@
  */
 
 int					/* O - 1 if size was initialized, 0 otherwise */
@@ -560,10 +556,6 @@ pwgInitSize(pwg_size_t *size,		/* I - Size to initialize */
   return (1);
 }
 
-/* For OS X 10.8 and earlier */
-int _pwgInitSize(pwg_size_t *size, ipp_t *job, int *margins_set)
-{ return (pwgInitSize(size, job, margins_set)); }
-
 
 /*
  * 'pwgMediaForLegacy()' - Find a PWG media size by ISO/IPP legacy name.
@@ -571,7 +563,7 @@ int _pwgInitSize(pwg_size_t *size, ipp_t *job, int *margins_set)
  * The "name" argument specifies the legacy ISO media size name, for example
  * "iso-a4" or "na-letter".
  *
- * @since CUPS 1.7/OS X 10.9@
+ * @since CUPS 1.7/macOS 10.9@
  */
 
 pwg_media_t *				/* O - Matching size or NULL */
@@ -616,10 +608,6 @@ pwgMediaForLegacy(const char *legacy)	/* I - Legacy size name */
   return ((pwg_media_t *)cupsArrayFind(cg->leg_size_lut, &key));
 }
 
-/* For OS X 10.8 and earlier */
-pwg_media_t *_pwgMediaForLegacy(const char *legacy)
-{ return (pwgMediaForLegacy(legacy)); }
-
 
 /*
  * 'pwgMediaForPPD()' - Find a PWG media size by Adobe PPD name.
@@ -633,7 +621,7 @@ pwg_media_t *_pwgMediaForLegacy(const char *legacy)
  * thread.  Custom names can be of the form "Custom.WIDTHxLENGTH[units]" or
  * "WIDTHxLENGTH[units]".
  *
- * @since CUPS 1.7/OS X 10.9@
+ * @since CUPS 1.7/macOS 10.9@
  */
 
 pwg_media_t *				/* O - Matching size or NULL */
@@ -775,6 +763,8 @@ pwgMediaForPPD(const char *ppd)		/* I - PPD size name */
 	*     [oe|om]_WIDTHxHEIGHTuu_WIDTHxHEIGHTuu
 	*/
 
+        char	wstr[32], lstr[32];	/* Width and length as strings */
+
 	size         = &(cg->pwg_media);
 	size->width  = w;
 	size->length = l;
@@ -783,16 +773,18 @@ pwgMediaForPPD(const char *ppd)		/* I - PPD size name */
 	pwgFormatSizeName(cg->pwg_name, sizeof(cg->pwg_name),
 	                  custom ? "custom" : NULL, custom ? ppd + 7 : NULL,
 	                  size->width, size->length, NULL);
+
+        if ((w % 635) == 0 && (l % 635) == 0)
+          snprintf(cg->ppd_name, sizeof(cg->ppd_name), "%sx%s", pwg_format_inches(wstr, sizeof(wstr), w), pwg_format_inches(lstr, sizeof(lstr), l));
+        else
+          snprintf(cg->ppd_name, sizeof(cg->ppd_name), "%sx%smm", pwg_format_millimeters(wstr, sizeof(wstr), w), pwg_format_millimeters(lstr, sizeof(lstr), l));
+        size->ppd = cg->ppd_name;
       }
     }
   }
 
   return (size);
 }
-
-/* For OS X 10.8 and earlier */
-pwg_media_t *_pwgMediaForPPD(const char *ppd)
-{ return (pwgMediaForPPD(ppd)); }
 
 
 /*
@@ -805,7 +797,7 @@ pwg_media_t *_pwgMediaForPPD(const char *ppd)
  * thread-local storage and is overwritten by each call to the function in the
  * thread.
  *
- * @since CUPS 1.7/OS X 10.9@
+ * @since CUPS 1.7/macOS 10.9@
  */
 
 pwg_media_t *				/* O - Matching size or NULL */
@@ -877,22 +869,29 @@ pwgMediaForPWG(const char *pwg)		/* I - PWG size name */
 
       if (ptr)
       {
+        char	wstr[32], lstr[32];	/* Width and length strings */
+
+        if (!strncmp(pwg, "disc_", 5))
+          w = l;			/* Make the media size OUTERxOUTER */
+
         size         = &(cg->pwg_media);
         size->width  = w;
         size->length = l;
 
         strlcpy(cg->pwg_name, pwg, sizeof(cg->pwg_name));
 	size->pwg = cg->pwg_name;
+
+        if (numer == 100)
+          snprintf(cg->ppd_name, sizeof(cg->ppd_name), "%sx%smm", pwg_format_millimeters(wstr, sizeof(wstr), w), pwg_format_millimeters(lstr, sizeof(lstr), l));
+        else
+          snprintf(cg->ppd_name, sizeof(cg->ppd_name), "%sx%s", pwg_format_inches(wstr, sizeof(wstr), w), pwg_format_inches(lstr, sizeof(lstr), l));
+        size->ppd = cg->ppd_name;
       }
     }
   }
 
   return (size);
 }
-
-/* For OS X 10.8 and earlier */
-pwg_media_t *_pwgMediaForPWG(const char *pwg)
-{ return (pwgMediaForPWG(pwg)); }
 
 
 /*
@@ -905,7 +904,7 @@ pwg_media_t *_pwgMediaForPWG(const char *pwg)
  * thread-local storage and is overwritten by each call to the function in the
  * thread.
  *
- * @since CUPS 1.7/OS X 10.9@
+ * @since CUPS 1.7/macOS 10.9@
  */
 
 pwg_media_t *				/* O - PWG media name */
@@ -914,10 +913,11 @@ pwgMediaForSize(int width,		/* I - Width in hundredths of millimeters */
 {
  /*
   * Adobe uses a size matching algorithm with an epsilon of 5 points, which
-  * is just about 176/2540ths...
+  * is just about 176/2540ths...  But a lot of international media sizes are
+  * very close so use 0.5mm (50/2540ths) as the maximum delta.
   */
 
-  return (_pwgMediaNearSize(width, length, 176));
+  return (_pwgMediaNearSize(width, length, _PWG_EPSILON));
 }
 
 
@@ -936,6 +936,7 @@ _pwgMediaNearSize(int width,	        /* I - Width in hundredths of millimeters *
   int		dw, dl,			/* Difference in width and length */
 		best_dw = 999,		/* Best difference in width and length */
 		best_dl = 999;
+  char		wstr[32], lstr[32];	/* Width and length as strings */
   _cups_globals_t *cg = _cupsGlobals();	/* Global data */
 
 
@@ -988,12 +989,14 @@ _pwgMediaNearSize(int width,	        /* I - Width in hundredths of millimeters *
   cg->pwg_media.width  = width;
   cg->pwg_media.length = length;
 
+  if ((width % 635) == 0 && (length % 635) == 0)
+    snprintf(cg->ppd_name, sizeof(cg->ppd_name), "%sx%s", pwg_format_inches(wstr, sizeof(wstr), width), pwg_format_inches(lstr, sizeof(lstr), length));
+  else
+    snprintf(cg->ppd_name, sizeof(cg->ppd_name), "%sx%smm", pwg_format_millimeters(wstr, sizeof(wstr), width), pwg_format_millimeters(lstr, sizeof(lstr), length));
+  cg->pwg_media.ppd = cg->ppd_name;
+
   return (&(cg->pwg_media));
 }
-
-/* For OS X 10.8 and earlier */
-pwg_media_t *_pwgMediaForSize(int width, int length)
-{ return (pwgMediaForSize(width, length)); }
 
 
 /*
@@ -1051,8 +1054,8 @@ pwg_compare_pwg(pwg_media_t *a,	/* I - First size */
 
 static char *				/* O - String */
 pwg_format_inches(char   *buf,		/* I - Buffer */
-                 size_t bufsize,	/* I - Size of buffer */
-                 int    val)		/* I - Value in hundredths of millimeters */
+                  size_t bufsize,	/* I - Size of buffer */
+                  int    val)		/* I - Value in hundredths of millimeters */
 {
   int	thousandths,			/* Thousandths of inches */
 	integer,			/* Integer portion */
@@ -1092,8 +1095,8 @@ pwg_format_inches(char   *buf,		/* I - Buffer */
 
 static char *				/* O - String */
 pwg_format_millimeters(char   *buf,	/* I - Buffer */
-                      size_t bufsize,	/* I - Size of buffer */
-                      int    val)	/* I - Value in hundredths of millimeters */
+                       size_t bufsize,	/* I - Size of buffer */
+                       int    val)	/* I - Value in hundredths of millimeters */
 {
   int	integer,			/* Integer portion */
 	fraction;			/* Fractional portion */
@@ -1177,8 +1180,3 @@ pwg_scan_measurement(
 
   return (value * numer / denom + fractional * numer / denom / divisor);
 }
-
-
-/*
- * End of "$Id: pwg-media.c 11881 2014-05-16 20:59:22Z msweet $".
- */

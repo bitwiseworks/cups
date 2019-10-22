@@ -1,16 +1,14 @@
 /*
- * "$Id: config.h.in 12687 2015-06-03 17:19:04Z msweet $"
- *
  * Configuration file for CUPS.
  *
- * Copyright 2007-2015 by Apple Inc.
+ * Copyright 2007-2017 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 #ifndef _CUPS_CONFIG_H_
@@ -243,13 +241,6 @@
 
 
 /*
- * Do we have the ASL functions?
- */
-
-#undef HAVE_ASL_H
-
-
-/*
  * Do we have the systemd journal functions?
  */
 
@@ -310,6 +301,13 @@
 #undef HAVE_GNUTLS
 #undef HAVE_SSPISSL
 #undef HAVE_SSL
+
+
+/*
+ * Do we have the gnutls_fips140_set_mode function?
+ */
+
+#undef HAVE_GNUTLS_FIPS140_SET_MODE
 
 
 /*
@@ -482,12 +480,18 @@
 
 
 /*
+ * Do we have on-demand support (launchd/systemd/upstart)?
+ */
+
+#undef HAVE_ONDEMAND
+
+
+/*
  * Do we have launchd support?
  */
 
 #undef HAVE_LAUNCH_H
 #undef HAVE_LAUNCHD
-#undef HAVE_LAUNCH_ACTIVATE_SOCKET
 
 
 /*
@@ -495,6 +499,13 @@
  */
 
 #undef HAVE_SYSTEMD
+
+
+/*
+ * Do we have upstart support?
+ */
+
+#undef HAVE_UPSTART
 
 
 /*
@@ -509,24 +520,6 @@
 #define CUPS_PHP	"/usr/bin/php"
 #undef HAVE_PYTHON
 #define CUPS_PYTHON	"/usr/bin/python"
-
-
-/*
- * Location of the poppler/Xpdf pdftops program...
- */
-
-#undef HAVE_PDFTOPS
-#undef HAVE_PDFTOPS_WITH_ORIGPAGESIZES
-#define CUPS_PDFTOPS	"/usr/bin/pdftops"
-
-
-/*
- * Location of the Ghostscript gs program...
- */
-
-#undef HAVE_GHOSTSCRIPT
-#undef HAVE_GHOSTSCRIPT_PS2WRITE
-#define CUPS_GHOSTSCRIPT "/usr/bin/gs"
 
 
 /*
@@ -553,7 +546,14 @@
 
 
 /*
- * Do we have OS X 10.4's mbr_XXX functions?
+ * Do we have the getgrouplist() function?
+ */
+
+#undef HAVE_GETGROUPLIST
+
+
+/*
+ * Do we have macOS 10.4's mbr_XXX functions?
  */
 
 #undef HAVE_MEMBERSHIP_H
@@ -699,7 +699,7 @@
 
 
 /*
- * Location of OS X localization bundle, if any.
+ * Location of macOS localization bundle, if any.
  */
 
 #undef CUPS_BUNDLEDIR
@@ -738,7 +738,3 @@ static __inline int _cups_abs(int i) { return (i < 0 ? -i : i); }
 #endif /* !HAVE_ABS && !abs */
 
 #endif /* !_CUPS_CONFIG_H_ */
-
-/*
- * End of "$Id: config.h.in 12687 2015-06-03 17:19:04Z msweet $".
- */

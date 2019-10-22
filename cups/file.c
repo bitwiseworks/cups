@@ -1,21 +1,19 @@
 /*
- * "$Id: file.c 12641 2015-05-19 15:04:39Z msweet $"
- *
  * File functions for CUPS.
  *
  * Since stdio files max out at 256 files on many systems, we have to
  * write similar functions without this limit.  At the same time, using
  * our own file functions allows us to provide transparent support of
- * gzip'd print files, PPD files, etc.
+ * different line endings, gzip'd print files, PPD files, etc.
  *
- * Copyright 2007-2015 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -27,6 +25,39 @@
 #include "file-private.h"
 #include <sys/stat.h>
 #include <sys/types.h>
+
+#  ifdef HAVE_LIBZ
+#    include <zlib.h>
+#  endif /* HAVE_LIBZ */
+
+
+/*
+ * Internal structures...
+ */
+
+struct _cups_file_s			/**** CUPS file structure... ****/
+
+{
+  int		fd;			/* File descriptor */
+  char		mode,			/* Mode ('r' or 'w') */
+		compressed,		/* Compression used? */
+		is_stdio,		/* stdin/out/err? */
+		eof,			/* End of file? */
+		buf[4096],		/* Buffer */
+		*ptr,			/* Pointer into buffer */
+		*end;			/* End of buffer data */
+  off_t		pos,			/* Position in file */
+		bufpos;			/* File position for start of buffer */
+
+#ifdef HAVE_LIBZ
+  z_stream	stream;			/* (De)compression stream */
+  Bytef		cbuf[4096];		/* (De)compression buffer */
+  uLong		crc;			/* (De)compression CRC */
+#endif /* HAVE_LIBZ */
+
+  char		*printf_buffer;		/* cupsFilePrintf buffer */
+  size_t	printf_size;		/* Size of cupsFilePrintf buffer */
+};
 
 
 /*
@@ -42,7 +73,7 @@ static ssize_t	cups_read(cups_file_t *fp, char *buf, size_t bytes);
 static ssize_t	cups_write(cups_file_t *fp, const char *buf, size_t bytes);
 
 
-#ifndef WIN32
+#ifndef _WIN32
 /*
  * '_cupsFileCheck()' - Check the permissions of the given filename.
  */
@@ -308,13 +339,13 @@ _cupsFileCheckFilter(
 
   fprintf(stderr, "%s: %s\n", prefix, message);
 }
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
 
 
 /*
  * 'cupsFileClose()' - Close a CUPS file.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 int					/* O - 0 on success, -1 on error */
@@ -323,10 +354,9 @@ cupsFileClose(cups_file_t *fp)		/* I - CUPS file */
   int	fd;				/* File descriptor */
   char	mode;				/* Open mode */
   int	status;				/* Return status */
-  int	is_stdio;			/* Is a stdio file? */
 
 
-  DEBUG_printf(("cupsFileClose(fp=%p)", fp));
+  DEBUG_printf(("cupsFileClose(fp=%p)", (void *)fp));
 
  /*
   * Range check...
@@ -412,12 +442,19 @@ cupsFileClose(cups_file_t *fp)		/* I - CUPS file */
 #endif /* HAVE_LIBZ */
 
  /*
+  * If this is one of the cupsFileStdin/out/err files, return now and don't
+  * actually free memory or close (these last the life of the process...)
+  */
+
+  if (fp->is_stdio)
+    return (status);
+
+/*
   * Save the file descriptor we used and free memory...
   */
 
-  fd       = fp->fd;
-  mode     = fp->mode;
-  is_stdio = fp->is_stdio;
+  fd   = fp->fd;
+  mode = fp->mode;
 
   if (fp->printf_buffer)
     free(fp->printf_buffer);
@@ -433,11 +470,8 @@ cupsFileClose(cups_file_t *fp)		/* I - CUPS file */
     if (httpAddrClose(NULL, fd) < 0)
       status = -1;
   }
-  else if (!is_stdio)
-  {
-    if (close(fd) < 0)
-      status = -1;
-  }
+  else if (close(fd) < 0)
+    status = -1;
 
   return (status);
 }
@@ -446,7 +480,7 @@ cupsFileClose(cups_file_t *fp)		/* I - CUPS file */
 /*
  * 'cupsFileCompression()' - Return whether a file is compressed.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 int					/* O - @code CUPS_FILE_NONE@ or @code CUPS_FILE_GZIP@ */
@@ -459,7 +493,7 @@ cupsFileCompression(cups_file_t *fp)	/* I - CUPS file */
 /*
  * 'cupsFileEOF()' - Return the end-of-file status.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 int					/* O - 1 on end of file, 0 otherwise */
@@ -478,7 +512,7 @@ cupsFileEOF(cups_file_t *fp)		/* I - CUPS file */
  * the supplied paths, @code NULL@ is returned. A @code NULL@ path only
  * matches the current directory.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 const char *				/* O - Full path to file or @code NULL@ if not found */
@@ -496,9 +530,7 @@ cupsFileFind(const char *filename,	/* I - File to find */
   * Range check input...
   */
 
-  DEBUG_printf(("cupsFileFind(filename=\"%s\", path=\"%s\", executable=%d, "
-                "buffer=%p, bufsize=%d)", filename, path, executable, buffer,
-		bufsize));
+  DEBUG_printf(("cupsFileFind(filename=\"%s\", path=\"%s\", executable=%d, buffer=%p, bufsize=%d)", filename, path, executable, (void *)buffer, bufsize));
 
   if (!filename || !buffer || bufsize < 2)
     return (NULL);
@@ -527,22 +559,22 @@ cupsFileFind(const char *filename,	/* I - File to find */
 
   while (*path)
   {
-#ifdef WIN32
+#ifdef _WIN32
     if (*path == ';' || (*path == ':' && ((bufptr - buffer) > 1 || !isalpha(buffer[0] & 255))))
 #else
     if (*path == ';' || *path == ':')
-#endif /* WIN32 */
+#endif /* _WIN32 */
     {
       if (bufptr > buffer && bufptr[-1] != '/' && bufptr < bufend)
         *bufptr++ = '/';
 
       strlcpy(bufptr, filename, (size_t)(bufend - bufptr));
 
-#ifdef WIN32
+#ifdef _WIN32
       if (!access(buffer, 0))
 #else
       if (!access(buffer, executable ? X_OK : 0))
-#endif /* WIN32 */
+#endif /* _WIN32 */
       {
         DEBUG_printf(("1cupsFileFind: Returning \"%s\"", buffer));
         return (buffer);
@@ -581,7 +613,7 @@ cupsFileFind(const char *filename,	/* I - File to find */
 /*
  * 'cupsFileFlush()' - Flush pending output.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 int					/* O - 0 on success, -1 on error */
@@ -590,7 +622,7 @@ cupsFileFlush(cups_file_t *fp)		/* I - CUPS file */
   ssize_t	bytes;			/* Bytes to write */
 
 
-  DEBUG_printf(("cupsFileFlush(fp=%p)", fp));
+  DEBUG_printf(("cupsFileFlush(fp=%p)", (void *)fp));
 
  /*
   * Range check input...
@@ -629,7 +661,7 @@ cupsFileFlush(cups_file_t *fp)		/* I - CUPS file */
 /*
  * 'cupsFileGetChar()' - Get a single character from a file.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 int					/* O - Character or -1 on end of file */
@@ -639,7 +671,7 @@ cupsFileGetChar(cups_file_t *fp)	/* I - CUPS file */
   * Range check input...
   */
 
-  DEBUG_printf(("4cupsFileGetChar(fp=%p)", fp));
+  DEBUG_printf(("4cupsFileGetChar(fp=%p)", (void *)fp));
 
   if (!fp || (fp->mode != 'r' && fp->mode != 's'))
   {
@@ -647,11 +679,17 @@ cupsFileGetChar(cups_file_t *fp)	/* I - CUPS file */
     return (-1);
   }
 
+  if (fp->eof)
+  {
+    DEBUG_puts("5cupsFileGetChar: End-of-file!");
+    return (-1);
+  }
+
  /*
   * If the input buffer is empty, try to read more data...
   */
 
-  DEBUG_printf(("5cupsFileGetChar: fp->eof=%d, fp->ptr=%p, fp->end=%p", fp->eof, fp->ptr, fp->end));
+  DEBUG_printf(("5cupsFileGetChar: fp->eof=%d, fp->ptr=%p, fp->end=%p", fp->eof, (void *)fp->ptr, (void *)fp->end));
 
   if (fp->ptr >= fp->end)
     if (cups_fill(fp) <= 0)
@@ -677,7 +715,7 @@ cupsFileGetChar(cups_file_t *fp)	/* I - CUPS file */
 /*
  * 'cupsFileGetConf()' - Get a line from a configuration file.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 char *					/* O  - Line read or @code NULL@ on end of file or error */
@@ -695,8 +733,7 @@ cupsFileGetConf(cups_file_t *fp,	/* I  - CUPS file */
   */
 
   DEBUG_printf(("2cupsFileGetConf(fp=%p, buf=%p, buflen=" CUPS_LLFMT
-                ", value=%p, linenum=%p)", fp, buf, CUPS_LLCAST buflen,
-		value, linenum));
+                ", value=%p, linenum=%p)", (void *)fp, (void *)buf, CUPS_LLCAST buflen, (void *)value, (void *)linenum));
 
   if (!fp || (fp->mode != 'r' && fp->mode != 's') ||
       !buf || buflen < 2 || !value)
@@ -821,7 +858,7 @@ cupsFileGetConf(cups_file_t *fp,	/* I  - CUPS file */
  * nul-terminated, however you should use the returned length to determine
  * the number of bytes on the line.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 size_t					/* O - Number of bytes on line or 0 on end of file */
@@ -838,8 +875,7 @@ cupsFileGetLine(cups_file_t *fp,	/* I - File to read from */
   * Range check input...
   */
 
-  DEBUG_printf(("2cupsFileGetLine(fp=%p, buf=%p, buflen=" CUPS_LLFMT ")",
-                fp, buf, CUPS_LLCAST buflen));
+  DEBUG_printf(("2cupsFileGetLine(fp=%p, buf=%p, buflen=" CUPS_LLFMT ")", (void *)fp, (void *)buf, CUPS_LLCAST buflen));
 
   if (!fp || (fp->mode != 'r' && fp->mode != 's') || !buf || buflen < 3)
     return (0);
@@ -896,7 +932,7 @@ cupsFileGetLine(cups_file_t *fp,	/* I - File to read from */
 /*
  * 'cupsFileGets()' - Get a CR and/or LF-terminated line.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 char *					/* O - Line read or @code NULL@ on end of file or error */
@@ -913,8 +949,7 @@ cupsFileGets(cups_file_t *fp,		/* I - CUPS file */
   * Range check input...
   */
 
-  DEBUG_printf(("2cupsFileGets(fp=%p, buf=%p, buflen=" CUPS_LLFMT ")", fp, buf,
-                CUPS_LLCAST buflen));
+  DEBUG_printf(("2cupsFileGets(fp=%p, buf=%p, buflen=" CUPS_LLFMT ")", (void *)fp, (void *)buf, CUPS_LLCAST buflen));
 
   if (!fp || (fp->mode != 'r' && fp->mode != 's') || !buf || buflen < 2)
     return (NULL);
@@ -978,7 +1013,7 @@ cupsFileGets(cups_file_t *fp,		/* I - CUPS file */
 /*
  * 'cupsFileLock()' - Temporarily lock access to a file.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 int					/* O - 0 on success, -1 on error */
@@ -996,18 +1031,18 @@ cupsFileLock(cups_file_t *fp,		/* I - CUPS file */
   * Try the lock...
   */
 
-#ifdef WIN32
+#ifdef _WIN32
   return (_locking(fp->fd, block ? _LK_LOCK : _LK_NBLCK, 0));
 #else
   return (lockf(fp->fd, block ? F_LOCK : F_TLOCK, 0));
-#endif /* WIN32 */
+#endif /* _WIN32 */
 }
 
 
 /*
  * 'cupsFileNumber()' - Return the file descriptor associated with a CUPS file.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 int					/* O - File descriptor */
@@ -1036,7 +1071,7 @@ cupsFileNumber(cups_file_t *fp)		/* I - CUPS file */
  * connection as needed, generally preferring IPv6 connections when there is
  * a choice.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 cups_file_t *				/* O - CUPS file or @code NULL@ if the file or socket cannot be opened */
@@ -1088,11 +1123,11 @@ cupsFileOpen(const char *filename,	/* I - Name of file */
 	}
 
 	if (fd >= 0)
-#ifdef WIN32
+#ifdef _WIN32
 	  _chsize(fd, 0);
 #else
 	  ftruncate(fd, 0);
-#endif /* WIN32 */
+#endif /* _WIN32 */
         break;
 
     case 's' : /* Read/write socket */
@@ -1158,7 +1193,7 @@ cupsFileOpen(const char *filename,	/* I - Name of file */
  * supplied which enables Flate compression of the file.  Compression is
  * not supported for the "a" (append) mode.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 cups_file_t *				/* O - CUPS file or @code NULL@ if the file could not be opened */
@@ -1259,18 +1294,30 @@ cupsFileOpenFd(int        fd,		/* I - File descriptor */
   * Don't pass this file to child processes...
   */
 
-#ifndef WIN32
+#ifndef _WIN32
   fcntl(fp->fd, F_SETFD, fcntl(fp->fd, F_GETFD) | FD_CLOEXEC);
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
 
   return (fp);
 }
 
 
 /*
+ * '_cupsFilePeekAhead()' - See if the requested character is buffered up.
+ */
+
+int					/* O - 1 if present, 0 otherwise */
+_cupsFilePeekAhead(cups_file_t *fp,	/* I - CUPS file */
+                   int         ch)	/* I - Character */
+{
+  return (fp && fp->ptr && memchr(fp->ptr, ch, (size_t)(fp->end - fp->ptr)));
+}
+
+
+/*
  * 'cupsFilePeekChar()' - Peek at the next character from a file.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 int					/* O - Character or -1 on end of file */
@@ -1302,7 +1349,7 @@ cupsFilePeekChar(cups_file_t *fp)	/* I - CUPS file */
 /*
  * 'cupsFilePrintf()' - Write a formatted string.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 int					/* O - Number of bytes written or -1 on error */
@@ -1314,7 +1361,7 @@ cupsFilePrintf(cups_file_t *fp,		/* I - CUPS file */
   ssize_t	bytes;			/* Formatted size */
 
 
-  DEBUG_printf(("2cupsFilePrintf(fp=%p, format=\"%s\", ...)", fp, format));
+  DEBUG_printf(("2cupsFilePrintf(fp=%p, format=\"%s\", ...)", (void *)fp, format));
 
   if (!fp || !format || (fp->mode != 'w' && fp->mode != 's'))
     return (-1);
@@ -1391,7 +1438,11 @@ cupsFilePrintf(cups_file_t *fp,		/* I - CUPS file */
   {
     memcpy(fp->ptr, fp->printf_buffer, (size_t)bytes);
     fp->ptr += bytes;
-    return ((int)bytes);
+
+    if (fp->is_stdio && cupsFileFlush(fp))
+      return (-1);
+    else
+      return ((int)bytes);
   }
 }
 
@@ -1399,7 +1450,7 @@ cupsFilePrintf(cups_file_t *fp,		/* I - CUPS file */
 /*
  * 'cupsFilePutChar()' - Write a character.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 int					/* O - 0 on success, -1 on error */
@@ -1453,7 +1504,7 @@ cupsFilePutChar(cups_file_t *fp,	/* I - CUPS file */
  *
  * This function handles any comment escaping of the value.
  *
- * @since CUPS 1.4/OS X 10.6@
+ * @since CUPS 1.4/macOS 10.6@
  */
 
 ssize_t					/* O - Number of bytes written or -1 on error */
@@ -1514,7 +1565,7 @@ cupsFilePutConf(cups_file_t *fp,	/* I - CUPS file */
  *
  * Like the @code fputs@ function, no newline is appended to the string.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 int					/* O - Number of bytes written or -1 on error */
@@ -1570,7 +1621,11 @@ cupsFilePuts(cups_file_t *fp,		/* I - CUPS file */
   {
     memcpy(fp->ptr, s, (size_t)bytes);
     fp->ptr += bytes;
-    return ((int)bytes);
+
+    if (fp->is_stdio && cupsFileFlush(fp))
+      return (-1);
+    else
+      return ((int)bytes);
   }
 }
 
@@ -1578,7 +1633,7 @@ cupsFilePuts(cups_file_t *fp,		/* I - CUPS file */
 /*
  * 'cupsFileRead()' - Read from a file.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 ssize_t					/* O - Number of bytes read or -1 on error */
@@ -1590,8 +1645,7 @@ cupsFileRead(cups_file_t *fp,		/* I - CUPS file */
   ssize_t	count;			/* Bytes read */
 
 
-  DEBUG_printf(("2cupsFileRead(fp=%p, buf=%p, bytes=" CUPS_LLFMT ")", fp, buf,
-                CUPS_LLCAST bytes));
+  DEBUG_printf(("2cupsFileRead(fp=%p, buf=%p, bytes=" CUPS_LLFMT ")", (void *)fp, (void *)buf, CUPS_LLCAST bytes));
 
  /*
   * Range check input...
@@ -1602,6 +1656,12 @@ cupsFileRead(cups_file_t *fp,		/* I - CUPS file */
 
   if (bytes == 0)
     return (0);
+
+  if (fp->eof)
+  {
+    DEBUG_puts("5cupsFileRead: End-of-file!");
+    return (-1);
+  }
 
  /*
   * Loop until all bytes are read...
@@ -1655,7 +1715,7 @@ cupsFileRead(cups_file_t *fp,		/* I - CUPS file */
  * 'cupsFileRewind()' - Set the current file position to the beginning of the
  *                      file.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 off_t					/* O - New file position or -1 on error */
@@ -1665,7 +1725,7 @@ cupsFileRewind(cups_file_t *fp)		/* I - CUPS file */
   * Range check input...
   */
 
-  DEBUG_printf(("cupsFileRewind(fp=%p)", fp));
+  DEBUG_printf(("cupsFileRewind(fp=%p)", (void *)fp));
   DEBUG_printf(("2cupsFileRewind: pos=" CUPS_LLFMT, CUPS_LLCAST fp->pos));
 
   if (!fp || fp->mode != 'r')
@@ -1727,7 +1787,7 @@ cupsFileRewind(cups_file_t *fp)		/* I - CUPS file */
 /*
  * 'cupsFileSeek()' - Seek in a file.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 off_t					/* O - New file position or -1 on error */
@@ -1737,10 +1797,9 @@ cupsFileSeek(cups_file_t *fp,		/* I - CUPS file */
   ssize_t	bytes;			/* Number bytes in buffer */
 
 
-  DEBUG_printf(("cupsFileSeek(fp=%p, pos=" CUPS_LLFMT ")", fp,
-                CUPS_LLCAST pos));
+  DEBUG_printf(("cupsFileSeek(fp=%p, pos=" CUPS_LLFMT ")", (void *)fp, CUPS_LLCAST pos));
   DEBUG_printf(("2cupsFileSeek: fp->pos=" CUPS_LLFMT, CUPS_LLCAST fp->pos));
-  DEBUG_printf(("2cupsFileSeek: fp->ptr=%p, fp->end=%p", fp->ptr, fp->end));
+  DEBUG_printf(("2cupsFileSeek: fp->ptr=%p, fp->end=%p", (void *)fp->ptr, (void *)fp->end));
 
  /*
   * Range check input...
@@ -1880,7 +1939,7 @@ cupsFileSeek(cups_file_t *fp,		/* I - CUPS file */
 /*
  * 'cupsFileStderr()' - Return a CUPS file associated with stderr.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 cups_file_t *				/* O - CUPS file */
@@ -1916,7 +1975,7 @@ cupsFileStderr(void)
 /*
  * 'cupsFileStdin()' - Return a CUPS file associated with stdin.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 cups_file_t *				/* O - CUPS file */
@@ -1946,7 +2005,7 @@ cupsFileStdin(void)
 /*
  * 'cupsFileStdout()' - Return a CUPS file associated with stdout.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 cups_file_t *				/* O - CUPS file */
@@ -1982,15 +2041,14 @@ cupsFileStdout(void)
 /*
  * 'cupsFileTell()' - Return the current file position.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 off_t					/* O - File position */
 cupsFileTell(cups_file_t *fp)		/* I - CUPS file */
 {
-  DEBUG_printf(("2cupsFileTell(fp=%p)", fp));
-  DEBUG_printf(("3cupsFileTell: pos=" CUPS_LLFMT,
-		CUPS_LLCAST (fp ? fp->pos : -1)));
+  DEBUG_printf(("2cupsFileTell(fp=%p)", (void *)fp));
+  DEBUG_printf(("3cupsFileTell: pos=" CUPS_LLFMT, CUPS_LLCAST (fp ? fp->pos : -1)));
 
   return (fp ? fp->pos : 0);
 }
@@ -1999,7 +2057,7 @@ cupsFileTell(cups_file_t *fp)		/* I - CUPS file */
 /*
  * 'cupsFileUnlock()' - Unlock access to a file.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 int					/* O - 0 on success, -1 on error */
@@ -2009,7 +2067,7 @@ cupsFileUnlock(cups_file_t *fp)		/* I - CUPS file */
   * Range check...
   */
 
-  DEBUG_printf(("cupsFileUnlock(fp=%p)", fp));
+  DEBUG_printf(("cupsFileUnlock(fp=%p)", (void *)fp));
 
   if (!fp || fp->mode == 's')
     return (-1);
@@ -2018,18 +2076,18 @@ cupsFileUnlock(cups_file_t *fp)		/* I - CUPS file */
   * Unlock...
   */
 
-#ifdef WIN32
+#ifdef _WIN32
   return (_locking(fp->fd, _LK_UNLCK, 0));
 #else
   return (lockf(fp->fd, F_ULOCK, 0));
-#endif /* WIN32 */
+#endif /* _WIN32 */
 }
 
 
 /*
  * 'cupsFileWrite()' - Write to a file.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 ssize_t					/* O - Number of bytes written or -1 on error */
@@ -2041,8 +2099,7 @@ cupsFileWrite(cups_file_t *fp,		/* I - CUPS file */
   * Range check input...
   */
 
-  DEBUG_printf(("2cupsFileWrite(fp=%p, buf=%p, bytes=" CUPS_LLFMT ")",
-                fp, buf, CUPS_LLCAST bytes));
+  DEBUG_printf(("2cupsFileWrite(fp=%p, buf=%p, bytes=" CUPS_LLFMT ")", (void *)fp, (void *)buf, CUPS_LLCAST bytes));
 
   if (!fp || !buf || (fp->mode != 'w' && fp->mode != 's'))
     return (-1);
@@ -2102,8 +2159,7 @@ cups_compress(cups_file_t *fp,		/* I - CUPS file */
               const char  *buf,		/* I - Buffer */
 	      size_t      bytes)	/* I - Number bytes */
 {
-  DEBUG_printf(("7cups_compress(fp=%p, buf=%p, bytes=" CUPS_LLFMT ")", fp, buf,
-                CUPS_LLCAST bytes));
+  DEBUG_printf(("7cups_compress(fp=%p, buf=%p, bytes=" CUPS_LLFMT ")", (void *)fp, (void *)buf, CUPS_LLCAST bytes));
 
  /*
   * Update the CRC...
@@ -2159,10 +2215,8 @@ cups_fill(cups_file_t *fp)		/* I - CUPS file */
 #endif /* HAVE_LIBZ */
 
 
-  DEBUG_printf(("7cups_fill(fp=%p)", fp));
-  DEBUG_printf(("9cups_fill: fp->ptr=%p, fp->end=%p, fp->buf=%p, "
-                "fp->bufpos=" CUPS_LLFMT ", fp->eof=%d",
-                fp->ptr, fp->end, fp->buf, CUPS_LLCAST fp->bufpos, fp->eof));
+  DEBUG_printf(("7cups_fill(fp=%p)", (void *)fp));
+  DEBUG_printf(("9cups_fill: fp->ptr=%p, fp->end=%p, fp->buf=%p, fp->bufpos=" CUPS_LLFMT ", fp->eof=%d", (void *)fp->ptr, (void *)fp->end, (void *)fp->buf, CUPS_LLCAST fp->bufpos, fp->eof));
 
   if (fp->ptr && fp->end)
     fp->bufpos += fp->end - fp->buf;
@@ -2480,6 +2534,8 @@ cups_fill(cups_file_t *fp)		/* I - CUPS file */
 	* file header...
 	*/
 
+        inflateEnd(&fp->stream);
+
 	fp->compressed = 0;
       }
       else if (status < Z_OK)
@@ -2554,9 +2610,9 @@ cups_open(const char *filename,		/* I - Filename */
 {
   int		fd;			/* File descriptor */
   struct stat	fileinfo;		/* File information */
-#ifndef WIN32
+#ifndef _WIN32
   struct stat	linkinfo;		/* Link information */
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
 
 
  /*
@@ -2584,18 +2640,18 @@ cups_open(const char *filename,		/* I - Filename */
     return (-1);
   }
 
-#ifdef WIN32
+#ifdef _WIN32
   if (fileinfo.st_mode & _S_IFDIR)
 #else
   if (S_ISDIR(fileinfo.st_mode))
-#endif /* WIN32 */
+#endif /* _WIN32 */
   {
     close(fd);
     errno = EISDIR;
     return (-1);
   }
 
-#ifndef WIN32
+#ifndef _WIN32
  /*
   * Then use lstat to determine whether the filename is a symlink...
   */
@@ -2623,7 +2679,7 @@ cups_open(const char *filename,		/* I - Filename */
     errno = EPERM;
     return (-1);
   }
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
 
   return (fd);
 }
@@ -2641,8 +2697,7 @@ cups_read(cups_file_t *fp,		/* I - CUPS file */
   ssize_t	total;			/* Total bytes read */
 
 
-  DEBUG_printf(("7cups_read(fp=%p, buf=%p, bytes=" CUPS_LLFMT ")", fp, buf,
-                CUPS_LLCAST bytes));
+  DEBUG_printf(("7cups_read(fp=%p, buf=%p, bytes=" CUPS_LLFMT ")", (void *)fp, (void *)buf, CUPS_LLCAST bytes));
 
  /*
   * Loop until we read at least 0 bytes...
@@ -2650,7 +2705,7 @@ cups_read(cups_file_t *fp,		/* I - CUPS file */
 
   for (;;)
   {
-#ifdef WIN32
+#ifdef _WIN32
     if (fp->mode == 's')
       total = (ssize_t)recv(fp->fd, buf, (unsigned)bytes, 0);
     else
@@ -2660,7 +2715,7 @@ cups_read(cups_file_t *fp,		/* I - CUPS file */
       total = recv(fp->fd, buf, bytes, 0);
     else
       total = read(fp->fd, buf, bytes);
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
     DEBUG_printf(("9cups_read: total=" CUPS_LLFMT, CUPS_LLCAST total));
 
@@ -2698,8 +2753,7 @@ cups_write(cups_file_t *fp,		/* I - CUPS file */
   ssize_t	count;			/* Count this time */
 
 
-  DEBUG_printf(("7cups_write(fp=%p, buf=%p, bytes=" CUPS_LLFMT ")", fp, buf,
-                CUPS_LLCAST bytes));
+  DEBUG_printf(("7cups_write(fp=%p, buf=%p, bytes=" CUPS_LLFMT ")", (void *)fp, (void *)buf, CUPS_LLCAST bytes));
 
  /*
   * Loop until all bytes are written...
@@ -2708,7 +2762,7 @@ cups_write(cups_file_t *fp,		/* I - CUPS file */
   total = 0;
   while (bytes > 0)
   {
-#ifdef WIN32
+#ifdef _WIN32
     if (fp->mode == 's')
       count = (ssize_t)send(fp->fd, buf, (unsigned)bytes, 0);
     else
@@ -2718,7 +2772,7 @@ cups_write(cups_file_t *fp,		/* I - CUPS file */
       count = send(fp->fd, buf, bytes, 0);
     else
       count = write(fp->fd, buf, bytes);
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
     DEBUG_printf(("9cups_write: count=" CUPS_LLFMT, CUPS_LLCAST count));
 
@@ -2749,8 +2803,3 @@ cups_write(cups_file_t *fp,		/* I - CUPS file */
 
   return ((ssize_t)total);
 }
-
-
-/*
- * End of "$Id: file.c 12641 2015-05-19 15:04:39Z msweet $".
- */

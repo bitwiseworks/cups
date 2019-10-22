@@ -1,9 +1,7 @@
 /*
- * "$Id: lpd.c 13040 2016-01-11 20:29:13Z msweet $"
- *
  * Line Printer Daemon backend for CUPS.
  *
- * Copyright 2007-2013 by Apple Inc.
+ * Copyright 2007-2016 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
@@ -26,14 +24,14 @@
 #include <sys/stat.h>
 #include <stdio.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 #  include <winsock.h>
 #else
 #  include <sys/socket.h>
 #  include <netinet/in.h>
 #  include <arpa/inet.h>
 #  include <netdb.h>
-#endif /* WIN32 */
+#endif /* _WIN32 */
 #ifdef __APPLE__
 #  include <CoreFoundation/CFNumber.h>
 #  include <CoreFoundation/CFPreferences.h>
@@ -77,6 +75,7 @@ static int	abort_job = 0;		/* Non-zero if we get SIGTERM */
  * Local functions...
  */
 
+static int	cups_rresvport(int *port, int family);
 static int	lpd_command(int lpd_fd, char *format, ...);
 static int	lpd_queue(const char *hostname, http_addrlist_t *addrlist,
 			  const char *printer, int print_fd, int snmp_fd,
@@ -85,9 +84,6 @@ static int	lpd_queue(const char *hostname, http_addrlist_t *addrlist,
 			  int reserve, int manual_copies, int timeout,
 			  int contimeout, const char *orighost);
 static ssize_t	lpd_write(int lpd_fd, char *buffer, size_t length);
-#ifndef HAVE_RRESVPORT_AF
-static int	rresvport_af(int *port, int family);
-#endif /* !HAVE_RRESVPORT_AF */
 static void	sigterm_handler(int sig);
 
 
@@ -115,7 +111,6 @@ main(int  argc,				/* I - Number of command-line arguments (6 or 7) */
 		*filename,		/* File to print */
 		title[256];		/* Title string */
   int		port;			/* Port number */
-  char		portname[256];		/* Port name (string) */
   http_addrlist_t *addrlist;		/* List of addresses for printer */
   int		snmp_enabled = 1;	/* Is SNMP enabled? */
   int		snmp_fd;		/* SNMP socket */
@@ -415,23 +410,11 @@ main(int  argc,				/* I - Number of command-line arguments (6 or 7) */
   * Find the printer...
   */
 
-  snprintf(portname, sizeof(portname), "%d", port);
+  addrlist = backendLookup(hostname, port, NULL);
 
-  fputs("STATE: +connecting-to-device\n", stderr);
-  fprintf(stderr, "DEBUG: Looking up \"%s\"...\n", hostname);
-
-  while ((addrlist = httpAddrGetList(hostname, AF_UNSPEC, portname)) == NULL)
-  {
-    _cupsLangPrintFilter(stderr, "INFO",
-			 _("Unable to locate printer \"%s\"."), hostname);
-    sleep(10);
-
-    if (getenv("CLASS") != NULL)
-    {
-      fputs("STATE: -connecting-to-device\n", stderr);
-      exit(CUPS_BACKEND_FAILED);
-    }
-  }
+ /*
+  * See if the printer supports SNMP...
+  */
 
   if (snmp_enabled)
     snmp_fd = _cupsSNMPOpen(addrlist->addr.addr.sa_family);
@@ -573,6 +556,84 @@ main(int  argc,				/* I - Number of command-line arguments (6 or 7) */
 
 
 /*
+ * 'cups_rresvport()' - A simple implementation of rresvport_af().
+ */
+
+static int				/* O  - Socket or -1 on error */
+cups_rresvport(int *port,		/* IO - Port number to bind to */
+               int family)		/* I  - Address family */
+{
+  http_addr_t	addr;			/* Socket address */
+  int		fd;			/* Socket file descriptor */
+
+
+ /*
+  * Try to create an IPv4 socket...
+  */
+
+  if ((fd = socket(family, SOCK_STREAM, 0)) < 0)
+    return (-1);
+
+ /*
+  * Initialize the address buffer...
+  */
+
+  memset(&addr, 0, sizeof(addr));
+  addr.addr.sa_family = (sa_family_t)family;
+
+ /*
+  * Try to bind the socket to a reserved port...
+  */
+
+  while (*port > 511)
+  {
+   /*
+    * Set the port number...
+    */
+
+    _httpAddrSetPort(&addr, *port);
+
+   /*
+    * Try binding the port to the socket; return if all is OK...
+    */
+
+    if (!bind(fd, (struct sockaddr *)&addr, (socklen_t)httpAddrLength(&addr)))
+      return (fd);
+
+   /*
+    * Stop if we have any error other than "address already in use"...
+    */
+
+    if (errno != EADDRINUSE)
+    {
+      httpAddrClose(NULL, fd);
+
+      return (-1);
+    }
+
+   /*
+    * Try the next port...
+    */
+
+    (*port)--;
+  }
+
+ /*
+  * Wasn't able to bind to a reserved port, so close the socket and return
+  * -1...
+  */
+
+#ifdef _WIN32
+  closesocket(fd);
+#else
+  close(fd);
+#endif /* _WIN32 */
+
+  return (-1);
+}
+
+
+/*
  * 'lpd_command()' - Send an LPR command sequence and wait for a reply.
  */
 
@@ -674,11 +735,11 @@ lpd_queue(const char      *hostname,	/* I - Host to connect to */
   ssize_t		nbytes;		/* Number of bytes written */
   off_t			tbytes;		/* Total bytes written */
   char			buffer[32768];	/* Output buffer */
-#ifdef WIN32
+#ifdef _WIN32
   DWORD			tv;		/* Timeout in milliseconds */
 #else
   struct timeval	tv;		/* Timeout in secs and usecs */
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
 
  /*
@@ -753,7 +814,7 @@ lpd_queue(const char      *hostname,	/* I - Host to connect to */
 	* priviledged lport between 721 and 731...
 	*/
 
-	if ((fd = rresvport_af(&lport, addr->addr.addr.sa_family)) < 0)
+	if ((fd = cups_rresvport(&lport, addr->addr.addr.sa_family)) < 0)
 	{
 	  perror("DEBUG: Unable to reserve port");
 	  sleep(1);
@@ -806,8 +867,7 @@ lpd_queue(const char      *hostname,	/* I - Host to connect to */
 
       fprintf(stderr, "DEBUG: Connection error: %s\n", strerror(error));
 
-      if (error == ECONNREFUSED || error == EHOSTDOWN ||
-          error == EHOSTUNREACH)
+      if (errno == ECONNREFUSED || errno == EHOSTDOWN || errno == EHOSTUNREACH || errno == ETIMEDOUT || errno == ENOTCONN)
       {
         if (contimeout && (time(NULL) - start_time) > contimeout)
 	{
@@ -825,13 +885,13 @@ lpd_queue(const char      *hostname,	/* I - Host to connect to */
 	      break;
 
 	  case EHOSTUNREACH :
+	  default :
 	      _cupsLangPrintFilter(stderr, "WARNING",
 			           _("The printer is unreachable at "
 				     "this time."));
 	      break;
 
 	  case ECONNREFUSED :
-	  default :
 	      _cupsLangPrintFilter(stderr, "WARNING",
 	                           _("The printer is in use."));
 	      break;
@@ -862,7 +922,7 @@ lpd_queue(const char      *hostname,	/* I - Host to connect to */
     * Set the timeout...
     */
 
-#ifdef WIN32
+#ifdef _WIN32
     tv = (DWORD)(timeout * 1000);
 
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(tv));
@@ -873,7 +933,7 @@ lpd_queue(const char      *hostname,	/* I - Host to connect to */
 
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
     fputs("STATE: -connecting-to-device\n", stderr);
     _cupsLangPrintFilter(stderr, "INFO", _("Connected to printer."));
@@ -1226,86 +1286,6 @@ lpd_write(int     lpd_fd,		/* I - LPD socket */
 }
 
 
-#ifndef HAVE_RRESVPORT_AF
-/*
- * 'rresvport_af()' - A simple implementation of rresvport_af().
- */
-
-static int				/* O  - Socket or -1 on error */
-rresvport_af(int *port,			/* IO - Port number to bind to */
-             int family)		/* I  - Address family */
-{
-  http_addr_t	addr;			/* Socket address */
-  int		fd;			/* Socket file descriptor */
-
-
- /*
-  * Try to create an IPv4 socket...
-  */
-
-  if ((fd = socket(family, SOCK_STREAM, 0)) < 0)
-    return (-1);
-
- /*
-  * Initialize the address buffer...
-  */
-
-  memset(&addr, 0, sizeof(addr));
-  addr.addr.sa_family = (sa_family_t)family;
-
- /*
-  * Try to bind the socket to a reserved port...
-  */
-
-  while (*port > 511)
-  {
-   /*
-    * Set the port number...
-    */
-
-    _httpAddrSetPort(&addr, *port);
-
-   /*
-    * Try binding the port to the socket; return if all is OK...
-    */
-
-    if (!bind(fd, (struct sockaddr *)&addr, httpAddrLength(&addr)))
-      return (fd);
-
-   /*
-    * Stop if we have any error other than "address already in use"...
-    */
-
-    if (errno != EADDRINUSE)
-    {
-      httpAddrClose(NULL, fd);
-
-      return (-1);
-    }
-
-   /*
-    * Try the next port...
-    */
-
-    (*port)--;
-  }
-
- /*
-  * Wasn't able to bind to a reserved port, so close the socket and return
-  * -1...
-  */
-
-#  ifdef WIN32
-  closesocket(fd);
-#  else
-  close(fd);
-#  endif /* WIN32 */
-
-  return (-1);
-}
-#endif /* !HAVE_RRESVPORT_AF */
-
-
 /*
  * 'sigterm_handler()' - Handle 'terminate' signals that stop the backend.
  */
@@ -1317,8 +1297,3 @@ sigterm_handler(int sig)		/* I - Signal */
 
   abort_job = 1;
 }
-
-
-/*
- * End of "$Id: lpd.c 13040 2016-01-11 20:29:13Z msweet $".
- */

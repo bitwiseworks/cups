@@ -1,15 +1,13 @@
 /*
- * "$Id: testsnmp.c 11558 2014-02-06 18:33:34Z msweet $"
- *
  * SNMP test program for CUPS.
  *
- * Copyright 2008-2014 by Apple Inc.
+ * Copyright 2008-2018 by Apple Inc.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -29,7 +27,7 @@
 static void	print_packet(cups_snmp_t *packet, void *data);
 static int	show_oid(int fd, const char *community,
 		         http_addr_t *addr, const char *s, int walk);
-static void	usage(void) __attribute__((noreturn));
+static void	usage(void) _CUPS_NORETURN;
 
 
 /*
@@ -290,8 +288,3 @@ usage(void)
 
   exit (1);
 }
-
-
-/*
- * End of "$Id: testsnmp.c 11558 2014-02-06 18:33:34Z msweet $".
- */

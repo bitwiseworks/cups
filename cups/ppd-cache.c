@@ -1,15 +1,13 @@
 /*
- * "$Id: ppd-cache.c 12980 2015-11-17 21:23:32Z msweet $"
- *
  * PPD cache implementation for CUPS.
  *
- * Copyright 2010-2015 by Apple Inc.
+ * Copyright © 2010-2019 by Apple Inc.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -19,6 +17,7 @@
  */
 
 #include "cups-private.h"
+#include "ppd-private.h"
 #include <math.h>
 
 
@@ -33,10 +32,10 @@
  * Local functions...
  */
 
+static void	pwg_add_finishing(cups_array_t *finishings, ipp_finishings_t template, const char *name, const char *value);
 static int	pwg_compare_finishings(_pwg_finishings_t *a,
 		                       _pwg_finishings_t *b);
 static void	pwg_free_finishings(_pwg_finishings_t *f);
-static void	pwg_free_material(_pwg_material_t *m);
 static void	pwg_ppdize_name(const char *ipp, char *name, size_t namesize);
 static void	pwg_ppdize_resolution(ipp_attribute_t *attr, int element, int *xres, int *yres, char *name, size_t namesize);
 static void	pwg_unppdize_name(const char *ppd, char *name, size_t namesize,
@@ -50,24 +49,24 @@ static void	pwg_unppdize_name(const char *ppd, char *name, size_t namesize,
  * attributes and values and adds them to the specified IPP request.
  */
 
-int						/* O - New number of copies */
-_cupsConvertOptions(ipp_t           *request,	/* I - IPP request */
-                    ppd_file_t      *ppd,	/* I - PPD file */
-		    _ppd_cache_t    *pc,	/* I - PPD cache info */
-		    ipp_attribute_t *media_col_sup,
-						/* I - media-col-supported values */
-		    ipp_attribute_t *doc_handling_sup,
-						/* I - multiple-document-handling-supported values */
-		    ipp_attribute_t *print_color_mode_sup,
-						/* I - Printer supports print-color-mode */
-		    const char    *user,	/* I - User info */
-		    const char    *format,	/* I - document-format value */
-		    int           copies,	/* I - Number of copies */
-		    int           num_options,	/* I - Number of options */
-		    cups_option_t *options)	/* I - Options */
+int					/* O - New number of copies */
+_cupsConvertOptions(
+    ipp_t           *request,		/* I - IPP request */
+    ppd_file_t      *ppd,		/* I - PPD file */
+    _ppd_cache_t    *pc,		/* I - PPD cache info */
+    ipp_attribute_t *media_col_sup,	/* I - media-col-supported values */
+    ipp_attribute_t *doc_handling_sup,	/* I - multiple-document-handling-supported values */
+    ipp_attribute_t *print_color_mode_sup,
+                                	/* I - Printer supports print-color-mode */
+    const char    *user,		/* I - User info */
+    const char    *format,		/* I - document-format value */
+    int           copies,		/* I - Number of copies */
+    int           num_options,		/* I - Number of options */
+    cups_option_t *options)		/* I - Options */
 {
   int		i;			/* Looping var */
-  const char	*keyword;		/* PWG keyword */
+  const char	*keyword,		/* PWG keyword */
+		*password;		/* Password string */
   pwg_size_t	*size;			/* PWG media size */
   ipp_t		*media_col,		/* media-col value */
 		*media_size;		/* media-size value */
@@ -79,20 +78,44 @@ _cupsConvertOptions(ipp_t           *request,	/* I - IPP request */
   int		num_finishings = 0,	/* Number of finishing values */
 		finishings[10];		/* Finishing enum values */
   ppd_choice_t	*choice;		/* Marked choice */
+  int           finishings_copies = copies;
+                                        /* Number of copies for finishings */
 
 
  /*
   * Send standard IPP attributes...
   */
 
-  if (pc->password && (keyword = cupsGetOption("job-password", num_options, options)) != NULL && ippGetOperation(request) != IPP_OP_VALIDATE_JOB)
+  if (pc->password && (password = cupsGetOption("job-password", num_options, options)) != NULL && ippGetOperation(request) != IPP_OP_VALIDATE_JOB)
   {
-    ippAddOctetString(request, IPP_TAG_OPERATION, "job-password", keyword, (int)strlen(keyword));
+    ipp_attribute_t	*attr = NULL;	/* job-password attribute */
 
     if ((keyword = cupsGetOption("job-password-encryption", num_options, options)) == NULL)
       keyword = "none";
 
-    ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_KEYWORD, "job-password-encryption", NULL, keyword);
+    if (!strcmp(keyword, "none"))
+    {
+     /*
+      * Add plain-text job-password...
+      */
+
+      attr = ippAddOctetString(request, IPP_TAG_OPERATION, "job-password", password, (int)strlen(password));
+    }
+    else
+    {
+     /*
+      * Add hashed job-password...
+      */
+
+      unsigned char	hash[64];	/* Hash of password */
+      ssize_t		hashlen;	/* Length of hash */
+
+      if ((hashlen = cupsHashData(keyword, password, strlen(password), hash, sizeof(hash))) > 0)
+        attr = ippAddOctetString(request, IPP_TAG_OPERATION, "job-password", hash, (int)hashlen);
+    }
+
+    if (attr)
+      ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_KEYWORD, "job-password-encryption", NULL, keyword);
   }
 
   if (pc->account_id)
@@ -176,41 +199,42 @@ _cupsConvertOptions(ipp_t           *request,	/* I - IPP request */
   if ((keyword = cupsGetOption("PageSize", num_options, options)) == NULL)
     keyword = cupsGetOption("media", num_options, options);
 
-  if ((size = _ppdCacheGetSize(pc, keyword)) != NULL)
+  media_source = _ppdCacheGetSource(pc, cupsGetOption("InputSlot", num_options, options));
+  media_type   = _ppdCacheGetType(pc, cupsGetOption("MediaType", num_options, options));
+  size         = _ppdCacheGetSize(pc, keyword);
+
+  if (size || media_source || media_type)
   {
    /*
     * Add a media-col value...
     */
 
-    media_size = ippNew();
-    ippAddInteger(media_size, IPP_TAG_ZERO, IPP_TAG_INTEGER,
-		  "x-dimension", size->width);
-    ippAddInteger(media_size, IPP_TAG_ZERO, IPP_TAG_INTEGER,
-		  "y-dimension", size->length);
-
     media_col = ippNew();
-    ippAddCollection(media_col, IPP_TAG_ZERO, "media-size", media_size);
 
-    media_source = _ppdCacheGetSource(pc, cupsGetOption("InputSlot",
-							num_options,
-							options));
-    media_type   = _ppdCacheGetType(pc, cupsGetOption("MediaType",
-						      num_options,
-						      options));
+    if (size)
+    {
+      media_size = ippNew();
+      ippAddInteger(media_size, IPP_TAG_ZERO, IPP_TAG_INTEGER,
+                    "x-dimension", size->width);
+      ippAddInteger(media_size, IPP_TAG_ZERO, IPP_TAG_INTEGER,
+                    "y-dimension", size->length);
+
+      ippAddCollection(media_col, IPP_TAG_ZERO, "media-size", media_size);
+    }
 
     for (i = 0; i < media_col_sup->num_values; i ++)
     {
-      if (!strcmp(media_col_sup->values[i].string.text, "media-left-margin"))
+      if (size && !strcmp(media_col_sup->values[i].string.text, "media-left-margin"))
 	ippAddInteger(media_col, IPP_TAG_ZERO, IPP_TAG_INTEGER, "media-left-margin", size->left);
-      else if (!strcmp(media_col_sup->values[i].string.text, "media-bottom-margin"))
+      else if (size && !strcmp(media_col_sup->values[i].string.text, "media-bottom-margin"))
 	ippAddInteger(media_col, IPP_TAG_ZERO, IPP_TAG_INTEGER, "media-bottom-margin", size->bottom);
-      else if (!strcmp(media_col_sup->values[i].string.text, "media-right-margin"))
+      else if (size && !strcmp(media_col_sup->values[i].string.text, "media-right-margin"))
 	ippAddInteger(media_col, IPP_TAG_ZERO, IPP_TAG_INTEGER, "media-right-margin", size->right);
-      else if (!strcmp(media_col_sup->values[i].string.text, "media-top-margin"))
+      else if (size && !strcmp(media_col_sup->values[i].string.text, "media-top-margin"))
 	ippAddInteger(media_col, IPP_TAG_ZERO, IPP_TAG_INTEGER, "media-top-margin", size->top);
-      else if (!strcmp(media_col_sup->values[i].string.text, "media-source") && media_source)
+      else if (media_source && !strcmp(media_col_sup->values[i].string.text, "media-source"))
 	ippAddString(media_col, IPP_TAG_ZERO, IPP_TAG_KEYWORD, "media-source", NULL, media_source);
-      else if (!strcmp(media_col_sup->values[i].string.text, "media-type") && media_type)
+      else if (media_type && !strcmp(media_col_sup->values[i].string.text, "media-type"))
 	ippAddString(media_col, IPP_TAG_ZERO, IPP_TAG_KEYWORD, "media-type", NULL, media_type);
     }
 
@@ -266,11 +290,11 @@ _cupsConvertOptions(ipp_t           *request,	/* I - IPP request */
     ippAddString(request, IPP_TAG_JOB, IPP_TAG_KEYWORD, "sides", NULL, keyword);
   else if (pc->sides_option && (choice = ppdFindMarkedChoice(ppd, pc->sides_option)) != NULL)
   {
-    if (!_cups_strcasecmp(choice->choice, pc->sides_1sided))
+    if (pc->sides_1sided && !_cups_strcasecmp(choice->choice, pc->sides_1sided))
       ippAddString(request, IPP_TAG_JOB, IPP_TAG_KEYWORD, "sides", NULL, "one-sided");
-    else if (!_cups_strcasecmp(choice->choice, pc->sides_2sided_long))
+    else if (pc->sides_2sided_long && !_cups_strcasecmp(choice->choice, pc->sides_2sided_long))
       ippAddString(request, IPP_TAG_JOB, IPP_TAG_KEYWORD, "sides", NULL, "two-sided-long-edge");
-    if (!_cups_strcasecmp(choice->choice, pc->sides_2sided_short))
+    else if (pc->sides_2sided_short && !_cups_strcasecmp(choice->choice, pc->sides_2sided_short))
       ippAddString(request, IPP_TAG_JOB, IPP_TAG_KEYWORD, "sides", NULL, "two-sided-short-edge");
   }
 
@@ -344,13 +368,13 @@ _cupsConvertOptions(ipp_t           *request,	/* I - IPP request */
   {
     ippAddIntegers(request, IPP_TAG_JOB, IPP_TAG_ENUM, "finishings", num_finishings, finishings);
 
-    if (copies > 1 && (keyword = cupsGetOption("job-impressions", num_options, options)) != NULL)
+    if (copies != finishings_copies && (keyword = cupsGetOption("job-impressions", num_options, options)) != NULL)
     {
      /*
       * Send job-pages-per-set attribute to apply finishings correctly...
       */
 
-      ippAddInteger(request, IPP_TAG_JOB, IPP_TAG_INTEGER, "job-pages-per-set", atoi(keyword) / copies);
+      ippAddInteger(request, IPP_TAG_JOB, IPP_TAG_INTEGER, "job-pages-per-set", atoi(keyword) / finishings_copies);
     }
   }
 
@@ -481,74 +505,23 @@ _ppdCacheCreateWithFile(
       _cupsSetError(IPP_STATUS_ERROR_INTERNAL, _("Bad PPD cache file."), 1);
       goto create_error;
     }
-    else if (!_cups_strcasecmp(line, "3D"))
-    {
-      pc->cups_3d = _cupsStrAlloc(value);
-    }
-    else if (!_cups_strcasecmp(line, "LayerOrder"))
-    {
-      pc->cups_layer_order = _cupsStrAlloc(value);
-    }
-    else if (!_cups_strcasecmp(line, "Accuracy"))
-    {
-      sscanf(value, "%d%d%d", pc->cups_accuracy + 0, pc->cups_accuracy + 1, pc->cups_accuracy + 2);
-    }
-    else if (!_cups_strcasecmp(line, "Volume"))
-    {
-      sscanf(value, "%d%d%d", pc->cups_volume + 0, pc->cups_volume + 1, pc->cups_volume + 2);
-    }
-    else if (!_cups_strcasecmp(line, "Material"))
-    {
-     /*
-      * Material key "name" name=value ... name=value
-      */
-
-      if ((valueptr = strchr(value, ' ')) != NULL)
-      {
-	_pwg_material_t	*material = (_pwg_material_t *)calloc(1, sizeof(_pwg_material_t));
-
-        *valueptr++ = '\0';
-
-        material->key = _cupsStrAlloc(value);
-
-        if (*valueptr == '\"')
-	{
-	  value = valueptr + 1;
-	  if ((valueptr = strchr(value, '\"')) != NULL)
-	  {
-	    *valueptr++ = '\0';
-	    material->name = _cupsStrAlloc(value);
-	    material->num_props = cupsParseOptions(valueptr, 0, &material->props);
-	  }
-	}
-
-	if (!pc->materials)
-	  pc->materials = cupsArrayNew3(NULL, NULL, NULL, 0, NULL, (cups_afree_func_t)pwg_free_material);
-
-        cupsArrayAdd(pc->materials, material);
-      }
-    }
     else if (!_cups_strcasecmp(line, "Filter"))
     {
       if (!pc->filters)
-        pc->filters = cupsArrayNew3(NULL, NULL, NULL, 0,
-	                            (cups_acopy_func_t)_cupsStrAlloc,
-				    (cups_afree_func_t)_cupsStrFree);
+        pc->filters = cupsArrayNew3(NULL, NULL, NULL, 0, (cups_acopy_func_t)strdup, (cups_afree_func_t)free);
 
       cupsArrayAdd(pc->filters, value);
     }
     else if (!_cups_strcasecmp(line, "PreFilter"))
     {
       if (!pc->prefilters)
-        pc->prefilters = cupsArrayNew3(NULL, NULL, NULL, 0,
-	                               (cups_acopy_func_t)_cupsStrAlloc,
-				       (cups_afree_func_t)_cupsStrFree);
+        pc->prefilters = cupsArrayNew3(NULL, NULL, NULL, 0, (cups_acopy_func_t)strdup, (cups_afree_func_t)free);
 
       cupsArrayAdd(pc->prefilters, value);
     }
     else if (!_cups_strcasecmp(line, "Product"))
     {
-      pc->product = _cupsStrAlloc(value);
+      pc->product = strdup(value);
     }
     else if (!_cups_strcasecmp(line, "SingleFile"))
     {
@@ -648,8 +621,8 @@ _ppdCacheCreateWithFile(
       }
 
       map      = pc->bins + pc->num_bins;
-      map->pwg = _cupsStrAlloc(pwg_keyword);
-      map->ppd = _cupsStrAlloc(ppd_keyword);
+      map->pwg = strdup(pwg_keyword);
+      map->ppd = strdup(ppd_keyword);
 
       pc->num_bins ++;
     }
@@ -703,8 +676,8 @@ _ppdCacheCreateWithFile(
 	goto create_error;
       }
 
-      size->map.pwg = _cupsStrAlloc(pwg_keyword);
-      size->map.ppd = _cupsStrAlloc(ppd_keyword);
+      size->map.pwg = strdup(pwg_keyword);
+      size->map.ppd = strdup(ppd_keyword);
 
       pc->num_sizes ++;
     }
@@ -732,15 +705,15 @@ _ppdCacheCreateWithFile(
 
       pwgFormatSizeName(pwg_keyword, sizeof(pwg_keyword), "custom", "max",
 		        pc->custom_max_width, pc->custom_max_length, NULL);
-      pc->custom_max_keyword = _cupsStrAlloc(pwg_keyword);
+      pc->custom_max_keyword = strdup(pwg_keyword);
 
       pwgFormatSizeName(pwg_keyword, sizeof(pwg_keyword), "custom", "min",
 		        pc->custom_min_width, pc->custom_min_length, NULL);
-      pc->custom_min_keyword = _cupsStrAlloc(pwg_keyword);
+      pc->custom_min_keyword = strdup(pwg_keyword);
     }
     else if (!_cups_strcasecmp(line, "SourceOption"))
     {
-      pc->source_option = _cupsStrAlloc(value);
+      pc->source_option = strdup(value);
     }
     else if (!_cups_strcasecmp(line, "NumSources"))
     {
@@ -787,8 +760,8 @@ _ppdCacheCreateWithFile(
       }
 
       map      = pc->sources + pc->num_sources;
-      map->pwg = _cupsStrAlloc(pwg_keyword);
-      map->ppd = _cupsStrAlloc(ppd_keyword);
+      map->pwg = strdup(pwg_keyword);
+      map->ppd = strdup(ppd_keyword);
 
       pc->num_sources ++;
     }
@@ -836,8 +809,8 @@ _ppdCacheCreateWithFile(
       }
 
       map      = pc->types + pc->num_types;
-      map->pwg = _cupsStrAlloc(pwg_keyword);
-      map->ppd = _cupsStrAlloc(ppd_keyword);
+      map->pwg = strdup(pwg_keyword);
+      map->ppd = strdup(ppd_keyword);
 
       pc->num_types ++;
     }
@@ -867,13 +840,13 @@ _ppdCacheCreateWithFile(
 	                   pc->presets[print_color_mode] + print_quality);
     }
     else if (!_cups_strcasecmp(line, "SidesOption"))
-      pc->sides_option = _cupsStrAlloc(value);
+      pc->sides_option = strdup(value);
     else if (!_cups_strcasecmp(line, "Sides1Sided"))
-      pc->sides_1sided = _cupsStrAlloc(value);
+      pc->sides_1sided = strdup(value);
     else if (!_cups_strcasecmp(line, "Sides2SidedLong"))
-      pc->sides_2sided_long = _cupsStrAlloc(value);
+      pc->sides_2sided_long = strdup(value);
     else if (!_cups_strcasecmp(line, "Sides2SidedShort"))
-      pc->sides_2sided_short = _cupsStrAlloc(value);
+      pc->sides_2sided_short = strdup(value);
     else if (!_cups_strcasecmp(line, "Finishings"))
     {
       if (!pc->finishings)
@@ -894,13 +867,13 @@ _ppdCacheCreateWithFile(
     else if (!_cups_strcasecmp(line, "MaxCopies"))
       pc->max_copies = atoi(value);
     else if (!_cups_strcasecmp(line, "ChargeInfoURI"))
-      pc->charge_info_uri = _cupsStrAlloc(value);
+      pc->charge_info_uri = strdup(value);
     else if (!_cups_strcasecmp(line, "JobAccountId"))
       pc->account_id = !_cups_strcasecmp(value, "true");
     else if (!_cups_strcasecmp(line, "JobAccountingUserId"))
       pc->accounting_user_id = !_cups_strcasecmp(value, "true");
     else if (!_cups_strcasecmp(line, "JobPassword"))
-      pc->password = _cupsStrAlloc(value);
+      pc->password = strdup(value);
     else if (!_cups_strcasecmp(line, "Mandatory"))
     {
       if (pc->mandatory)
@@ -911,9 +884,7 @@ _ppdCacheCreateWithFile(
     else if (!_cups_strcasecmp(line, "SupportFile"))
     {
       if (!pc->support_files)
-        pc->support_files = cupsArrayNew3(NULL, NULL, NULL, 0,
-                                          (cups_acopy_func_t)_cupsStrAlloc,
-                                          (cups_afree_func_t)_cupsStrFree);
+        pc->support_files = cupsArrayNew3(NULL, NULL, NULL, 0, (cups_acopy_func_t)strdup, (cups_afree_func_t)free);
 
       cupsArrayAdd(pc->support_files, value);
     }
@@ -1153,8 +1124,8 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
 	  */
 
 	  new_size = old_size;
-	  _cupsStrFree(old_size->map.ppd);
-	  _cupsStrFree(old_size->map.pwg);
+	  free(old_size->map.ppd);
+	  free(old_size->map.pwg);
 	}
       }
 
@@ -1175,8 +1146,8 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
 	* Save this size...
 	*/
 
-	new_size->map.ppd = _cupsStrAlloc(ppd_size->name);
-	new_size->map.pwg = _cupsStrAlloc(pwg_name);
+	new_size->map.ppd = strdup(ppd_size->name);
+	new_size->map.pwg = strdup(pwg_name);
 	new_size->width   = new_width;
 	new_size->length  = new_length;
 	new_size->left    = new_left;
@@ -1196,14 +1167,14 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
     pwgFormatSizeName(pwg_keyword, sizeof(pwg_keyword), "custom", "max",
 		      PWG_FROM_POINTS(ppd->custom_max[0]),
 		      PWG_FROM_POINTS(ppd->custom_max[1]), NULL);
-    pc->custom_max_keyword = _cupsStrAlloc(pwg_keyword);
+    pc->custom_max_keyword = strdup(pwg_keyword);
     pc->custom_max_width   = PWG_FROM_POINTS(ppd->custom_max[0]);
     pc->custom_max_length  = PWG_FROM_POINTS(ppd->custom_max[1]);
 
     pwgFormatSizeName(pwg_keyword, sizeof(pwg_keyword), "custom", "min",
 		      PWG_FROM_POINTS(ppd->custom_min[0]),
 		      PWG_FROM_POINTS(ppd->custom_min[1]), NULL);
-    pc->custom_min_keyword = _cupsStrAlloc(pwg_keyword);
+    pc->custom_min_keyword = strdup(pwg_keyword);
     pc->custom_min_width   = PWG_FROM_POINTS(ppd->custom_min[0]);
     pc->custom_min_length  = PWG_FROM_POINTS(ppd->custom_min[1]);
 
@@ -1222,7 +1193,7 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
 
   if (input_slot)
   {
-    pc->source_option = _cupsStrAlloc(input_slot->keyword);
+    pc->source_option = strdup(input_slot->keyword);
 
     if ((pc->sources = calloc((size_t)input_slot->num_choices, sizeof(pwg_map_t))) == NULL)
     {
@@ -1274,8 +1245,8 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
 	                  "_");
       }
 
-      map->pwg = _cupsStrAlloc(pwg_name);
-      map->ppd = _cupsStrAlloc(choice->choice);
+      map->pwg = strdup(pwg_name);
+      map->ppd = strdup(choice->choice);
     }
   }
 
@@ -1338,8 +1309,8 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
 	                  "_");
       }
 
-      map->pwg = _cupsStrAlloc(pwg_name);
-      map->ppd = _cupsStrAlloc(choice->choice);
+      map->pwg = strdup(pwg_name);
+      map->ppd = strdup(choice->choice);
     }
   }
 
@@ -1365,8 +1336,8 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
     {
       pwg_unppdize_name(choice->choice, pwg_keyword, sizeof(pwg_keyword), "_");
 
-      map->pwg = _cupsStrAlloc(pwg_keyword);
-      map->ppd = _cupsStrAlloc(choice->choice);
+      map->pwg = strdup(pwg_keyword);
+      map->ppd = strdup(choice->choice);
     }
   }
 
@@ -1581,7 +1552,7 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
 
   if (duplex)
   {
-    pc->sides_option = _cupsStrAlloc(duplex->keyword);
+    pc->sides_option = strdup(duplex->keyword);
 
     for (i = duplex->num_choices, choice = duplex->choices;
          i > 0;
@@ -1589,16 +1560,16 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
     {
       if ((!_cups_strcasecmp(choice->choice, "None") ||
 	   !_cups_strcasecmp(choice->choice, "False")) && !pc->sides_1sided)
-        pc->sides_1sided = _cupsStrAlloc(choice->choice);
+        pc->sides_1sided = strdup(choice->choice);
       else if ((!_cups_strcasecmp(choice->choice, "DuplexNoTumble") ||
 	        !_cups_strcasecmp(choice->choice, "LongEdge") ||
 	        !_cups_strcasecmp(choice->choice, "Top")) && !pc->sides_2sided_long)
-        pc->sides_2sided_long = _cupsStrAlloc(choice->choice);
+        pc->sides_2sided_long = strdup(choice->choice);
       else if ((!_cups_strcasecmp(choice->choice, "DuplexTumble") ||
 	        !_cups_strcasecmp(choice->choice, "ShortEdge") ||
 	        !_cups_strcasecmp(choice->choice, "Bottom")) &&
 	       !pc->sides_2sided_short)
-        pc->sides_2sided_short = _cupsStrAlloc(choice->choice);
+        pc->sides_2sided_short = strdup(choice->choice);
     }
   }
 
@@ -1606,9 +1577,7 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
   * Copy filters and pre-filters...
   */
 
-  pc->filters = cupsArrayNew3(NULL, NULL, NULL, 0,
-			      (cups_acopy_func_t)_cupsStrAlloc,
-			      (cups_afree_func_t)_cupsStrFree);
+  pc->filters = cupsArrayNew3(NULL, NULL, NULL, 0, (cups_acopy_func_t)strdup, (cups_afree_func_t)free);
 
   cupsArrayAdd(pc->filters,
                "application/vnd.cups-raw application/octet-stream 0 -");
@@ -1665,9 +1634,7 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
 
   if ((ppd_attr = ppdFindAttr(ppd, "cupsPreFilter", NULL)) != NULL)
   {
-    pc->prefilters = cupsArrayNew3(NULL, NULL, NULL, 0,
-				   (cups_acopy_func_t)_cupsStrAlloc,
-				   (cups_afree_func_t)_cupsStrFree);
+    pc->prefilters = cupsArrayNew3(NULL, NULL, NULL, 0, (cups_acopy_func_t)strdup, (cups_afree_func_t)free);
 
     do
     {
@@ -1684,7 +1651,7 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
   */
 
   if (ppd->product)
-    pc->product = _cupsStrAlloc(ppd->product);
+    pc->product = strdup(ppd->product);
 
  /*
   * Copy finishings mapping data...
@@ -1692,6 +1659,10 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
 
   if ((ppd_attr = ppdFindAttr(ppd, "cupsIPPFinishings", NULL)) != NULL)
   {
+   /*
+    * Have proper vendor mapping of IPP finishings values to PPD options...
+    */
+
     pc->finishings = cupsArrayNew3((cups_array_func_t)pwg_compare_finishings,
                                    NULL, NULL, 0, NULL,
                                    (cups_afree_func_t)pwg_free_finishings);
@@ -1711,6 +1682,114 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
     while ((ppd_attr = ppdFindNextAttr(ppd, "cupsIPPFinishings",
                                        NULL)) != NULL);
   }
+  else
+  {
+   /*
+    * No IPP mapping data, try to map common/standard PPD keywords...
+    */
+
+    ppd_option_t	*ppd_option;	/* PPD option */
+
+    pc->finishings = cupsArrayNew3((cups_array_func_t)pwg_compare_finishings, NULL, NULL, 0, NULL, (cups_afree_func_t)pwg_free_finishings);
+
+    if ((ppd_option = ppdFindOption(ppd, "StapleLocation")) != NULL)
+    {
+     /*
+      * Add staple finishings...
+      */
+
+      if (ppdFindChoice(ppd_option, "SinglePortrait"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_STAPLE_TOP_LEFT, "StapleLocation", "SinglePortrait");
+      if (ppdFindChoice(ppd_option, "UpperLeft")) /* Ricoh extension */
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_STAPLE_TOP_LEFT, "StapleLocation", "UpperLeft");
+      if (ppdFindChoice(ppd_option, "UpperRight")) /* Ricoh extension */
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_STAPLE_TOP_RIGHT, "StapleLocation", "UpperRight");
+      if (ppdFindChoice(ppd_option, "SingleLandscape"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_STAPLE_BOTTOM_LEFT, "StapleLocation", "SingleLandscape");
+      if (ppdFindChoice(ppd_option, "DualLandscape"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_STAPLE_DUAL_LEFT, "StapleLocation", "DualLandscape");
+    }
+
+    if ((ppd_option = ppdFindOption(ppd, "RIPunch")) != NULL)
+    {
+     /*
+      * Add (Ricoh) punch finishings...
+      */
+
+      if (ppdFindChoice(ppd_option, "Left2"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_PUNCH_DUAL_LEFT, "RIPunch", "Left2");
+      if (ppdFindChoice(ppd_option, "Left3"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_PUNCH_TRIPLE_LEFT, "RIPunch", "Left3");
+      if (ppdFindChoice(ppd_option, "Left4"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_PUNCH_QUAD_LEFT, "RIPunch", "Left4");
+      if (ppdFindChoice(ppd_option, "Right2"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_PUNCH_DUAL_RIGHT, "RIPunch", "Right2");
+      if (ppdFindChoice(ppd_option, "Right3"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_PUNCH_TRIPLE_RIGHT, "RIPunch", "Right3");
+      if (ppdFindChoice(ppd_option, "Right4"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_PUNCH_QUAD_RIGHT, "RIPunch", "Right4");
+      if (ppdFindChoice(ppd_option, "Upper2"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_PUNCH_DUAL_TOP, "RIPunch", "Upper2");
+      if (ppdFindChoice(ppd_option, "Upper3"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_PUNCH_TRIPLE_TOP, "RIPunch", "Upper3");
+      if (ppdFindChoice(ppd_option, "Upper4"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_PUNCH_QUAD_TOP, "RIPunch", "Upper4");
+    }
+
+    if ((ppd_option = ppdFindOption(ppd, "BindEdge")) != NULL)
+    {
+     /*
+      * Add bind finishings...
+      */
+
+      if (ppdFindChoice(ppd_option, "Left"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_BIND_LEFT, "BindEdge", "Left");
+      if (ppdFindChoice(ppd_option, "Right"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_BIND_RIGHT, "BindEdge", "Right");
+      if (ppdFindChoice(ppd_option, "Top"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_BIND_TOP, "BindEdge", "Top");
+      if (ppdFindChoice(ppd_option, "Bottom"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_BIND_BOTTOM, "BindEdge", "Bottom");
+    }
+
+    if ((ppd_option = ppdFindOption(ppd, "FoldType")) != NULL)
+    {
+     /*
+      * Add (Adobe) fold finishings...
+      */
+
+      if (ppdFindChoice(ppd_option, "ZFold"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_FOLD_Z, "FoldType", "ZFold");
+      if (ppdFindChoice(ppd_option, "Saddle"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_FOLD_HALF, "FoldType", "Saddle");
+      if (ppdFindChoice(ppd_option, "DoubleGate"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_FOLD_DOUBLE_GATE, "FoldType", "DoubleGate");
+      if (ppdFindChoice(ppd_option, "LeftGate"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_FOLD_LEFT_GATE, "FoldType", "LeftGate");
+      if (ppdFindChoice(ppd_option, "RightGate"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_FOLD_RIGHT_GATE, "FoldType", "RightGate");
+      if (ppdFindChoice(ppd_option, "Letter"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_FOLD_LETTER, "FoldType", "Letter");
+      if (ppdFindChoice(ppd_option, "XFold"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_FOLD_POSTER, "FoldType", "XFold");
+    }
+
+    if ((ppd_option = ppdFindOption(ppd, "RIFoldType")) != NULL)
+    {
+     /*
+      * Add (Ricoh) fold finishings...
+      */
+
+      if (ppdFindChoice(ppd_option, "OutsideTwoFold"))
+        pwg_add_finishing(pc->finishings, IPP_FINISHINGS_FOLD_LETTER, "RIFoldType", "OutsideTwoFold");
+    }
+
+    if (cupsArrayCount(pc->finishings) == 0)
+    {
+      cupsArrayDelete(pc->finishings);
+      pc->finishings = NULL;
+    }
+  }
 
  /*
   * Max copies...
@@ -1729,7 +1808,7 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
   */
 
   if ((ppd_attr = ppdFindAttr(ppd, "cupsChargeInfoURI", NULL)) != NULL)
-    pc->charge_info_uri = _cupsStrAlloc(ppd_attr->value);
+    pc->charge_info_uri = strdup(ppd_attr->value);
 
   if ((ppd_attr = ppdFindAttr(ppd, "cupsJobAccountId", NULL)) != NULL)
     pc->account_id = !_cups_strcasecmp(ppd_attr->value, "true");
@@ -1738,7 +1817,7 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
     pc->accounting_user_id = !_cups_strcasecmp(ppd_attr->value, "true");
 
   if ((ppd_attr = ppdFindAttr(ppd, "cupsJobPassword", NULL)) != NULL)
-    pc->password = _cupsStrAlloc(ppd_attr->value);
+    pc->password = strdup(ppd_attr->value);
 
   if ((ppd_attr = ppdFindAttr(ppd, "cupsMandatory", NULL)) != NULL)
     pc->mandatory = _cupsArrayNewStrings(ppd_attr->value, ' ');
@@ -1747,9 +1826,7 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
   * Support files...
   */
 
-  pc->support_files = cupsArrayNew3(NULL, NULL, NULL, 0,
-				    (cups_acopy_func_t)_cupsStrAlloc,
-				    (cups_afree_func_t)_cupsStrFree);
+  pc->support_files = cupsArrayNew3(NULL, NULL, NULL, 0, (cups_acopy_func_t)strdup, (cups_afree_func_t)free);
 
   for (ppd_attr = ppdFindAttr(ppd, "cupsICCProfile", NULL);
        ppd_attr;
@@ -1758,42 +1835,6 @@ _ppdCacheCreateWithPPD(ppd_file_t *ppd)	/* I - PPD file */
 
   if ((ppd_attr = ppdFindAttr(ppd, "APPrinterIconPath", NULL)) != NULL)
     cupsArrayAdd(pc->support_files, ppd_attr->value);
-
- /*
-  * 3D stuff...
-  */
-
-  if ((ppd_attr = ppdFindAttr(ppd, "cups3D", NULL)) != NULL)
-    pc->cups_3d = _cupsStrAlloc(ppd_attr->value);
-
-  if ((ppd_attr = ppdFindAttr(ppd, "cupsLayerOrder", NULL)) != NULL)
-    pc->cups_layer_order = _cupsStrAlloc(ppd_attr->value);
-
-  if ((ppd_attr = ppdFindAttr(ppd, "cupsAccuracy", NULL)) != NULL)
-    sscanf(ppd_attr->value, "%d%d%d", pc->cups_accuracy + 0, pc->cups_accuracy + 1, pc->cups_accuracy + 2);
-
-  if ((ppd_attr = ppdFindAttr(ppd, "cupsVolume", NULL)) != NULL)
-    sscanf(ppd_attr->value, "%d%d%d", pc->cups_volume + 0, pc->cups_volume + 1, pc->cups_volume + 2);
-
-  for (ppd_attr = ppdFindAttr(ppd, "cupsMaterial", NULL);
-       ppd_attr;
-       ppd_attr = ppdFindNextAttr(ppd, "cupsMaterial", NULL))
-  {
-   /*
-    * *cupsMaterial key/name: "name=value ... name=value"
-    */
-
-    _pwg_material_t	*material = (_pwg_material_t *)calloc(1, sizeof(_pwg_material_t));
-
-    material->key = _cupsStrAlloc(ppd_attr->name);
-    material->name = _cupsStrAlloc(ppd_attr->text);
-    material->num_props = cupsParseOptions(ppd_attr->value, 0, &material->props);
-
-    if (!pc->materials)
-      pc->materials = cupsArrayNew3(NULL, NULL, NULL, 0, NULL, (cups_afree_func_t)pwg_free_material);
-
-    cupsArrayAdd(pc->materials, material);
-  }
 
  /*
   * Return the cache data...
@@ -1841,8 +1882,8 @@ _ppdCacheDestroy(_ppd_cache_t *pc)	/* I - PPD cache and mapping data */
   {
     for (i = pc->num_bins, map = pc->bins; i > 0; i --, map ++)
     {
-      _cupsStrFree(map->pwg);
-      _cupsStrFree(map->ppd);
+      free(map->pwg);
+      free(map->ppd);
     }
 
     free(pc->bins);
@@ -1852,22 +1893,21 @@ _ppdCacheDestroy(_ppd_cache_t *pc)	/* I - PPD cache and mapping data */
   {
     for (i = pc->num_sizes, size = pc->sizes; i > 0; i --, size ++)
     {
-      _cupsStrFree(size->map.pwg);
-      _cupsStrFree(size->map.ppd);
+      free(size->map.pwg);
+      free(size->map.ppd);
     }
 
     free(pc->sizes);
   }
 
-  if (pc->source_option)
-    _cupsStrFree(pc->source_option);
+  free(pc->source_option);
 
   if (pc->sources)
   {
     for (i = pc->num_sources, map = pc->sources; i > 0; i --, map ++)
     {
-      _cupsStrFree(map->pwg);
-      _cupsStrFree(map->ppd);
+      free(map->pwg);
+      free(map->ppd);
     }
 
     free(pc->sources);
@@ -1877,35 +1917,27 @@ _ppdCacheDestroy(_ppd_cache_t *pc)	/* I - PPD cache and mapping data */
   {
     for (i = pc->num_types, map = pc->types; i > 0; i --, map ++)
     {
-      _cupsStrFree(map->pwg);
-      _cupsStrFree(map->ppd);
+      free(map->pwg);
+      free(map->ppd);
     }
 
     free(pc->types);
   }
 
-  if (pc->custom_max_keyword)
-    _cupsStrFree(pc->custom_max_keyword);
+  free(pc->custom_max_keyword);
+  free(pc->custom_min_keyword);
 
-  if (pc->custom_min_keyword)
-    _cupsStrFree(pc->custom_min_keyword);
-
-  _cupsStrFree(pc->product);
+  free(pc->product);
   cupsArrayDelete(pc->filters);
   cupsArrayDelete(pc->prefilters);
   cupsArrayDelete(pc->finishings);
 
-  _cupsStrFree(pc->charge_info_uri);
-  _cupsStrFree(pc->password);
+  free(pc->charge_info_uri);
+  free(pc->password);
 
   cupsArrayDelete(pc->mandatory);
 
   cupsArrayDelete(pc->support_files);
-
-  _cupsStrFree(pc->cups_3d);
-  _cupsStrFree(pc->cups_layer_order);
-
-  cupsArrayDelete(pc->materials);
 
   free(pc);
 }
@@ -2038,9 +2070,14 @@ _ppdCacheGetFinishingValues(
 
   DEBUG_printf(("_ppdCacheGetFinishingValues(pc=%p, num_options=%d, options=%p, max_values=%d, values=%p)", pc, num_options, options, max_values, values));
 
-  if (!pc || !pc->finishings || num_options < 1 || max_values < 1 || !values)
+  if (!pc || max_values < 1 || !values)
   {
     DEBUG_puts("_ppdCacheGetFinishingValues: Bad arguments, returning 0.");
+    return (0);
+  }
+  else if (!pc->finishings)
+  {
+    DEBUG_puts("_ppdCacheGetFinishingValues: No finishings support, returning 0.");
     return (0);
   }
 
@@ -2068,13 +2105,24 @@ _ppdCacheGetFinishingValues(
 
     if (i == 0)
     {
-      DEBUG_printf(("_ppdCacheGetFinishingValues: Adding %d.", f->value));
+      DEBUG_printf(("_ppdCacheGetFinishingValues: Adding %d (%s)", f->value, ippEnumString("finishings", f->value)));
 
       values[num_values ++] = f->value;
 
       if (num_values >= max_values)
         break;
     }
+  }
+
+  if (num_values == 0)
+  {
+   /*
+    * Always have at least "finishings" = 'none'...
+    */
+
+    DEBUG_puts("_ppdCacheGetFinishingValues: Adding 3 (none).");
+    values[0] = IPP_FINISHINGS_NONE;
+    num_values ++;
   }
 
   DEBUG_printf(("_ppdCacheGetFinishingValues: Returning %d.", num_values));
@@ -2664,7 +2712,6 @@ _ppdCacheWriteFile(
   cups_option_t		*option;	/* Current option */
   const char		*value;		/* Filter/pre-filter value */
   char			newfile[1024];	/* New filename */
-  _pwg_material_t	*m;		/* Material */
 
 
  /*
@@ -2824,12 +2871,12 @@ _ppdCacheWriteFile(
   if (pc->charge_info_uri)
     cupsFilePutConf(fp, "ChargeInfoURI", pc->charge_info_uri);
 
-  cupsFilePrintf(fp, "AccountId %s\n", pc->account_id ? "true" : "false");
-  cupsFilePrintf(fp, "AccountingUserId %s\n",
+  cupsFilePrintf(fp, "JobAccountId %s\n", pc->account_id ? "true" : "false");
+  cupsFilePrintf(fp, "JobAccountingUserId %s\n",
                  pc->accounting_user_id ? "true" : "false");
 
   if (pc->password)
-    cupsFilePutConf(fp, "Password", pc->password);
+    cupsFilePutConf(fp, "JobPassword", pc->password);
 
   for (value = (char *)cupsArrayFirst(pc->mandatory);
        value;
@@ -2844,32 +2891,6 @@ _ppdCacheWriteFile(
        value;
        value = (char *)cupsArrayNext(pc->support_files))
     cupsFilePutConf(fp, "SupportFile", value);
-
- /*
-  * 3D stuff...
-  */
-
-  if (pc->cups_3d)
-    cupsFilePutConf(fp, "3D", pc->cups_3d);
-
-  if (pc->cups_layer_order)
-    cupsFilePutConf(fp, "LayerOrder", pc->cups_layer_order);
-
-  if (pc->cups_accuracy[0] || pc->cups_accuracy[0] || pc->cups_accuracy[2])
-    cupsFilePrintf(fp, "Accuracy %d %d %d\n", pc->cups_accuracy[0], pc->cups_accuracy[1], pc->cups_accuracy[2]);
-
-  if (pc->cups_volume[0] || pc->cups_volume[0] || pc->cups_volume[2])
-    cupsFilePrintf(fp, "Volume %d %d %d\n", pc->cups_volume[0], pc->cups_volume[1], pc->cups_volume[2]);
-
-  for (m = (_pwg_material_t *)cupsArrayFirst(pc->materials);
-       m;
-       m = (_pwg_material_t *)cupsArrayNext(pc->materials))
-  {
-    cupsFilePrintf(fp, "Material %s \"%s\"", m->key, m->name);
-    for (i = 0; i < m->num_props; i ++)
-      cupsFilePrintf(fp, " %s=%s", m->props[i].name, m->props[i].value);
-    cupsFilePuts(fp, "\n");
-  }
 
  /*
   * IPP attributes, if any...
@@ -2903,14 +2924,16 @@ _ppdCacheWriteFile(
  *                         of an IPP printer.
  */
 
-char *					/* O - PPD filename or NULL on error */
+char *					/* O - PPD filename or @code NULL@ on error */
 _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
                   size_t bufsize,	/* I - Size of filename buffer */
 		  ipp_t  *response)	/* I - Get-Printer-Attributes response */
 {
   cups_file_t		*fp;		/* PPD file */
+  cups_array_t		*sizes;		/* Media sizes we've added */
   ipp_attribute_t	*attr,		/* xxx-supported */
 			*defattr,	/* xxx-default */
+                        *quality,	/* print-quality-supported */
 			*x_dim, *y_dim;	/* Media dimensions */
   ipp_t			*media_size;	/* Media size collection */
   char			make[256],	/* Make and model */
@@ -2922,11 +2945,86 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
 			bottom,		/* Largest bottom margin */
 			left,		/* Largest left margin */
 			right,		/* Largest right margin */
-			top;		/* Largest top margin */
+			top,		/* Largest top margin */
+			is_apple = 0,	/* Does the printer support Apple raster? */
+			is_pdf = 0,	/* Does the printer support PDF? */
+			is_pwg = 0;	/* Does the printer support PWG Raster? */
   pwg_media_t		*pwg;		/* PWG media size */
   int			xres, yres;	/* Resolution values */
+  int                   resolutions[1000];
+                                        /* Array of resolution indices */
+  cups_lang_t		*lang = cupsLangDefault();
+					/* Localization info */
   struct lconv		*loc = localeconv();
 					/* Locale data */
+  static const char * const finishings[][2] =
+  {					/* Finishings strings */
+    { "bale", _("Bale") },
+    { "bind", _("Bind") },
+    { "bind-bottom", _("Bind (Reverse Landscape)") },
+    { "bind-left", _("Bind (Portrait)") },
+    { "bind-right", _("Bind (Reverse Portrait)") },
+    { "bind-top", _("Bind (Landscape)") },
+    { "booklet-maker", _("Booklet Maker") },
+    { "coat", _("Coat") },
+    { "cover", _("Cover") },
+    { "edge-stitch", _("Staple Edge") },
+    { "edge-stitch-bottom", _("Staple Edge (Reverse Landscape)") },
+    { "edge-stitch-left", _("Staple Edge (Portrait)") },
+    { "edge-stitch-right", _("Staple Edge (Reverse Portrait)") },
+    { "edge-stitch-top", _("Staple Edge (Landscape)") },
+    { "fold", _("Fold") },
+    { "fold-accordian", _("Accordian Fold") },
+    { "fold-double-gate", _("Double Gate Fold") },
+    { "fold-engineering-z", _("Engineering Z Fold") },
+    { "fold-gate", _("Gate Fold") },
+    { "fold-half", _("Half Fold") },
+    { "fold-half-z", _("Half Z Fold") },
+    { "fold-left-gate", _("Left Gate Fold") },
+    { "fold-letter", _("Letter Fold") },
+    { "fold-parallel", _("Parallel Fold") },
+    { "fold-poster", _("Poster Fold") },
+    { "fold-right-gate", _("Right Gate Fold") },
+    { "fold-z", _("Z Fold") },
+    { "jog-offset", _("Jog") },
+    { "laminate", _("Laminate") },
+    { "punch", _("Punch") },
+    { "punch-bottom-left", _("Single Punch (Reverse Landscape)") },
+    { "punch-bottom-right", _("Single Punch (Reverse Portrait)") },
+    { "punch-double-bottom", _("2-Hole Punch (Reverse Portrait)") },
+    { "punch-double-left", _("2-Hole Punch (Reverse Landscape)") },
+    { "punch-double-right", _("2-Hole Punch (Landscape)") },
+    { "punch-double-top", _("2-Hole Punch (Portrait)") },
+    { "punch-quad-bottom", _("4-Hole Punch (Reverse Landscape)") },
+    { "punch-quad-left", _("4-Hole Punch (Portrait)") },
+    { "punch-quad-right", _("4-Hole Punch (Reverse Portrait)") },
+    { "punch-quad-top", _("4-Hole Punch (Landscape)") },
+    { "punch-top-left", _("Single Punch (Portrait)") },
+    { "punch-top-right", _("Single Punch (Landscape)") },
+    { "punch-triple-bottom", _("3-Hole Punch (Reverse Landscape)") },
+    { "punch-triple-left", _("3-Hole Punch (Portrait)") },
+    { "punch-triple-right", _("3-Hole Punch (Reverse Portrait)") },
+    { "punch-triple-top", _("3-Hole Punch (Landscape)") },
+    { "punch-multiple-bottom", _("Multi-Hole Punch (Reverse Landscape)") },
+    { "punch-multiple-left", _("Multi-Hole Punch (Portrait)") },
+    { "punch-multiple-right", _("Multi-Hole Punch (Reverse Portrait)") },
+    { "punch-multiple-top", _("Multi-Hole Punch (Landscape)") },
+    { "saddle-stitch", _("Saddle Stitch") },
+    { "staple", _("Staple") },
+    { "staple-bottom-left", _("Single Staple (Reverse Landscape)") },
+    { "staple-bottom-right", _("Single Staple (Reverse Portrait)") },
+    { "staple-dual-bottom", _("Double Staple (Reverse Landscape)") },
+    { "staple-dual-left", _("Double Staple (Portrait)") },
+    { "staple-dual-right", _("Double Staple (Reverse Portrait)") },
+    { "staple-dual-top", _("Double Staple (Landscape)") },
+    { "staple-top-left", _("Single Staple (Portrait)") },
+    { "staple-top-right", _("Single Staple (Landscape)") },
+    { "staple-triple-bottom", _("Triple Staple (Reverse Landscape)") },
+    { "staple-triple-left", _("Triple Staple (Portrait)") },
+    { "staple-triple-right", _("Triple Staple (Reverse Portrait)") },
+    { "staple-triple-top", _("Triple Staple (Landscape)") },
+    { "trim", _("Cut Media") }
+  };
 
 
  /*
@@ -2936,15 +3034,27 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
   if (buffer)
     *buffer = '\0';
 
-  if (!buffer || bufsize < 1 || !response)
+  if (!buffer || bufsize < 1)
+  {
+    _cupsSetError(IPP_STATUS_ERROR_INTERNAL, strerror(EINVAL), 0);
     return (NULL);
+  }
+
+  if (!response)
+  {
+    _cupsSetError(IPP_STATUS_ERROR_INTERNAL, _("No IPP attributes."), 1);
+    return (NULL);
+  }
 
  /*
   * Open a temporary file for the PPD...
   */
 
   if ((fp = cupsTempFile2(buffer, (int)bufsize)) == NULL)
+  {
+    _cupsSetError(IPP_STATUS_ERROR_INTERNAL, strerror(errno), 0);
     return (NULL);
+  }
 
  /*
   * Standard stuff for PPD file...
@@ -2979,8 +3089,8 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
   cupsFilePrintf(fp, "*Manufacturer: \"%s\"\n", make);
   cupsFilePrintf(fp, "*ModelName: \"%s\"\n", model);
   cupsFilePrintf(fp, "*Product: \"(%s)\"\n", model);
-  cupsFilePrintf(fp, "*NickName: \"%s\"\n", model);
-  cupsFilePrintf(fp, "*ShortNickName: \"%s\"\n", model);
+  cupsFilePrintf(fp, "*NickName: \"%s - IPP Everywhere\"\n", model);
+  cupsFilePrintf(fp, "*ShortNickName: \"%s - IPP Everywhere\"\n", model);
 
   if ((attr = ippFindAttribute(response, "color-supported", IPP_TAG_BOOLEAN)) != NULL && ippGetBoolean(attr, 0))
     cupsFilePuts(fp, "*ColorDevice: True\n");
@@ -2991,25 +3101,93 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
   cupsFilePuts(fp, "*cupsSNMPSupplies: False\n");
   cupsFilePuts(fp, "*cupsLanguages: \"en\"\n");
 
+  if ((attr = ippFindAttribute(response, "printer-more-info", IPP_TAG_URI)) != NULL)
+    cupsFilePrintf(fp, "*APSupplies: \"%s\"\n", ippGetString(attr, 0, NULL));
+
+  if ((attr = ippFindAttribute(response, "printer-charge-info-uri", IPP_TAG_URI)) != NULL)
+    cupsFilePrintf(fp, "*cupsChargeInfoURI: \"%s\"\n", ippGetString(attr, 0, NULL));
+
+ /*
+  * Accounting...
+  */
+
+  if (ippGetBoolean(ippFindAttribute(response, "job-account-id-supported", IPP_TAG_BOOLEAN), 0))
+    cupsFilePuts(fp, "*cupsJobAccountId: True\n");
+
+  if (ippGetBoolean(ippFindAttribute(response, "job-accounting-user-id-supported", IPP_TAG_BOOLEAN), 0))
+    cupsFilePuts(fp, "*cupsJobAccountingUserId: True\n");
+
+ /*
+  * Password/PIN printing...
+  */
+
+  if ((attr = ippFindAttribute(response, "job-password-supported", IPP_TAG_INTEGER)) != NULL)
+  {
+    char	pattern[33];		/* Password pattern */
+    int		maxlen = ippGetInteger(attr, 0);
+					/* Maximum length */
+    const char	*repertoire = ippGetString(ippFindAttribute(response, "job-password-repertoire-configured", IPP_TAG_KEYWORD), 0, NULL);
+					/* Type of password */
+
+    if (maxlen > (int)(sizeof(pattern) - 1))
+      maxlen = (int)sizeof(pattern) - 1;
+
+    if (!repertoire || !strcmp(repertoire, "iana_us-ascii_digits"))
+      memset(pattern, '1', (size_t)maxlen);
+    else if (!strcmp(repertoire, "iana_us-ascii_letters"))
+      memset(pattern, 'A', (size_t)maxlen);
+    else if (!strcmp(repertoire, "iana_us-ascii_complex"))
+      memset(pattern, 'C', (size_t)maxlen);
+    else if (!strcmp(repertoire, "iana_us-ascii_any"))
+      memset(pattern, '.', (size_t)maxlen);
+    else if (!strcmp(repertoire, "iana_utf-8_digits"))
+      memset(pattern, 'N', (size_t)maxlen);
+    else if (!strcmp(repertoire, "iana_utf-8_letters"))
+      memset(pattern, 'U', (size_t)maxlen);
+    else
+      memset(pattern, '*', (size_t)maxlen);
+
+    pattern[maxlen] = '\0';
+
+    cupsFilePrintf(fp, "*cupsJobPassword: \"%s\"\n", pattern);
+  }
+
  /*
   * Filters...
   */
 
   if ((attr = ippFindAttribute(response, "document-format-supported", IPP_TAG_MIMETYPE)) != NULL)
   {
-    for (i = 0, count = ippGetCount(attr); i < count; i ++)
-    {
-      const char *format = ippGetString(attr, i, NULL);
-					/* PDL */
+    is_apple = ippContainsString(attr, "image/urf");
+    is_pdf   = ippContainsString(attr, "application/pdf");
+    is_pwg   = ippContainsString(attr, "image/pwg-raster") && !is_apple;
 
-      if (!_cups_strcasecmp(format, "application/pdf"))
+    if (ippContainsString(attr, "image/jpeg"))
+      cupsFilePuts(fp, "*cupsFilter2: \"image/jpeg image/jpeg 0 -\"\n");
+    if (ippContainsString(attr, "image/png"))
+      cupsFilePuts(fp, "*cupsFilter2: \"image/png image/png 0 -\"\n");
+    if (is_pdf)
+    {
+     /*
+      * Don't locally filter PDF content when printing to a CUPS shared
+      * printer, otherwise the options will be applied twice...
+      */
+
+      if (ippContainsString(attr, "application/vnd.cups-pdf"))
+        cupsFilePuts(fp, "*cupsFilter2: \"application/pdf application/pdf 0 -\"\n");
+      else
         cupsFilePuts(fp, "*cupsFilter2: \"application/vnd.cups-pdf application/pdf 10 -\"\n");
-      else if (!_cups_strcasecmp(format, "application/postscript"))
-        cupsFilePuts(fp, "*cupsFilter2: \"application/vnd.cups-postscript application/postscript 10 -\"\n");
-      else if (_cups_strcasecmp(format, "application/octet-stream") && _cups_strcasecmp(format, "application/vnd.hp-pcl") && _cups_strcasecmp(format, "text/plain"))
-        cupsFilePrintf(fp, "*cupsFilter2: \"%s %s 10 -\"\n", format, format);
     }
+    else
+      cupsFilePuts(fp, "*cupsManualCopies: true\n");
+    if (is_apple)
+      cupsFilePuts(fp, "*cupsFilter2: \"image/urf image/urf 100 -\"\n");
+    if (is_pwg)
+      cupsFilePuts(fp, "*cupsFilter2: \"image/pwg-raster image/pwg-raster 100 -\"\n");
   }
+
+  if (!is_apple && !is_pdf && !is_pwg)
+    goto bad_ppd;
 
  /*
   * PageSize/PageRegion/ImageableArea/PaperDimension
@@ -3059,35 +3237,54 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
       x_dim      = ippFindAttribute(media_size, "x-dimension", IPP_TAG_INTEGER);
       y_dim      = ippFindAttribute(media_size, "y-dimension", IPP_TAG_INTEGER);
 
-      if (x_dim && y_dim)
-      {
-        pwg = pwgMediaForSize(ippGetInteger(x_dim, 0), ippGetInteger(y_dim, 0));
+      if (x_dim && y_dim && (pwg = pwgMediaForSize(ippGetInteger(x_dim, 0), ippGetInteger(y_dim, 0))) != NULL)
 	strlcpy(ppdname, pwg->ppd, sizeof(ppdname));
-      }
       else
 	strlcpy(ppdname, "Unknown", sizeof(ppdname));
     }
     else
       strlcpy(ppdname, "Unknown", sizeof(ppdname));
   }
+  else if ((pwg = pwgMediaForPWG(ippGetString(ippFindAttribute(response, "media-default", IPP_TAG_ZERO), 0, NULL))) != NULL)
+    strlcpy(ppdname, pwg->ppd, sizeof(ppdname));
+  else
+    strlcpy(ppdname, "Unknown", sizeof(ppdname));
 
-  if ((attr = ippFindAttribute(response, "media-size-supported", IPP_TAG_BEGIN_COLLECTION)) != NULL)
+  if ((attr = ippFindAttribute(response, "media-size-supported", IPP_TAG_BEGIN_COLLECTION)) == NULL)
+    attr = ippFindAttribute(response, "media-supported", IPP_TAG_ZERO);
+  if (attr)
   {
     cupsFilePrintf(fp, "*OpenUI *PageSize: PickOne\n"
 		       "*OrderDependency: 10 AnySetup *PageSize\n"
                        "*DefaultPageSize: %s\n", ppdname);
+
+    sizes = cupsArrayNew3((cups_array_func_t)strcmp, NULL, NULL, 0, (cups_acopy_func_t)strdup, (cups_afree_func_t)free);
+
     for (i = 0, count = ippGetCount(attr); i < count; i ++)
     {
-      media_size = ippGetCollection(attr, i);
-      x_dim      = ippFindAttribute(media_size, "x-dimension", IPP_TAG_INTEGER);
-      y_dim      = ippFindAttribute(media_size, "y-dimension", IPP_TAG_INTEGER);
+      if (ippGetValueTag(attr) == IPP_TAG_BEGIN_COLLECTION)
+      {
+	media_size = ippGetCollection(attr, i);
+	x_dim      = ippFindAttribute(media_size, "x-dimension", IPP_TAG_INTEGER);
+	y_dim      = ippFindAttribute(media_size, "y-dimension", IPP_TAG_INTEGER);
 
-      if (x_dim && y_dim)
+	pwg = pwgMediaForSize(ippGetInteger(x_dim, 0), ippGetInteger(y_dim, 0));
+      }
+      else
+        pwg = pwgMediaForPWG(ippGetString(attr, i, NULL));
+
+      if (pwg)
       {
         char	twidth[256],		/* Width string */
 		tlength[256];		/* Length string */
 
-        pwg = pwgMediaForSize(ippGetInteger(x_dim, 0), ippGetInteger(y_dim, 0));
+        if (cupsArrayFind(sizes, (void *)pwg->ppd))
+        {
+          cupsFilePrintf(fp, "*%% warning: Duplicate size '%s' reported by printer.\n", pwg->ppd);
+          continue;
+        }
+
+        cupsArrayAdd(sizes, (void *)pwg->ppd);
 
         _cupsStrFormatd(twidth, twidth + sizeof(twidth), pwg->width * 72.0 / 2540.0, loc);
         _cupsStrFormatd(tlength, tlength + sizeof(tlength), pwg->length * 72.0 / 2540.0, loc);
@@ -3097,21 +3294,34 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
     }
     cupsFilePuts(fp, "*CloseUI: *PageSize\n");
 
+    cupsArrayDelete(sizes);
+    sizes = cupsArrayNew3((cups_array_func_t)strcmp, NULL, NULL, 0, (cups_acopy_func_t)strdup, (cups_afree_func_t)free);
+
     cupsFilePrintf(fp, "*OpenUI *PageRegion: PickOne\n"
                        "*OrderDependency: 10 AnySetup *PageRegion\n"
                        "*DefaultPageRegion: %s\n", ppdname);
     for (i = 0, count = ippGetCount(attr); i < count; i ++)
     {
-      media_size = ippGetCollection(attr, i);
-      x_dim      = ippFindAttribute(media_size, "x-dimension", IPP_TAG_INTEGER);
-      y_dim      = ippFindAttribute(media_size, "y-dimension", IPP_TAG_INTEGER);
+      if (ippGetValueTag(attr) == IPP_TAG_BEGIN_COLLECTION)
+      {
+	media_size = ippGetCollection(attr, i);
+	x_dim      = ippFindAttribute(media_size, "x-dimension", IPP_TAG_INTEGER);
+	y_dim      = ippFindAttribute(media_size, "y-dimension", IPP_TAG_INTEGER);
 
-      if (x_dim && y_dim)
+	pwg = pwgMediaForSize(ippGetInteger(x_dim, 0), ippGetInteger(y_dim, 0));
+      }
+      else
+        pwg = pwgMediaForPWG(ippGetString(attr, i, NULL));
+
+      if (pwg)
       {
         char	twidth[256],		/* Width string */
 		tlength[256];		/* Length string */
 
-        pwg = pwgMediaForSize(ippGetInteger(x_dim, 0), ippGetInteger(y_dim, 0));
+        if (cupsArrayFind(sizes, (void *)pwg->ppd))
+          continue;
+
+        cupsArrayAdd(sizes, (void *)pwg->ppd);
 
         _cupsStrFormatd(twidth, twidth + sizeof(twidth), pwg->width * 72.0 / 2540.0, loc);
         _cupsStrFormatd(tlength, tlength + sizeof(tlength), pwg->length * 72.0 / 2540.0, loc);
@@ -3121,15 +3331,25 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
     }
     cupsFilePuts(fp, "*CloseUI: *PageRegion\n");
 
+    cupsArrayDelete(sizes);
+    sizes = cupsArrayNew3((cups_array_func_t)strcmp, NULL, NULL, 0, (cups_acopy_func_t)strdup, (cups_afree_func_t)free);
+
     cupsFilePrintf(fp, "*DefaultImageableArea: %s\n"
 		       "*DefaultPaperDimension: %s\n", ppdname, ppdname);
     for (i = 0, count = ippGetCount(attr); i < count; i ++)
     {
-      media_size = ippGetCollection(attr, i);
-      x_dim      = ippFindAttribute(media_size, "x-dimension", IPP_TAG_INTEGER);
-      y_dim      = ippFindAttribute(media_size, "y-dimension", IPP_TAG_INTEGER);
+      if (ippGetValueTag(attr) == IPP_TAG_BEGIN_COLLECTION)
+      {
+	media_size = ippGetCollection(attr, i);
+	x_dim      = ippFindAttribute(media_size, "x-dimension", IPP_TAG_INTEGER);
+	y_dim      = ippFindAttribute(media_size, "y-dimension", IPP_TAG_INTEGER);
 
-      if (x_dim && y_dim)
+	pwg = pwgMediaForSize(ippGetInteger(x_dim, 0), ippGetInteger(y_dim, 0));
+      }
+      else
+        pwg = pwgMediaForPWG(ippGetString(attr, i, NULL));
+
+      if (pwg)
       {
         char	tleft[256],		/* Left string */
 		tbottom[256],		/* Bottom string */
@@ -3138,7 +3358,10 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
 		twidth[256],		/* Width string */
 		tlength[256];		/* Length string */
 
-        pwg = pwgMediaForSize(ippGetInteger(x_dim, 0), ippGetInteger(y_dim, 0));
+        if (cupsArrayFind(sizes, (void *)pwg->ppd))
+          continue;
+
+        cupsArrayAdd(sizes, (void *)pwg->ppd);
 
         _cupsStrFormatd(tleft, tleft + sizeof(tleft), left * 72.0 / 2540.0, loc);
         _cupsStrFormatd(tbottom, tbottom + sizeof(tbottom), bottom * 72.0 / 2540.0, loc);
@@ -3151,71 +3374,75 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
         cupsFilePrintf(fp, "*PaperDimension %s: \"%s %s\"\n", pwg->ppd, twidth, tlength);
       }
     }
+
+    cupsArrayDelete(sizes);
   }
+  else
+    goto bad_ppd;
 
  /*
   * InputSlot...
   */
 
-  if ((attr = ippFindAttribute(ippGetCollection(defattr, 0), "media-source", IPP_TAG_KEYWORD)) != NULL)
+  if ((attr = ippFindAttribute(ippGetCollection(defattr, 0), "media-source", IPP_TAG_ZERO)) != NULL)
     pwg_ppdize_name(ippGetString(attr, 0, NULL), ppdname, sizeof(ppdname));
   else
     strlcpy(ppdname, "Unknown", sizeof(ppdname));
 
-  if ((attr = ippFindAttribute(response, "media-source-supported", IPP_TAG_KEYWORD)) != NULL && (count = ippGetCount(attr)) > 1)
+  if ((attr = ippFindAttribute(response, "media-source-supported", IPP_TAG_ZERO)) != NULL && (count = ippGetCount(attr)) > 1)
   {
     static const char * const sources[][2] =
-    {
-      { "Auto", "Automatic" },
-      { "Main", "Main" },
-      { "Alternate", "Alternate" },
-      { "LargeCapacity", "Large Capacity" },
-      { "Manual", "Manual" },
-      { "Envelope", "Envelope" },
-      { "Disc", "Disc" },
-      { "Photo", "Photo" },
-      { "Hagaki", "Hagaki" },
-      { "MainRoll", "Main Roll" },
-      { "AlternateRoll", "Alternate Roll" },
-      { "Top", "Top" },
-      { "Middle", "Middle" },
-      { "Bottom", "Bottom" },
-      { "Side", "Side" },
-      { "Left", "Left" },
-      { "Right", "Right" },
-      { "Center", "Center" },
-      { "Rear", "Rear" },
-      { "ByPassTray", "Multipurpose" },
-      { "Tray1", "Tray 1" },
-      { "Tray2", "Tray 2" },
-      { "Tray3", "Tray 3" },
-      { "Tray4", "Tray 4" },
-      { "Tray5", "Tray 5" },
-      { "Tray6", "Tray 6" },
-      { "Tray7", "Tray 7" },
-      { "Tray8", "Tray 8" },
-      { "Tray9", "Tray 9" },
-      { "Tray10", "Tray 10" },
-      { "Tray11", "Tray 11" },
-      { "Tray12", "Tray 12" },
-      { "Tray13", "Tray 13" },
-      { "Tray14", "Tray 14" },
-      { "Tray15", "Tray 15" },
-      { "Tray16", "Tray 16" },
-      { "Tray17", "Tray 17" },
-      { "Tray18", "Tray 18" },
-      { "Tray19", "Tray 19" },
-      { "Tray20", "Tray 20" },
-      { "Roll1", "Roll 1" },
-      { "Roll2", "Roll 2" },
-      { "Roll3", "Roll 3" },
-      { "Roll4", "Roll 4" },
-      { "Roll5", "Roll 5" },
-      { "Roll6", "Roll 6" },
-      { "Roll7", "Roll 7" },
-      { "Roll8", "Roll 8" },
-      { "Roll9", "Roll 9" },
-      { "Roll10", "Roll 10" }
+    {					/* "media-source" strings */
+      { "Auto", _("Automatic") },
+      { "Main", _("Main") },
+      { "Alternate", _("Alternate") },
+      { "LargeCapacity", _("Large Capacity") },
+      { "Manual", _("Manual") },
+      { "Envelope", _("Envelope") },
+      { "Disc", _("Disc") },
+      { "Photo", _("Photo") },
+      { "Hagaki", _("Hagaki") },
+      { "MainRoll", _("Main Roll") },
+      { "AlternateRoll", _("Alternate Roll") },
+      { "Top", _("Top") },
+      { "Middle", _("Middle") },
+      { "Bottom", _("Bottom") },
+      { "Side", _("Side") },
+      { "Left", _("Left") },
+      { "Right", _("Right") },
+      { "Center", _("Center") },
+      { "Rear", _("Rear") },
+      { "ByPassTray", _("Multipurpose") },
+      { "Tray1", _("Tray 1") },
+      { "Tray2", _("Tray 2") },
+      { "Tray3", _("Tray 3") },
+      { "Tray4", _("Tray 4") },
+      { "Tray5", _("Tray 5") },
+      { "Tray6", _("Tray 6") },
+      { "Tray7", _("Tray 7") },
+      { "Tray8", _("Tray 8") },
+      { "Tray9", _("Tray 9") },
+      { "Tray10", _("Tray 10") },
+      { "Tray11", _("Tray 11") },
+      { "Tray12", _("Tray 12") },
+      { "Tray13", _("Tray 13") },
+      { "Tray14", _("Tray 14") },
+      { "Tray15", _("Tray 15") },
+      { "Tray16", _("Tray 16") },
+      { "Tray17", _("Tray 17") },
+      { "Tray18", _("Tray 18") },
+      { "Tray19", _("Tray 19") },
+      { "Tray20", _("Tray 20") },
+      { "Roll1", _("Roll 1") },
+      { "Roll2", _("Roll 2") },
+      { "Roll3", _("Roll 3") },
+      { "Roll4", _("Roll 4") },
+      { "Roll5", _("Roll 5") },
+      { "Roll6", _("Roll 6") },
+      { "Roll7", _("Roll 7") },
+      { "Roll8", _("Roll 8") },
+      { "Roll9", _("Roll 9") },
+      { "Roll10", _("Roll 10") }
     };
 
     cupsFilePrintf(fp, "*OpenUI *InputSlot: PickOne\n"
@@ -3228,7 +3455,8 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
       for (j = 0; j < (int)(sizeof(sources) / sizeof(sources[0])); j ++)
         if (!strcmp(sources[j][0], ppdname))
 	{
-	  cupsFilePrintf(fp, "*InputSlot %s/%s: \"<</MediaPosition %d>>setpagedevice\"\n", ppdname, sources[j][1], j);
+	  cupsFilePrintf(fp, "*InputSlot %s: \"<</MediaPosition %d>>setpagedevice\"\n", ppdname, j);
+	  cupsFilePrintf(fp, "*%s.InputSlot %s/%s: \"\"\n", lang->language, ppdname, _cupsLangString(lang, sources[j][1]));
 	  break;
 	}
     }
@@ -3239,49 +3467,179 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
   * MediaType...
   */
 
-  if ((attr = ippFindAttribute(ippGetCollection(defattr, 0), "media-type", IPP_TAG_KEYWORD)) != NULL)
+  if ((attr = ippFindAttribute(ippGetCollection(defattr, 0), "media-type", IPP_TAG_ZERO)) != NULL)
     pwg_ppdize_name(ippGetString(attr, 0, NULL), ppdname, sizeof(ppdname));
   else
     strlcpy(ppdname, "Unknown", sizeof(ppdname));
 
-  if ((attr = ippFindAttribute(response, "media-type-supported", IPP_TAG_KEYWORD)) != NULL && (count = ippGetCount(attr)) > 1)
+  if ((attr = ippFindAttribute(response, "media-type-supported", IPP_TAG_ZERO)) != NULL && (count = ippGetCount(attr)) > 1)
   {
-    static const char * const types[][2] =
-    {					/* Media type strings (far from complete) */
-      { "Auto", "Automatic" },
-      { "Cardstock", "Cardstock" },
-      { "Disc", "CD/DVD/Bluray" },
-      { "Envelope", "Envelope" },
-      { "Labels", "Label" },
-      { "Other", "Other" },
-      { "Photographic", "Photo" },
-      { "PhotographicGlossy", "Glossy Photo" },
-      { "PhotographicHighGloss", "High-Gloss Photo" },
-      { "PhotographicMatte", "Matte Photo" },
-      { "PhotographicSatin", "Satin Photo" },
-      { "PhotographicSemiGloss", "Semi-Gloss Photo" },
-      { "Stationery", "Plain Paper" },
-      { "StationeryLetterhead", "Letterhead" },
-      { "Transparency", "Transparency" }
+    static const char * const media_types[][2] =
+    {					/* "media-type" strings */
+      { "aluminum", _("Aluminum") },
+      { "auto", _("Automatic") },
+      { "back-print-film", _("Back Print Film") },
+      { "cardboard", _("Cardboard") },
+      { "cardstock", _("Cardstock") },
+      { "cd", _("CD") },
+      { "com.hp.advanced-photo", _("Advanced Photo Paper") }, /* HP */
+      { "com.hp.brochure-glossy", _("Glossy Brochure Paper") }, /* HP */
+      { "com.hp.brochure-matte", _("Matte Brochure Paper") }, /* HP */
+      { "com.hp.cover-matte", _("Matte Cover Paper") }, /* HP */
+      { "com.hp.ecosmart-lite", _("Office Recycled Paper") }, /* HP */
+      { "com.hp.everyday-glossy", _("Everyday Glossy Photo Paper") }, /* HP */
+      { "com.hp.everyday-matte", _("Everyday Matte Paper") }, /* HP */
+      { "com.hp.extra-heavy", _("Extra Heavyweight Paper") }, /* HP */
+      { "com.hp.intermediate", _("Multipurpose Paper") }, /* HP */
+      { "com.hp.mid-weight", _("Mid-Weight Paper") }, /* HP */
+      { "com.hp.premium-inkjet", _("Premium Inkjet Paper") }, /* HP */
+      { "com.hp.premium-photo", _("Premium Photo Glossy Paper") }, /* HP */
+      { "com.hp.premium-presentation-matte", _("Premium Presentation Matte Paper") }, /* HP */
+      { "continuous", _("Continuous") },
+      { "continuous-long", _("Continuous Long") },
+      { "continuous-short", _("Continuous Short") },
+      { "disc", _("Optical Disc") },
+      { "disc-glossy", _("Glossy Optical Disc") },
+      { "disc-high-gloss", _("High Gloss Optical Disc") },
+      { "disc-matte", _("Matte Optical Disc") },
+      { "disc-satin", _("Satin Optical Disc") },
+      { "disc-semi-gloss", _("Semi-Gloss Optical Disc") },
+      { "double-wall", _("Double Wall Cardboard") },
+      { "dry-film", _("Dry Film") },
+      { "dvd", _("DVD") },
+      { "embossing-foil", _("Embossing Foil") },
+      { "end-board", _("End Board") },
+      { "envelope", _("Envelope") },
+      { "envelope-archival", _("Archival Envelope") },
+      { "envelope-bond", _("Bond Envelope") },
+      { "envelope-coated", _("Coated Envelope") },
+      { "envelope-cotton", _("Cotton Envelope") },
+      { "envelope-fine", _("Fine Envelope") },
+      { "envelope-heavyweight", _("Heavyweight Envelope") },
+      { "envelope-inkjet", _("Inkjet Envelope") },
+      { "envelope-lightweight", _("Lightweight Envelope") },
+      { "envelope-plain", _("Plain Envelope") },
+      { "envelope-preprinted", _("Preprinted Envelope") },
+      { "envelope-window", _("Windowed Envelope") },
+      { "fabric", _("Fabric") },
+      { "fabric-archival", _("Archival Fabric") },
+      { "fabric-glossy", _("Glossy Fabric") },
+      { "fabric-high-gloss", _("High Gloss Fabric") },
+      { "fabric-matte", _("Matte Fabric") },
+      { "fabric-semi-gloss", _("Semi-Gloss Fabric") },
+      { "fabric-waterproof", _("Waterproof Fabric") },
+      { "film", _("Film") },
+      { "flexo-base", _("Flexo Base") },
+      { "flexo-photo-polymer", _("Flexo Photo Polymer") },
+      { "flute", _("Flute") },
+      { "foil", _("Foil") },
+      { "full-cut-tabs", _("Full Cut Tabs") },
+      { "glass", _("Glass") },
+      { "glass-colored", _("Glass Colored") },
+      { "glass-opaque", _("Glass Opaque") },
+      { "glass-surfaced", _("Glass Surfaced") },
+      { "glass-textured", _("Glass Textured") },
+      { "gravure-cylinder", _("Gravure Cylinder") },
+      { "image-setter-paper", _("Image Setter Paper") },
+      { "imaging-cylinder", _("Imaging Cylinder") },
+      { "jp.co.canon_photo-paper-plus-glossy-ii", _("Photo Paper Plus Glossy II") }, /* Canon */
+      { "jp.co.canon_photo-paper-pro-platinum", _("Photo Paper Pro Platinum") }, /* Canon */
+      { "jp.co.canon-photo-paper-plus-glossy-ii", _("Photo Paper Plus Glossy II") }, /* Canon */
+      { "jp.co.canon-photo-paper-pro-platinum", _("Photo Paper Pro Platinum") }, /* Canon */
+      { "labels", _("Labels") },
+      { "labels-colored", _("Colored Labels") },
+      { "labels-glossy", _("Glossy Labels") },
+      { "labels-high-gloss", _("High Gloss Labels") },
+      { "labels-inkjet", _("Inkjet Labels") },
+      { "labels-matte", _("Matte Labels") },
+      { "labels-permanent", _("Permanent Labels") },
+      { "labels-satin", _("Satin Labels") },
+      { "labels-security", _("Security Labels") },
+      { "labels-semi-gloss", _("Semi-Gloss Labels") },
+      { "laminating-foil", _("Laminating Foil") },
+      { "letterhead", _("Letterhead") },
+      { "metal", _("Metal") },
+      { "metal-glossy", _("Metal Glossy") },
+      { "metal-high-gloss", _("Metal High Gloss") },
+      { "metal-matte", _("Metal Matte") },
+      { "metal-satin", _("Metal Satin") },
+      { "metal-semi-gloss", _("Metal Semi Gloss") },
+      { "mounting-tape", _("Mounting Tape") },
+      { "multi-layer", _("Multi Layer") },
+      { "multi-part-form", _("Multi Part Form") },
+      { "other", _("Other") },
+      { "paper", _("Paper") },
+      { "photo", _("Photo Paper") }, /* HP mis-spelling */
+      { "photographic", _("Photo Paper") },
+      { "photographic-archival", _("Archival Photo Paper") },
+      { "photographic-film", _("Photo Film") },
+      { "photographic-glossy", _("Glossy Photo Paper") },
+      { "photographic-high-gloss", _("High Gloss Photo Paper") },
+      { "photographic-matte", _("Matte Photo Paper") },
+      { "photographic-satin", _("Satin Photo Paper") },
+      { "photographic-semi-gloss", _("Semi-Gloss Photo Paper") },
+      { "plastic", _("Plastic") },
+      { "plastic-archival", _("Plastic Archival") },
+      { "plastic-colored", _("Plastic Colored") },
+      { "plastic-glossy", _("Plastic Glossy") },
+      { "plastic-high-gloss", _("Plastic High Gloss") },
+      { "plastic-matte", _("Plastic Matte") },
+      { "plastic-satin", _("Plastic Satin") },
+      { "plastic-semi-gloss", _("Plastic Semi Gloss") },
+      { "plate", _("Plate") },
+      { "polyester", _("Polyester") },
+      { "pre-cut-tabs", _("Pre Cut Tabs") },
+      { "roll", _("Roll") },
+      { "screen", _("Screen") },
+      { "screen-paged", _("Screen Paged") },
+      { "self-adhesive", _("Self Adhesive") },
+      { "self-adhesive-film", _("Self Adhesive Film") },
+      { "shrink-foil", _("Shrink Foil") },
+      { "single-face", _("Single Face") },
+      { "single-wall", _("Single Wall Cardboard") },
+      { "sleeve", _("Sleeve") },
+      { "stationery", _("Plain Paper") },
+      { "stationery-archival", _("Archival Paper") },
+      { "stationery-coated", _("Coated Paper") },
+      { "stationery-cotton", _("Cotton Paper") },
+      { "stationery-fine", _("Vellum Paper") },
+      { "stationery-heavyweight", _("Heavyweight Paper") },
+      { "stationery-heavyweight-coated", _("Heavyweight Coated Paper") },
+      { "stationery-inkjet", _("Inkjet Paper") },
+      { "stationery-letterhead", _("Letterhead") },
+      { "stationery-lightweight", _("Lightweight Paper") },
+      { "stationery-preprinted", _("Preprinted Paper") },
+      { "stationery-prepunched", _("Punched Paper") },
+      { "tab-stock", _("Tab Stock") },
+      { "tractor", _("Tractor") },
+      { "transfer", _("Transfer") },
+      { "transparency", _("Transparency") },
+      { "triple-wall", _("Triple Wall Cardboard") },
+      { "wet-film", _("Wet Film") }
     };
 
     cupsFilePrintf(fp, "*OpenUI *MediaType: PickOne\n"
                        "*OrderDependency: 10 AnySetup *MediaType\n"
                        "*DefaultMediaType: %s\n", ppdname);
-    for (i = 0, count = ippGetCount(attr); i < count; i ++)
+    for (i = 0; i < count; i ++)
     {
-      pwg_ppdize_name(ippGetString(attr, i, NULL), ppdname, sizeof(ppdname));
+      const char *keyword = ippGetString(attr, i, NULL);
 
-      for (j = 0; j < (int)(sizeof(types) / sizeof(types[0])); j ++)
-        if (!strcmp(types[j][0], ppdname))
-	{
-	  cupsFilePrintf(fp, "*MediaType %s/%s: \"<</MediaType(%s)>>setpagedevice\"\n", ppdname, types[j][1], ppdname);
-	  break;
-	}
+      pwg_ppdize_name(keyword, ppdname, sizeof(ppdname));
 
-      if (j >= (int)(sizeof(types) / sizeof(types[0])))
-	cupsFilePrintf(fp, "*MediaType %s: \"<</MediaType(%s)>>setpagedevice\"\n", ppdname, ppdname);
+      for (j = 0; j < (int)(sizeof(media_types) / sizeof(media_types[0])); j ++)
+        if (!strcmp(keyword, media_types[j][0]))
+          break;
 
+      if (j < (int)(sizeof(media_types) / sizeof(media_types[0])))
+      {
+        cupsFilePrintf(fp, "*MediaType %s: \"<</MediaType(%s)>>setpagedevice\"\n", ppdname, ppdname);
+        cupsFilePrintf(fp, "*%s.MediaType %s/%s: \"\"\n", lang->language, ppdname, _cupsLangString(lang, media_types[j][1]));
+      }
+      else
+      {
+        cupsFilePrintf(fp, "*MediaType %s/%s: \"<</MediaType(%s)>>setpagedevice\"\n", ppdname, keyword, ppdname);
+      }
     }
     cupsFilePuts(fp, "*CloseUI: *MediaType\n");
   }
@@ -3290,8 +3648,10 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
   * ColorModel...
   */
 
-  if ((attr = ippFindAttribute(response, "pwg-raster-document-type-supported", IPP_TAG_KEYWORD)) == NULL)
-    attr = ippFindAttribute(response, "print-color-mode-supported", IPP_TAG_KEYWORD);
+  if ((attr = ippFindAttribute(response, "urf-supported", IPP_TAG_KEYWORD)) == NULL)
+    if ((attr = ippFindAttribute(response, "pwg-raster-document-type-supported", IPP_TAG_KEYWORD)) == NULL)
+      if ((attr = ippFindAttribute(response, "print-color-mode-supported", IPP_TAG_KEYWORD)) == NULL)
+        attr = ippFindAttribute(response, "output-mode-supported", IPP_TAG_KEYWORD);
 
   if (attr)
   {
@@ -3302,37 +3662,52 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
       const char *keyword = ippGetString(attr, i, NULL);
 					/* Keyword for color/bit depth */
 
-      if (!strcmp(keyword, "black_1") || !strcmp(keyword, "bi-level") || !strcmp(keyword, "process-bi-level"))
+      if (!strcasecmp(keyword, "black_1") || !strcmp(keyword, "bi-level") || !strcmp(keyword, "process-bi-level"))
       {
         if (!default_color)
-	  cupsFilePuts(fp, "*OpenUI *ColorModel/Color Mode: PickOne\n"
-		           "*OrderDependency: 10 AnySetup *ColorModel\n");
+	  cupsFilePrintf(fp, "*OpenUI *ColorModel: PickOne\n"
+			     "*OrderDependency: 10 AnySetup *ColorModel\n"
+			     "*%s.Translation ColorModel/%s: \"\"\n", lang->language, _cupsLangString(lang, _("Color Mode")));
 
-        cupsFilePuts(fp, "*ColorModel FastGray/Fast Grayscale: \"<</cupsColorSpace 3/cupsBitsPerColor 1/cupsColorOrder 0/cupsCompression 0>>setpagedevice\"\n");
+        cupsFilePrintf(fp, "*ColorModel FastGray: \"<</cupsColorSpace 3/cupsBitsPerColor 1/cupsColorOrder 0/cupsCompression 0>>setpagedevice\"\n*%s.ColorModel FastGray/%s: \"\"\n", lang->language, _cupsLangString(lang, _("Fast Grayscale")));
 
         if (!default_color)
 	  default_color = "FastGray";
       }
-      else if (!strcmp(keyword, "sgray_8") || !strcmp(keyword, "monochrome") || !strcmp(keyword, "process-monochrome"))
+      else if (!strcasecmp(keyword, "sgray_8") || !strcmp(keyword, "W8") || !strcmp(keyword, "monochrome") || !strcmp(keyword, "process-monochrome"))
       {
         if (!default_color)
-	  cupsFilePuts(fp, "*OpenUI *ColorModel/Color Mode: PickOne\n"
-		           "*OrderDependency: 10 AnySetup *ColorModel\n");
+	  cupsFilePrintf(fp, "*OpenUI *ColorModel: PickOne\n"
+			     "*OrderDependency: 10 AnySetup *ColorModel\n"
+			     "*%s.Translation ColorModel/%s: \"\"\n", lang->language, _cupsLangString(lang, _("Color Mode")));
 
-        cupsFilePuts(fp, "*ColorModel Gray/Grayscale: \"<</cupsColorSpace 18/cupsBitsPerColor 8/cupsColorOrder 0/cupsCompression 0>>setpagedevice\"\n");
+        cupsFilePrintf(fp, "*ColorModel Gray: \"<</cupsColorSpace 18/cupsBitsPerColor 8/cupsColorOrder 0/cupsCompression 0>>setpagedevice\"\n*%s.ColorModel Gray/%s: \"\"\n", lang->language, _cupsLangString(lang, _("Grayscale")));
 
         if (!default_color || !strcmp(default_color, "FastGray"))
 	  default_color = "Gray";
       }
-      else if (!strcmp(keyword, "srgb_8") || !strcmp(keyword, "color"))
+      else if (!strcasecmp(keyword, "srgb_8") || !strcmp(keyword, "SRGB24") || !strcmp(keyword, "color"))
       {
         if (!default_color)
-	  cupsFilePuts(fp, "*OpenUI *ColorModel/Color Mode: PickOne\n"
-		           "*OrderDependency: 10 AnySetup *ColorModel\n");
+	  cupsFilePrintf(fp, "*OpenUI *ColorModel: PickOne\n"
+			     "*OrderDependency: 10 AnySetup *ColorModel\n"
+			     "*%s.Translation ColorModel/%s: \"\"\n", lang->language, _cupsLangString(lang, _("Color Mode")));
 
-        cupsFilePuts(fp, "*ColorModel RGB/Color: \"<</cupsColorSpace 19/cupsBitsPerColor 8/cupsColorOrder 0/cupsCompression 0>>setpagedevice\"\n");
+        cupsFilePrintf(fp, "*ColorModel RGB: \"<</cupsColorSpace 19/cupsBitsPerColor 8/cupsColorOrder 0/cupsCompression 0>>setpagedevice\"\n*%s.ColorModel RGB/%s: \"\"\n", lang->language, _cupsLangString(lang, _("Color")));
 
 	default_color = "RGB";
+      }
+      else if (!strcasecmp(keyword, "adobe-rgb_16") || !strcmp(keyword, "ADOBERGB48"))
+      {
+        if (!default_color)
+	  cupsFilePrintf(fp, "*OpenUI *ColorModel: PickOne\n"
+			     "*OrderDependency: 10 AnySetup *ColorModel\n"
+			     "*%s.Translation ColorModel/%s: \"\"\n", lang->language, _cupsLangString(lang, _("Color Mode")));
+
+        cupsFilePrintf(fp, "*ColorModel AdobeRGB: \"<</cupsColorSpace 20/cupsBitsPerColor 16/cupsColorOrder 0/cupsCompression 0>>setpagedevice\"\n*%s.ColorModel AdobeRGB/%s: \"\"\n", lang->language, _cupsLangString(lang, _("Deep Color")));
+
+        if (!default_color)
+	  default_color = "AdobeRGB";
       }
     }
 
@@ -3349,15 +3724,48 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
 
   if ((attr = ippFindAttribute(response, "sides-supported", IPP_TAG_KEYWORD)) != NULL && ippContainsString(attr, "two-sided-long-edge"))
   {
-    cupsFilePuts(fp, "*OpenUI *Duplex/2-Sided Printing: PickOne\n"
-                     "*OrderDependency: 10 AnySetup *Duplex\n"
-                     "*DefaultDuplex: None\n"
-                     "*Duplex None/Off (1-Sided): \"<</Duplex false>>setpagedevice\"\n"
-                     "*Duplex DuplexNoTumble/Long-Edge (Portrait): \"<</Duplex true/Tumble false>>setpagedevice\"\n"
-                     "*Duplex DuplexTumble/Short-Edge (Landscape): \"<</Duplex true/Tumble true>>setpagedevice\"\n"
-                     "*CloseUI: *Duplex\n");
+    cupsFilePrintf(fp, "*OpenUI *Duplex: PickOne\n"
+		       "*OrderDependency: 10 AnySetup *Duplex\n"
+		       "*%s.Translation Duplex/%s: \"\"\n"
+		       "*DefaultDuplex: None\n"
+		       "*Duplex None: \"<</Duplex false>>setpagedevice\"\n"
+		       "*%s.Duplex None/%s: \"\"\n"
+		       "*Duplex DuplexNoTumble: \"<</Duplex true/Tumble false>>setpagedevice\"\n"
+		       "*%s.Duplex DuplexNoTumble/%s: \"\"\n"
+		       "*Duplex DuplexTumble: \"<</Duplex true/Tumble true>>setpagedevice\"\n"
+		       "*%s.Duplex DuplexTumble/%s: \"\"\n"
+		       "*CloseUI: *Duplex\n", lang->language, _cupsLangString(lang, _("2-Sided Printing")), lang->language, _cupsLangString(lang, _("Off (1-Sided)")), lang->language, _cupsLangString(lang, _("Long-Edge (Portrait)")), lang->language, _cupsLangString(lang, _("Short-Edge (Landscape)")));
 
-    if ((attr = ippFindAttribute(response, "pwg-raster-document-sheet-back", IPP_TAG_KEYWORD)) != NULL)
+    if ((attr = ippFindAttribute(response, "urf-supported", IPP_TAG_KEYWORD)) != NULL)
+    {
+      for (i = 0, count = ippGetCount(attr); i < count; i ++)
+      {
+        const char *dm = ippGetString(attr, i, NULL);
+                                        /* DM value */
+
+        if (!_cups_strcasecmp(dm, "DM1"))
+        {
+          cupsFilePuts(fp, "*cupsBackSide: Normal\n");
+          break;
+        }
+        else if (!_cups_strcasecmp(dm, "DM2"))
+        {
+          cupsFilePuts(fp, "*cupsBackSide: Flipped\n");
+          break;
+        }
+        else if (!_cups_strcasecmp(dm, "DM3"))
+        {
+          cupsFilePuts(fp, "*cupsBackSide: Rotated\n");
+          break;
+        }
+        else if (!_cups_strcasecmp(dm, "DM4"))
+        {
+          cupsFilePuts(fp, "*cupsBackSide: ManualTumble\n");
+          break;
+        }
+      }
+    }
+    else if ((attr = ippFindAttribute(response, "pwg-raster-document-sheet-back", IPP_TAG_KEYWORD)) != NULL)
     {
       const char *keyword = ippGetString(attr, 0, NULL);
 					/* Keyword value */
@@ -3371,74 +3779,312 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
       else
         cupsFilePuts(fp, "*cupsBackSide: Rotated\n");
     }
-    else if ((attr = ippFindAttribute(response, "urf-supported", IPP_TAG_KEYWORD)) != NULL)
-    {
-      for (i = 0, count = ippGetCount(attr); i < count; i ++)
-      {
-	const char *dm = ippGetString(attr, i, NULL);
-					  /* DM value */
+  }
 
-	if (!_cups_strcasecmp(dm, "DM1"))
-	{
-	  cupsFilePuts(fp, "*cupsBackSide: Normal\n");
-	  break;
-	}
-	else if (!_cups_strcasecmp(dm, "DM2"))
-	{
-	  cupsFilePuts(fp, "*cupsBackSide: Flipped\n");
-	  break;
-	}
-	else if (!_cups_strcasecmp(dm, "DM3"))
-	{
-	  cupsFilePuts(fp, "*cupsBackSide: Rotated\n");
-	  break;
-	}
-	else if (!_cups_strcasecmp(dm, "DM4"))
-	{
-	  cupsFilePuts(fp, "*cupsBackSide: ManualTumble\n");
-	  break;
-	}
+ /*
+  * Output bin...
+  */
+
+  if ((attr = ippFindAttribute(response, "output-bin-default", IPP_TAG_ZERO)) != NULL)
+    pwg_ppdize_name(ippGetString(attr, 0, NULL), ppdname, sizeof(ppdname));
+  else
+    strlcpy(ppdname, "Unknown", sizeof(ppdname));
+
+  if ((attr = ippFindAttribute(response, "output-bin-supported", IPP_TAG_ZERO)) != NULL && (count = ippGetCount(attr)) > 1)
+  {
+    ipp_attribute_t	*trays = ippFindAttribute(response, "printer-output-tray", IPP_TAG_STRING);
+					/* printer-output-tray attribute, if any */
+    const char		*tray_ptr;	/* printer-output-tray value */
+    int			tray_len;	/* Len of printer-output-tray value */
+    char		tray[IPP_MAX_OCTETSTRING];
+					/* printer-output-tray string value */
+    static const char * const output_bins[][2] =
+    {					/* "output-bin" strings */
+      { "auto", _("Automatic") },
+      { "bottom", _("Bottom Tray") },
+      { "center", _("Center Tray") },
+      { "face-down", _("Face Down") },
+      { "face-up", _("Face Up") },
+      { "large-capacity", _("Large Capacity Tray") },
+      { "left", _("Left Tray") },
+      { "mailbox-1", _("Mailbox 1") },
+      { "mailbox-2", _("Mailbox 2") },
+      { "mailbox-3", _("Mailbox 3") },
+      { "mailbox-4", _("Mailbox 4") },
+      { "mailbox-5", _("Mailbox 5") },
+      { "mailbox-6", _("Mailbox 6") },
+      { "mailbox-7", _("Mailbox 7") },
+      { "mailbox-8", _("Mailbox 8") },
+      { "mailbox-9", _("Mailbox 9") },
+      { "mailbox-10", _("Mailbox 10") },
+      { "middle", _("Middle") },
+      { "my-mailbox", _("My Mailbox") },
+      { "rear", _("Rear Tray") },
+      { "right", _("Right Tray") },
+      { "side", _("Side Tray") },
+      { "stacker-1", _("Stacker 1") },
+      { "stacker-2", _("Stacker 2") },
+      { "stacker-3", _("Stacker 3") },
+      { "stacker-4", _("Stacker 4") },
+      { "stacker-5", _("Stacker 5") },
+      { "stacker-6", _("Stacker 6") },
+      { "stacker-7", _("Stacker 7") },
+      { "stacker-8", _("Stacker 8") },
+      { "stacker-9", _("Stacker 9") },
+      { "stacker-10", _("Stacker 10") },
+      { "top", _("Top Tray") },
+      { "tray-1", _("Tray 1") },
+      { "tray-2", _("Tray 2") },
+      { "tray-3", _("Tray 3") },
+      { "tray-4", _("Tray 4") },
+      { "tray-5", _("Tray 5") },
+      { "tray-6", _("Tray 6") },
+      { "tray-7", _("Tray 7") },
+      { "tray-8", _("Tray 8") },
+      { "tray-9", _("Tray 9") },
+      { "tray-10", _("Tray 10") }
+    };
+
+    cupsFilePrintf(fp, "*OpenUI *OutputBin: PickOne\n"
+                       "*OrderDependency: 10 AnySetup *OutputBin\n"
+                       "*DefaultOutputBin: %s\n", ppdname);
+    if (!strcmp(ppdname, "FaceUp"))
+      cupsFilePuts(fp, "*DefaultOutputOrder: Reverse\n");
+    else
+      cupsFilePuts(fp, "*DefaultOutputOrder: Normal\n");
+
+    for (i = 0; i < (int)(sizeof(output_bins) / sizeof(output_bins[0])); i ++)
+    {
+      if (!ippContainsString(attr, output_bins[i][0]))
+        continue;
+
+      pwg_ppdize_name(output_bins[i][0], ppdname, sizeof(ppdname));
+
+      cupsFilePrintf(fp, "*OutputBin %s: \"\"\n", ppdname);
+      cupsFilePrintf(fp, "*%s.OutputBin %s/%s: \"\"\n", lang->language, ppdname, _cupsLangString(lang, output_bins[i][1]));
+
+      if ((tray_ptr = ippGetOctetString(trays, i, &tray_len)) != NULL)
+      {
+        if (tray_len >= (int)sizeof(tray))
+          tray_len = (int)sizeof(tray) - 1;
+
+        memcpy(tray, tray_ptr, (size_t)tray_len);
+        tray[tray_len] = '\0';
+
+        if (strstr(tray, "stackingorder=lastToFirst;"))
+          cupsFilePrintf(fp, "*PageStackOrder %s: Reverse\n", ppdname);
+        else
+          cupsFilePrintf(fp, "*PageStackOrder %s: Normal\n", ppdname);
       }
+      else if (!strcmp(ppdname, "FaceUp"))
+	cupsFilePrintf(fp, "*PageStackOrder %s: Reverse\n", ppdname);
+      else
+	cupsFilePrintf(fp, "*PageStackOrder %s: Normal\n", ppdname);
     }
+    cupsFilePuts(fp, "*CloseUI: *OutputBin\n");
+  }
+
+ /*
+  * Finishing options...
+  *
+  * Eventually need to re-add support for finishings-col-database, however
+  * it is difficult to map arbitrary finishing-template values to PPD options
+  * and have the right constraints apply (e.g. stapling vs. folding vs.
+  * punching, etc.)
+  */
+
+  if ((attr = ippFindAttribute(response, "finishings-supported", IPP_TAG_ENUM)) != NULL)
+  {
+    const char		*name;		/* String name */
+    int			value;		/* Enum value */
+    cups_array_t	*names;		/* Names we've added */
+
+    count = ippGetCount(attr);
+    names = cupsArrayNew3((cups_array_func_t)strcmp, NULL, NULL, 0, (cups_acopy_func_t)strdup, (cups_afree_func_t)free);
+
+   /*
+    * Staple/Bind/Stitch
+    */
+
+    for (i = 0; i < count; i ++)
+    {
+      value = ippGetInteger(attr, i);
+      name  = ippEnumString("finishings", value);
+
+      if (!strncmp(name, "staple-", 7) || !strncmp(name, "bind-", 5) || !strncmp(name, "edge-stitch-", 12) || !strcmp(name, "saddle-stitch"))
+        break;
+    }
+
+    if (i < count)
+    {
+      cupsFilePuts(fp, "*OpenUI *StapleLocation: PickOne\n");
+      cupsFilePuts(fp, "*OrderDependency: 10 AnySetup *StapleLocation\n");
+      cupsFilePrintf(fp, "*%s.Translation StapleLocation/%s: \"\"\n", lang->language, _cupsLangString(lang, _("Staple")));
+      cupsFilePuts(fp, "*DefaultStapleLocation: None\n");
+      cupsFilePuts(fp, "*StapleLocation None: \"\"\n");
+      cupsFilePrintf(fp, "*%s.StapleLocation None/%s: \"\"\n", lang->language, _cupsLangString(lang, _("None")));
+
+      for (; i < count; i ++)
+      {
+        value = ippGetInteger(attr, i);
+        name  = ippEnumString("finishings", value);
+
+        if (strncmp(name, "staple-", 7) && strncmp(name, "bind-", 5) && strncmp(name, "edge-stitch-", 12) && strcmp(name, "saddle-stitch"))
+          continue;
+
+        if (cupsArrayFind(names, (char *)name))
+          continue;			/* Already did this finishing template */
+
+        cupsArrayAdd(names, (char *)name);
+
+        for (j = 0; j < (int)(sizeof(finishings) / sizeof(finishings[0])); j ++)
+        {
+          if (!strcmp(finishings[j][0], name))
+          {
+            cupsFilePrintf(fp, "*StapleLocation %s: \"\"\n", name);
+            cupsFilePrintf(fp, "*%s.StapleLocation %s/%s: \"\"\n", lang->language, name, _cupsLangString(lang, finishings[j][1]));
+            cupsFilePrintf(fp, "*cupsIPPFinishings %d/%s: \"*StapleLocation %s\"\n", value, name, name);
+            break;
+          }
+        }
+      }
+
+      cupsFilePuts(fp, "*CloseUI: *StapleLocation\n");
+    }
+
+   /*
+    * Fold
+    */
+
+    for (i = 0; i < count; i ++)
+    {
+      value = ippGetInteger(attr, i);
+      name  = ippEnumString("finishings", value);
+
+      if (!strncmp(name, "fold-", 5))
+        break;
+    }
+
+    if (i < count)
+    {
+      cupsFilePuts(fp, "*OpenUI *FoldType: PickOne\n");
+      cupsFilePuts(fp, "*OrderDependency: 10 AnySetup *FoldType\n");
+      cupsFilePrintf(fp, "*%s.Translation FoldType/%s: \"\"\n", lang->language, _cupsLangString(lang, _("Fold")));
+      cupsFilePuts(fp, "*DefaultFoldType: None\n");
+      cupsFilePuts(fp, "*FoldType None: \"\"\n");
+      cupsFilePrintf(fp, "*%s.FoldType None/%s: \"\"\n", lang->language, _cupsLangString(lang, _("None")));
+
+      for (; i < count; i ++)
+      {
+        value = ippGetInteger(attr, i);
+        name  = ippEnumString("finishings", value);
+
+        if (strncmp(name, "fold-", 5))
+          continue;
+
+        if (cupsArrayFind(names, (char *)name))
+          continue;			/* Already did this finishing template */
+
+        cupsArrayAdd(names, (char *)name);
+
+        for (j = 0; j < (int)(sizeof(finishings) / sizeof(finishings[0])); j ++)
+        {
+          if (!strcmp(finishings[j][0], name))
+          {
+            cupsFilePrintf(fp, "*FoldType %s: \"\"\n", name);
+            cupsFilePrintf(fp, "*%s.FoldType %s/%s: \"\"\n", lang->language, name, _cupsLangString(lang, finishings[j][1]));
+            cupsFilePrintf(fp, "*cupsIPPFinishings %d/%s: \"*FoldType %s\"\n", value, name, name);
+            break;
+          }
+        }
+      }
+
+      cupsFilePuts(fp, "*CloseUI: *FoldType\n");
+    }
+
+   /*
+    * Punch
+    */
+
+    for (i = 0; i < count; i ++)
+    {
+      value = ippGetInteger(attr, i);
+      name  = ippEnumString("finishings", value);
+
+      if (!strncmp(name, "punch-", 6))
+        break;
+    }
+
+    if (i < count)
+    {
+      cupsFilePuts(fp, "*OpenUI *PunchMedia: PickOne\n");
+      cupsFilePuts(fp, "*OrderDependency: 10 AnySetup *PunchMedia\n");
+      cupsFilePrintf(fp, "*%s.Translation PunchMedia/%s: \"\"\n", lang->language, _cupsLangString(lang, _("Punch")));
+      cupsFilePuts(fp, "*DefaultPunchMedia: None\n");
+      cupsFilePuts(fp, "*PunchMedia None: \"\"\n");
+      cupsFilePrintf(fp, "*%s.PunchMedia None/%s: \"\"\n", lang->language, _cupsLangString(lang, _("None")));
+
+      for (i = 0; i < count; i ++)
+      {
+        value = ippGetInteger(attr, i);
+        name  = ippEnumString("finishings", value);
+
+        if (strncmp(name, "punch-", 6))
+          continue;
+
+        if (cupsArrayFind(names, (char *)name))
+          continue;			/* Already did this finishing template */
+
+        cupsArrayAdd(names, (char *)name);
+
+        for (j = 0; j < (int)(sizeof(finishings) / sizeof(finishings[0])); j ++)
+        {
+          if (!strcmp(finishings[j][0], name))
+          {
+            cupsFilePrintf(fp, "*PunchMedia %s: \"\"\n", name);
+            cupsFilePrintf(fp, "*%s.PunchMedia %s/%s: \"\"\n", lang->language, name, _cupsLangString(lang, finishings[j][1]));
+            cupsFilePrintf(fp, "*cupsIPPFinishings %d/%s: \"*PunchMedia %s\"\n", value, name, name);
+            break;
+          }
+        }
+      }
+
+      cupsFilePuts(fp, "*CloseUI: *PunchMedia\n");
+    }
+
+   /*
+    * Booklet
+    */
+
+    if (ippContainsInteger(attr, IPP_FINISHINGS_BOOKLET_MAKER))
+    {
+      cupsFilePuts(fp, "*OpenUI *Booklet: Boolean\n");
+      cupsFilePuts(fp, "*OrderDependency: 10 AnySetup *Booklet\n");
+      cupsFilePrintf(fp, "*%s.Translation Booklet/%s: \"\"\n", lang->language, _cupsLangString(lang, _("Booklet")));
+      cupsFilePuts(fp, "*DefaultBooklet: False\n");
+      cupsFilePuts(fp, "*Booklet False: \"\"\n");
+      cupsFilePuts(fp, "*Booklet True: \"\"\n");
+      cupsFilePrintf(fp, "*cupsIPPFinishings %d/booklet-maker: \"*Booklet True\"\n", IPP_FINISHINGS_BOOKLET_MAKER);
+      cupsFilePuts(fp, "*CloseUI: *Booklet\n");
+    }
+
+    cupsArrayDelete(names);
   }
 
  /*
   * cupsPrintQuality and DefaultResolution...
   */
 
-  if ((attr = ippFindAttribute(response, "pwg-raster-document-resolution-supported", IPP_TAG_RESOLUTION)) != NULL)
+  quality = ippFindAttribute(response, "print-quality-supported", IPP_TAG_ENUM);
+
+  if ((attr = ippFindAttribute(response, "urf-supported", IPP_TAG_KEYWORD)) != NULL)
   {
-    count = ippGetCount(attr);
-
-    pwg_ppdize_resolution(attr, count / 2, &xres, &yres, ppdname, sizeof(ppdname));
-    cupsFilePrintf(fp, "*DefaultResolution: %s\n", ppdname);
-
-    cupsFilePuts(fp, "*OpenUI *cupsPrintQuality/Print Quality: PickOne\n"
-                     "*OrderDependency: 10 AnySetup *cupsPrintQuality\n"
-                     "*DefaultcupsPrintQuality: Normal\n");
-    if (count > 2)
-    {
-      pwg_ppdize_resolution(attr, 0, &xres, &yres, NULL, 0);
-      cupsFilePrintf(fp, "*cupsPrintQuality Draft: \"<</HWResolution[%d %d]>>setpagedevice\"\n", xres, yres);
-    }
-    pwg_ppdize_resolution(attr, count / 2, &xres, &yres, NULL, 0);
-    cupsFilePrintf(fp, "*cupsPrintQuality Normal: \"<</HWResolution[%d %d]>>setpagedevice\"\n", xres, yres);
-    if (count > 1)
-    {
-      pwg_ppdize_resolution(attr, count - 1, &xres, &yres, NULL, 0);
-      cupsFilePrintf(fp, "*cupsPrintQuality High: \"<</HWResolution[%d %d]>>setpagedevice\"\n", xres, yres);
-    }
-
-    cupsFilePuts(fp, "*CloseUI: *cupsPrintQuality\n");
-  }
-  else if ((attr = ippFindAttribute(response, "urf-supported", IPP_TAG_KEYWORD)) != NULL)
-  {
-    int lowdpi = 0, hidpi = 0;		/* Lower and higher resolution */
+    int lowdpi = 0, hidpi = 0;    /* Lower and higher resolution */
 
     for (i = 0, count = ippGetCount(attr); i < count; i ++)
     {
       const char *rs = ippGetString(attr, i, NULL);
-					/* RS value */
+          /* RS value */
 
       if (_cups_strncasecmp(rs, "RS", 2))
         continue;
@@ -3457,7 +4103,7 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
       * Invalid "urf-supported" value...
       */
 
-      cupsFilePuts(fp, "*DefaultResolution: 300dpi\n");
+      goto bad_ppd;
     }
     else
     {
@@ -3467,24 +4113,121 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
 
       cupsFilePrintf(fp, "*DefaultResolution: %ddpi\n", lowdpi);
 
-      cupsFilePuts(fp, "*OpenUI *cupsPrintQuality/Print Quality: PickOne\n"
-		       "*OrderDependency: 10 AnySetup *cupsPrintQuality\n"
-		       "*DefaultcupsPrintQuality: Normal\n");
+      cupsFilePrintf(fp, "*OpenUI *cupsPrintQuality: PickOne\n"
+			 "*OrderDependency: 10 AnySetup *cupsPrintQuality\n"
+			 "*%s.Translation cupsPrintQuality/%s: \"\"\n"
+			 "*DefaultcupsPrintQuality: Normal\n", lang->language, _cupsLangString(lang, _("Print Quality")));
       if ((lowdpi & 1) == 0)
-	cupsFilePrintf(fp, "*cupsPrintQuality Draft: \"<</HWResolution[%d %d]>>setpagedevice\"\n", lowdpi, lowdpi / 2);
-      cupsFilePrintf(fp, "*cupsPrintQuality Normal: \"<</HWResolution[%d %d]>>setpagedevice\"\n", lowdpi, lowdpi);
-      if (hidpi > lowdpi)
-	cupsFilePrintf(fp, "*cupsPrintQuality High: \"<</HWResolution[%d %d]>>setpagedevice\"\n", hidpi, hidpi);
+	cupsFilePrintf(fp, "*cupsPrintQuality Draft: \"<</HWResolution[%d %d]>>setpagedevice\"\n*%s.cupsPrintQuality Draft/%s: \"\"\n", lowdpi, lowdpi / 2, lang->language, _cupsLangString(lang, _("Draft")));
+      else if (ippContainsInteger(quality, IPP_QUALITY_DRAFT))
+	cupsFilePrintf(fp, "*cupsPrintQuality Draft: \"<</HWResolution[%d %d]>>setpagedevice\"\n*%s.cupsPrintQuality Draft/%s: \"\"\n", lowdpi, lowdpi, lang->language, _cupsLangString(lang, _("Draft")));
+
+      cupsFilePrintf(fp, "*cupsPrintQuality Normal: \"<</HWResolution[%d %d]>>setpagedevice\"\n*%s.cupsPrintQuality Normal/%s: \"\"\n", lowdpi, lowdpi, lang->language, _cupsLangString(lang, _("Normal")));
+
+      if (hidpi > lowdpi || ippContainsInteger(quality, IPP_QUALITY_HIGH))
+  cupsFilePrintf(fp, "*cupsPrintQuality High: \"<</HWResolution[%d %d]>>setpagedevice\"\n*%s.cupsPrintQuality High/%s: \"\"\n", hidpi, hidpi, lang->language, _cupsLangString(lang, _("High")));
       cupsFilePuts(fp, "*CloseUI: *cupsPrintQuality\n");
     }
   }
-  else if ((attr = ippFindAttribute(response, "printer-resolution-default", IPP_TAG_RESOLUTION)) != NULL)
+  else if ((attr = ippFindAttribute(response, "pwg-raster-document-resolution-supported", IPP_TAG_RESOLUTION)) != NULL)
   {
-    pwg_ppdize_resolution(attr, 0, &xres, &yres, ppdname, sizeof(ppdname));
+   /*
+    * Make a sorted list of resolutions.
+    */
+
+    count = ippGetCount(attr);
+    if (count > (int)(sizeof(resolutions) / sizeof(resolutions[0])))
+      count = (int)(sizeof(resolutions) / sizeof(resolutions[0]));
+
+    resolutions[0] = 0; /* Not in loop to silence Clang static analyzer... */
+    for (i = 1; i < count; i ++)
+      resolutions[i] = i;
+
+    for (i = 0; i < (count - 1); i ++)
+    {
+      for (j = i + 1; j < count; j ++)
+      {
+        int       ix, iy,               /* First X and Y resolution */
+                  jx, jy,               /* Second X and Y resolution */
+                  temp;                 /* Swap variable */
+        ipp_res_t units;                /* Resolution units */
+
+        ix = ippGetResolution(attr, resolutions[i], &iy, &units);
+        jx = ippGetResolution(attr, resolutions[j], &jy, &units);
+
+        if (ix > jx || (ix == jx && iy > jy))
+        {
+         /*
+          * Swap these two resolutions...
+          */
+
+          temp           = resolutions[i];
+          resolutions[i] = resolutions[j];
+          resolutions[j] = temp;
+        }
+      }
+    }
+
+   /*
+    * Generate print quality options...
+    */
+
+    pwg_ppdize_resolution(attr, resolutions[count / 2], &xres, &yres, ppdname, sizeof(ppdname));
     cupsFilePrintf(fp, "*DefaultResolution: %s\n", ppdname);
+
+    cupsFilePrintf(fp, "*OpenUI *cupsPrintQuality: PickOne\n"
+		       "*OrderDependency: 10 AnySetup *cupsPrintQuality\n"
+		       "*%s.Translation cupsPrintQuality/%s: \"\"\n"
+		       "*DefaultcupsPrintQuality: Normal\n", lang->language, _cupsLangString(lang, _("Print Quality")));
+    if (count > 2 || ippContainsInteger(quality, IPP_QUALITY_DRAFT))
+    {
+      pwg_ppdize_resolution(attr, resolutions[0], &xres, &yres, NULL, 0);
+      cupsFilePrintf(fp, "*cupsPrintQuality Draft: \"<</HWResolution[%d %d]>>setpagedevice\"\n", xres, yres);
+      cupsFilePrintf(fp, "*%s.cupsPrintQuality Draft/%s: \"\"\n", lang->language, _cupsLangString(lang, _("Draft")));
+    }
+
+    pwg_ppdize_resolution(attr, resolutions[count / 2], &xres, &yres, NULL, 0);
+    cupsFilePrintf(fp, "*cupsPrintQuality Normal: \"<</HWResolution[%d %d]>>setpagedevice\"\n", xres, yres);
+    cupsFilePrintf(fp, "*%s.cupsPrintQuality Normal/%s: \"\"\n", lang->language, _cupsLangString(lang, _("Normal")));
+
+    if (count > 1 || ippContainsInteger(quality, IPP_QUALITY_HIGH))
+    {
+      pwg_ppdize_resolution(attr, resolutions[count - 1], &xres, &yres, NULL, 0);
+      cupsFilePrintf(fp, "*cupsPrintQuality High: \"<</HWResolution[%d %d]>>setpagedevice\"\n", xres, yres);
+      cupsFilePrintf(fp, "*%s.cupsPrintQuality High/%s: \"\"\n", lang->language, _cupsLangString(lang, _("High")));
+    }
+
+    cupsFilePuts(fp, "*CloseUI: *cupsPrintQuality\n");
   }
+  else if (is_apple || is_pwg)
+    goto bad_ppd;
   else
-    cupsFilePuts(fp, "*DefaultResolution: 300dpi\n");
+  {
+    if ((attr = ippFindAttribute(response, "printer-resolution-default", IPP_TAG_RESOLUTION)) != NULL)
+    {
+      pwg_ppdize_resolution(attr, 0, &xres, &yres, ppdname, sizeof(ppdname));
+    }
+    else
+    {
+      xres = yres = 300;
+      strlcpy(ppdname, "300dpi", sizeof(ppdname));
+    }
+
+    cupsFilePrintf(fp, "*DefaultResolution: %s\n", ppdname);
+
+    cupsFilePrintf(fp, "*OpenUI *cupsPrintQuality: PickOne\n"
+                       "*OrderDependency: 10 AnySetup *cupsPrintQuality\n"
+                       "*%s.Translation cupsPrintQuality/%s: \"\"\n"
+                       "*DefaultcupsPrintQuality: Normal\n", lang->language, _cupsLangString(lang, _("Print Quality")));
+    if (ippContainsInteger(quality, IPP_QUALITY_DRAFT))
+      cupsFilePrintf(fp, "*cupsPrintQuality Draft: \"<</HWResolution[%d %d]>>setpagedevice\"\n*%s.cupsPrintQuality Draft/%s: \"\"\n", xres, yres, lang->language, _cupsLangString(lang, _("Draft")));
+
+    cupsFilePrintf(fp, "*cupsPrintQuality Normal: \"<</HWResolution[%d %d]>>setpagedevice\"\n*%s.cupsPrintQuality Normal/%s: \"\"\n", xres, yres, lang->language, _cupsLangString(lang, _("Normal")));
+
+    if (ippContainsInteger(quality, IPP_QUALITY_HIGH))
+      cupsFilePrintf(fp, "*cupsPrintQuality High: \"<</HWResolution[%d %d]>>setpagedevice\"\n*%s.cupsPrintQuality High/%s: \"\"\n", xres, yres, lang->language, _cupsLangString(lang, _("High")));
+    cupsFilePuts(fp, "*CloseUI: *cupsPrintQuality\n");
+  }
 
  /*
   * Close up and return...
@@ -3493,6 +4236,20 @@ _ppdCreateFromIPP(char   *buffer,	/* I - Filename buffer */
   cupsFileClose(fp);
 
   return (buffer);
+
+ /*
+  * If we get here then there was a problem creating the PPD...
+  */
+
+  bad_ppd:
+
+  cupsFileClose(fp);
+  unlink(buffer);
+  *buffer = '\0';
+
+  _cupsSetError(IPP_STATUS_ERROR_INTERNAL, _("Printer does not support required IPP attributes or document formats."), 1);
+
+  return (NULL);
 }
 
 
@@ -3652,10 +4409,34 @@ _pwgPageSizeForMedia(
 
 
 /*
+ * 'pwg_add_finishing()' - Add a finishings value.
+ */
+
+static void
+pwg_add_finishing(
+    cups_array_t     *finishings,	/* I - Finishings array */
+    ipp_finishings_t template,		/* I - Finishing template */
+    const char       *name,		/* I - PPD option */
+    const char       *value)		/* I - PPD choice */
+{
+  _pwg_finishings_t	*f;		/* New finishings value */
+
+
+  if ((f = (_pwg_finishings_t *)calloc(1, sizeof(_pwg_finishings_t))) != NULL)
+  {
+    f->value       = template;
+    f->num_options = cupsAddOption(name, value, 0, &f->options);
+
+    cupsArrayAdd(finishings, f);
+  }
+}
+
+
+/*
  * 'pwg_compare_finishings()' - Compare two finishings values.
  */
 
-static int				/* O- Result of comparison */
+static int				/* O - Result of comparison */
 pwg_compare_finishings(
     _pwg_finishings_t *a,		/* I - First finishings value */
     _pwg_finishings_t *b)		/* I - Second finishings value */
@@ -3678,22 +4459,6 @@ pwg_free_finishings(
 
 
 /*
- * 'pwg_free_material()' - Free a material value.
- */
-
-static void
-pwg_free_material(_pwg_material_t *m)	/* I - Material value */
-{
-  _cupsStrFree(m->key);
-  _cupsStrFree(m->name);
-
-  cupsFreeOptions(m->num_props, m->props);
-
-  free(m);
-}
-
-
-/*
  * 'pwg_ppdize_name()' - Convert an IPP keyword to a PPD keyword.
  */
 
@@ -3706,11 +4471,17 @@ pwg_ppdize_name(const char *ipp,	/* I - IPP keyword */
 	*end;				/* End of name buffer */
 
 
+  if (!ipp)
+  {
+    *name = '\0';
+    return;
+  }
+
   *name = (char)toupper(*ipp++);
 
   for (ptr = name + 1, end = name + namesize - 1; *ipp && ptr < end;)
   {
-    if (*ipp == '-' && _cups_isalpha(ipp[1]))
+    if (*ipp == '-' && _cups_isalnum(ipp[1]))
     {
       ipp ++;
       *ptr++ = (char)toupper(*ipp++ & 255);
@@ -3808,8 +4579,3 @@ pwg_unppdize_name(const char *ppd,	/* I - PPD keyword */
 
   *ptr = '\0';
 }
-
-
-/*
- * End of "$Id: ppd-cache.c 12980 2015-11-17 21:23:32Z msweet $".
- */

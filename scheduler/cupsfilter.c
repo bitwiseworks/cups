@@ -1,16 +1,14 @@
 /*
- * "$Id: cupsfilter.c 12304 2014-12-09 16:16:28Z msweet $"
- *
  * Filtering program for CUPS.
  *
- * Copyright 2007-2014 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 1997-2006 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -84,7 +82,7 @@ static int		open_pipe(int *fds);
 static int		read_cups_files_conf(const char *filename);
 static void		set_string(char **s, const char *val);
 static void		sighandler(int sig);
-static void		usage(const char *opt) __attribute__((noreturn));
+static void		usage(const char *opt) _CUPS_NORETURN;
 
 
 /*
@@ -822,7 +820,7 @@ exec_filter(const char *filter,		/* I - Filter to execute */
 
 
  /*
-  * Add special voodoo magic for MacOS X - this allows MacOS X
+  * Add special voodoo magic for macOS - this allows macOS
   * programs to access their bundle resources properly...
   */
 
@@ -1498,8 +1496,3 @@ usage(const char *opt)			/* I - Incorrect option, if any */
 
   exit(1);
 }
-
-
-/*
- * End of "$Id: cupsfilter.c 12304 2014-12-09 16:16:28Z msweet $".
- */

@@ -1,16 +1,14 @@
 /*
- * "$Id: mantohtml.c 12362 2014-12-12 19:50:49Z msweet $"
- *
  * Man page to HTML conversion program.
  *
- * Copyright 2007-2010, 2014 by Apple Inc.
+ * Copyright 2007-2017 by Apple Inc.
  * Copyright 2004-2006 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -515,7 +513,7 @@ main(int  argc,				/* I - Number of command-line args */
 	float amount = 3.0;		/* Indentation */
 
         if (line[3])
-          amount = atof(line + 4);
+          amount = (float)atof(line + 4);
 
 	fputs(end_fonts[font], outfile);
 	font = 0;
@@ -561,7 +559,7 @@ main(int  argc,				/* I - Number of command-line args */
 	float amount = 3.0;		/* Indentation */
 
         if (line[3])
-          amount = atof(line + 4);
+          amount = (float)atof(line + 4);
 
 	fputs(end_fonts[font], outfile);
 	font = 0;
@@ -594,7 +592,7 @@ main(int  argc,				/* I - Number of command-line args */
 	float amount = 3.0;		/* Indentation */
 
         if (line[3])
-          amount = atof(line + 4);
+          amount = (float)atof(line + 4);
 
 	fputs(end_fonts[font], outfile);
 	font = 0;
@@ -682,7 +680,7 @@ main(int  argc,				/* I - Number of command-line args */
           lineptr ++;
 
         if (isdigit(*lineptr & 255))
-          amount = atof(lineptr);
+          amount = (float)atof(lineptr);
 
         if (newlist && list && strcmp(newlist, list))
         {
@@ -974,7 +972,8 @@ html_alternate(const char *s,		/* I - String */
     {
       if (*s == '\"')
         quote = !quote;
-      else if (*s == '\\' && s[1])
+
+      if (*s == '\\' && s[1])
       {
         s ++;
         html_putc(*s++, fp);
@@ -1154,8 +1153,11 @@ html_fputs(const char *s,		/* I  - String */
       }
       else
       {
-        if (*s != '\\' && *s == '\"' && *s == '\'' && *s == '-')
+        if (*s != '\\' && *s != '\"' && *s != '\'' && *s != '-')
+        {
           fprintf(stderr, "mantohtml: Unrecognized escape \"\\%c\" ignored.\n", *s);
+          html_putc('\\', fp);
+        }
 
         html_putc(*s++, fp);
       }
@@ -1218,8 +1220,3 @@ strmove(char       *d,			/* I - Destination */
 
   *d = '\0';
 }
-
-
-/*
- * End of "$Id: mantohtml.c 12362 2014-12-12 19:50:49Z msweet $".
- */

@@ -1,18 +1,16 @@
 #
-# "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $"
+# Port monitor makefile for CUPS.
 #
-#   Port monitor makefile for CUPS.
+# Copyright 2007-2017 by Apple Inc.
+# Copyright 2006 by Easy Software Products.
 #
-#   Copyright 2007-2012 by Apple Inc.
-#   Copyright 2006 by Easy Software Products.
+# These coded instructions, statements, and computer programs are the
+# property of Apple Inc. and are protected by Federal copyright
+# law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+# which should have been included with this file.  If this file is
+# missing or damaged, see the license at "http://www.cups.org/".
 #
-#   These coded instructions, statements, and computer programs are the
-#   property of Apple Inc. and are protected by Federal copyright
-#   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
-#   which should have been included with this file.  If this file is
-#   file is missing or damaged, see the license at "http://www.cups.org/".
-#
-#   This file is subject to the Apple OS-Developed Software exception.
+# This file is subject to the Apple OS-Developed Software exception.
 #
 
 include ../Makedefs
@@ -123,7 +121,8 @@ uninstall:
 
 bcp:	bcp.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ bcp.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ bcp.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -132,7 +131,8 @@ bcp:	bcp.o ../cups/$(LIBCUPS)
 
 tbcp:	tbcp.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ tbcp.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ tbcp.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -140,8 +140,3 @@ tbcp:	tbcp.o ../cups/$(LIBCUPS)
 #
 
 include Dependencies
-
-
-#
-# End of "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $".
-#

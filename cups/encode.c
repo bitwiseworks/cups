@@ -1,16 +1,14 @@
 /*
- * "$Id: encode.c 13064 2016-01-27 16:05:09Z msweet $"
- *
  * Option encoding routines for CUPS.
  *
- * Copyright 2007-2016 by Apple Inc.
+ * Copyright 2007-2017 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -281,6 +279,7 @@ static const _ipp_option_t ipp_options[] =
   { 0, "printer-info",		IPP_TAG_TEXT,		IPP_TAG_PRINTER },
   { 0, "printer-is-accepting-jobs", IPP_TAG_BOOLEAN,	IPP_TAG_PRINTER },
   { 0, "printer-is-shared",	IPP_TAG_BOOLEAN,	IPP_TAG_PRINTER },
+  { 0, "printer-is-temporary",	IPP_TAG_BOOLEAN,	IPP_TAG_PRINTER },
   { 0, "printer-location",	IPP_TAG_TEXT,		IPP_TAG_PRINTER },
   { 0, "printer-make-and-model", IPP_TAG_TEXT,		IPP_TAG_PRINTER },
   { 0, "printer-more-info",	IPP_TAG_URI,		IPP_TAG_PRINTER },
@@ -330,7 +329,7 @@ static int	compare_ipp_options(_ipp_option_t *a, _ipp_option_t *b);
  * 'cupsEncodeOptions()' - Encode printer options into IPP attributes.
  *
  * This function adds operation, job, and then subscription attributes,
- * in that order. Use the cupsEncodeOptions2() function to add attributes
+ * in that order. Use the @link cupsEncodeOptions2@ function to add attributes
  * for a single group.
  */
 
@@ -339,7 +338,7 @@ cupsEncodeOptions(ipp_t         *ipp,		/* I - Request to add to */
         	  int           num_options,	/* I - Number of options */
 		  cups_option_t *options)	/* I - Options */
 {
-  DEBUG_printf(("cupsEncodeOptions(%p, %d, %p)", ipp, num_options, options));
+  DEBUG_printf(("cupsEncodeOptions(%p, %d, %p)", (void *)ipp, num_options, (void *)options));
 
  /*
   * Add the options in the proper groups & order...
@@ -355,10 +354,10 @@ cupsEncodeOptions(ipp_t         *ipp,		/* I - Request to add to */
  * 'cupsEncodeOptions2()' - Encode printer options into IPP attributes for a group.
  *
  * This function only adds attributes for a single group. Call this
- * function multiple times for each group, or use cupsEncodeOptions()
+ * function multiple times for each group, or use @link cupsEncodeOptions@
  * to add the standard groups.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 void
@@ -385,10 +384,7 @@ cupsEncodeOptions2(
   const ipp_op_t	*ops;		/* List of allowed operations */
 
 
-  DEBUG_printf(("cupsEncodeOptions2(ipp=%p(%s), num_options=%d, options=%p, "
-                "group_tag=%x)", ipp,
-                ipp ? ippOpString(ippGetOperation(ipp)) : "", num_options,
-                options, group_tag));
+  DEBUG_printf(("cupsEncodeOptions2(ipp=%p(%s), num_options=%d, options=%p, group_tag=%x)", (void *)ipp, ipp ? ippOpString(ippGetOperation(ipp)) : "", num_options, (void *)options, group_tag));
 
  /*
   * Range check input...
@@ -850,8 +846,3 @@ compare_ipp_options(_ipp_option_t *a,	/* I - First option */
 {
   return (strcmp(a->name, b->name));
 }
-
-
-/*
- * End of "$Id: encode.c 13064 2016-01-27 16:05:09Z msweet $".
- */

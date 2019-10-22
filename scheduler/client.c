@@ -1,10 +1,8 @@
 /*
- * "$Id: client.c 13061 2016-01-26 21:31:40Z msweet $"
- *
  * Client routines for the CUPS scheduler.
  *
- * Copyright 2007-2015 by Apple Inc.
- * Copyright 1997-2007 by Easy Software Products, all rights reserved.
+ * Copyright © 2007-2018 by Apple Inc.
+ * Copyright © 1997-2007 by Easy Software Products, all rights reserved.
  *
  * This file contains Kerberos support code, copyright 2006 by
  * Jelmer Vernooij.
@@ -13,7 +11,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -87,6 +85,8 @@ cupsdAcceptClient(cupsd_listener_t *lis)/* I - Listener socket */
   if (cupsArrayCount(Clients) == MaxClients)
     return;
 
+  cupsdSetBusyState(1);
+
  /*
   * Get a pointer to the next available client...
   */
@@ -143,7 +143,12 @@ cupsdAcceptClient(cupsd_listener_t *lis)/* I - Listener socket */
   * Save the connected address and port number...
   */
 
-  con->clientaddr = lis->address;
+  addrlen = sizeof(con->clientaddr);
+
+  if (getsockname(httpGetFd(con->http), (struct sockaddr *)&con->clientaddr, &addrlen) || addrlen == 0)
+    con->clientaddr = lis->address;
+
+  cupsdLogClient(con, CUPSD_LOG_DEBUG, "Server address is \"%s\".", httpAddrString(&con->clientaddr, name, sizeof(name)));
 
  /*
   * Check the number of clients on the same address...
@@ -436,7 +441,7 @@ cupsdCloseClient(cupsd_client_t *con)	/* I - Client to close */
   if (httpGetFd(con->http) >= 0)
   {
     cupsArrayRemove(ActiveClients, con);
-    cupsdSetBusyState();
+    cupsdSetBusyState(0);
 
 #ifdef HAVE_SSL
    /*
@@ -563,6 +568,17 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 
   cupsdLogClient(con, CUPSD_LOG_DEBUG2, "cupsdReadClient: error=%d, used=%d, state=%s, data_encoding=HTTP_ENCODING_%s, data_remaining=" CUPS_LLFMT ", request=%p(%s), file=%d", httpError(con->http), (int)httpGetReady(con->http), httpStateString(httpGetState(con->http)), httpIsChunked(con->http) ? "CHUNKED" : "LENGTH", CUPS_LLCAST httpGetRemaining(con->http), con->request, con->request ? ippStateString(ippGetState(con->request)) : "", con->file);
 
+  if (httpError(con->http) == EPIPE && !httpGetReady(con->http) && recv(httpGetFd(con->http), buf, 1, MSG_PEEK) < 1)
+  {
+   /*
+    * Connection closed...
+    */
+
+    cupsdLogClient(con, CUPSD_LOG_DEBUG, "Closing on EOF.");
+    cupsdCloseClient(con);
+    return;
+  }
+
   if (httpGetState(con->http) == HTTP_STATE_GET_SEND ||
       httpGetState(con->http) == HTTP_STATE_POST_SEND ||
       httpGetState(con->http) == HTTP_STATE_STATUS)
@@ -571,17 +587,6 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
     * If we get called in the wrong state, then something went wrong with the
     * connection and we need to shut it down...
     */
-
-    if (!httpGetReady(con->http) && recv(httpGetFd(con->http), buf, 1, MSG_PEEK) < 1)
-    {
-     /*
-      * Connection closed...
-      */
-
-      cupsdLogClient(con, CUPSD_LOG_DEBUG, "Closing on EOF.");
-      cupsdCloseClient(con);
-      return;
-    }
 
     cupsdLogClient(con, CUPSD_LOG_DEBUG, "Closing on unexpected HTTP read state %s.", httpStateString(httpGetState(con->http)));
     cupsdCloseClient(con);
@@ -757,7 +762,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
         if (!cupsArrayFind(ActiveClients, con))
 	{
 	  cupsArrayAdd(ActiveClients, con);
-          cupsdSetBusyState();
+          cupsdSetBusyState(0);
         }
 
     case HTTP_STATE_OPTIONS :
@@ -809,10 +814,22 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
   * Handle new transfers...
   */
 
-  cupsdLogClient(con, CUPSD_LOG_DEBUG, "Read: status=%d", status);
+  cupsdLogClient(con, CUPSD_LOG_DEBUG, "Read: status=%d, state=%d", status, httpGetState(con->http));
 
   if (status == HTTP_STATUS_OK)
   {
+   /*
+    * Record whether the client is a web browser.  "Mozilla" was the original
+    * and it seems that every web browser in existence now uses that as the
+    * prefix with additional information identifying *which* browser.
+    *
+    * Chrome (at least) has problems with multiple WWW-Authenticate values in
+    * a single header, so we only report Basic or Negotiate to web browsers and
+    * leave the multiple choices to the native CUPS client...
+    */
+
+    con->is_browser = !strncmp(httpGetField(con->http, HTTP_FIELD_USER_AGENT), "Mozilla/", 8);
+
     if (httpGetField(con->http, HTTP_FIELD_ACCEPT_LANGUAGE)[0])
     {
      /*
@@ -2079,7 +2096,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
     else
     {
       cupsArrayRemove(ActiveClients, con);
-      cupsdSetBusyState();
+      cupsdSetBusyState(0);
     }
   }
 }
@@ -2192,6 +2209,7 @@ cupsdSendError(cupsd_client_t *con,	/* I - Connection */
   strlcpy(location, httpGetField(con->http, HTTP_FIELD_LOCATION), sizeof(location));
 
   httpClearFields(con->http);
+  httpClearCookie(con->http);
 
   httpSetField(con->http, HTTP_FIELD_LOCATION, location);
 
@@ -2345,20 +2363,20 @@ cupsdSendHeader(
     auth_str[0] = '\0';
 
     if (auth_type == CUPSD_AUTH_BASIC)
+    {
       strlcpy(auth_str, "Basic realm=\"CUPS\"", sizeof(auth_str));
-#ifdef HAVE_GSSAPI
+    }
     else if (auth_type == CUPSD_AUTH_NEGOTIATE)
     {
-#  ifdef AF_LOCAL
+#if defined(SO_PEERCRED) && defined(AF_LOCAL)
       if (httpAddrFamily(httpGetAddress(con->http)) == AF_LOCAL)
-        strlcpy(auth_str, "Basic realm=\"CUPS\"", sizeof(auth_str));
+	strlcpy(auth_str, "PeerCred", sizeof(auth_str));
       else
-#  endif /* AF_LOCAL */
+#endif /* SO_PEERCRED && AF_LOCAL */
       strlcpy(auth_str, "Negotiate", sizeof(auth_str));
     }
-#endif /* HAVE_GSSAPI */
 
-    if (con->best && auth_type != CUPSD_AUTH_NEGOTIATE &&
+    if (con->best && auth_type != CUPSD_AUTH_NEGOTIATE && !con->is_browser &&
         !_cups_strcasecmp(httpGetHostname(con->http, NULL, 0), "localhost"))
     {
      /*
@@ -2366,25 +2384,38 @@ cupsdSendHeader(
       * requests when the request requires system group membership - then the
       * client knows the root certificate can/should be used.
       *
-      * Also, for OS X we also look for @AUTHKEY and add an "authkey"
-      * parameter as needed...
+      * Also, for macOS we also look for @AUTHKEY and add an "AuthRef key=foo"
+      * method as needed...
       */
 
       char	*name,			/* Current user name */
 		*auth_key;		/* Auth key buffer */
       size_t	auth_size;		/* Size of remaining buffer */
+      int	need_local = 1;		/* Do we need to list "Local" method? */
 
       auth_key  = auth_str + strlen(auth_str);
       auth_size = sizeof(auth_str) - (size_t)(auth_key - auth_str);
+
+#if defined(SO_PEERCRED) && defined(AF_LOCAL)
+      if (httpAddrFamily(httpGetAddress(con->http)) == AF_LOCAL)
+      {
+        strlcpy(auth_key, ", PeerCred", auth_size);
+        auth_key += 10;
+        auth_size -= 10;
+      }
+#endif /* SO_PEERCRED && AF_LOCAL */
 
       for (name = (char *)cupsArrayFirst(con->best->names);
            name;
 	   name = (char *)cupsArrayNext(con->best->names))
       {
+        cupsdLogClient(con, CUPSD_LOG_DEBUG2, "cupsdSendHeader: require \"%s\"", name);
+
 #ifdef HAVE_AUTHORIZATION_H
 	if (!_cups_strncasecmp(name, "@AUTHKEY(", 9))
 	{
-	  snprintf(auth_key, auth_size, ", authkey=\"%s\"", name + 9);
+	  snprintf(auth_key, auth_size, ", AuthRef key=\"%s\", Local trc=\"y\"", name + 9);
+	  need_local = 0;
 	  /* end parenthesis is stripped in conf.c */
 	  break;
         }
@@ -2394,16 +2425,17 @@ cupsdSendHeader(
 	{
 #ifdef HAVE_AUTHORIZATION_H
 	  if (SystemGroupAuthKey)
-	    snprintf(auth_key, auth_size,
-	             ", authkey=\"%s\"",
-		     SystemGroupAuthKey);
+	    snprintf(auth_key, auth_size, ", AuthRef key=\"%s\", Local trc=\"y\"", SystemGroupAuthKey);
           else
-#else
-	  strlcpy(auth_key, ", trc=\"y\"", auth_size);
 #endif /* HAVE_AUTHORIZATION_H */
+	  strlcpy(auth_key, ", Local trc=\"y\"", auth_size);
+	  need_local = 0;
 	  break;
 	}
       }
+
+      if (need_local)
+	strlcat(auth_key, ", Local", auth_size);
     }
 
     if (auth_str[0])
@@ -2806,7 +2838,7 @@ cupsdWriteClient(cupsd_client_t *con)	/* I - Client connection */
     else
     {
       cupsArrayRemove(ActiveClients, con);
-      cupsdSetBusyState();
+      cupsdSetBusyState(0);
     }
   }
 }
@@ -3626,42 +3658,12 @@ pipe_command(cupsd_client_t *con,	/* I - Client connection */
   else
     auth_type[0] = '\0';
 
-  if (con->request &&
-      (attr = ippFindAttribute(con->request, "attributes-natural-language",
-                               IPP_TAG_LANGUAGE)) != NULL)
+  if (con->request && (attr = ippFindAttribute(con->request, "attributes-natural-language", IPP_TAG_LANGUAGE)) != NULL)
   {
-    switch (strlen(attr->values[0].string.text))
-    {
-      default :
-	 /*
-	  * This is an unknown or badly formatted language code; use
-	  * the POSIX locale...
-	  */
+    cups_lang_t *language = cupsLangGet(ippGetString(attr, 0, NULL));
 
-	  strlcpy(lang, "LANG=C", sizeof(lang));
-	  break;
-
-      case 2 :
-	 /*
-	  * Just the language code (ll)...
-	  */
-
-	  snprintf(lang, sizeof(lang), "LANG=%s.UTF8",
-		   attr->values[0].string.text);
-	  break;
-
-      case 5 :
-	 /*
-	  * Language and country code (ll-cc)...
-	  */
-
-	  snprintf(lang, sizeof(lang), "LANG=%c%c_%c%c.UTF8",
-		   attr->values[0].string.text[0],
-		   attr->values[0].string.text[1],
-		   toupper(attr->values[0].string.text[3] & 255),
-		   toupper(attr->values[0].string.text[4] & 255));
-	  break;
-    }
+    snprintf(lang, sizeof(lang), "LANG=%s.UTF8", language->language);
+    cupsLangFree(language);
   }
   else if (con->language)
     snprintf(lang, sizeof(lang), "LANG=%s.UTF8", con->language->language);
@@ -3887,9 +3889,6 @@ valid_host(cupsd_client_t *con)		/* I - Client connection */
 
     return (!_cups_strcasecmp(con->clientname, "localhost") ||
 	    !_cups_strcasecmp(con->clientname, "localhost.") ||
-#ifdef __linux
-	    !_cups_strcasecmp(con->clientname, "localhost.localdomain") ||
-#endif /* __linux */
             !strcmp(con->clientname, "127.0.0.1") ||
 	    !strcmp(con->clientname, "[::1]"));
   }
@@ -4074,8 +4073,3 @@ write_pipe(cupsd_client_t *con)		/* I - Client connection */
 
   cupsdLogClient(con, CUPSD_LOG_DEBUG, "CGI data ready to be sent.");
 }
-
-
-/*
- * End of "$Id: client.c 13061 2016-01-26 21:31:40Z msweet $".
- */

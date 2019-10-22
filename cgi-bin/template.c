@@ -1,6 +1,4 @@
 /*
- * "$Id: template.c 12700 2015-06-08 18:32:35Z msweet $"
- *
  * CGI template function.
  *
  * Copyright 2007-2015 by Apple Inc.
@@ -10,7 +8,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 #include "cgi-private.h"
@@ -683,8 +681,3 @@ cgi_puturi(const char *s,		/* I - String to output */
     s ++;
   }
 }
-
-
-/*
- * End of "$Id: template.c 12700 2015-06-08 18:32:35Z msweet $".
- */

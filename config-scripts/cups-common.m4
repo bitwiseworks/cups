@@ -1,38 +1,22 @@
 dnl
-dnl "$Id: cups-common.m4 12852 2015-08-28 13:29:21Z msweet $"
-dnl
 dnl Common configuration stuff for CUPS.
 dnl
-dnl Copyright 2007-2015 by Apple Inc.
+dnl Copyright 2007-2019 by Apple Inc.
 dnl Copyright 1997-2007 by Easy Software Products, all rights reserved.
 dnl
 dnl These coded instructions, statements, and computer programs are the
 dnl property of Apple Inc. and are protected by Federal copyright
 dnl law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 dnl which should have been included with this file.  If this file is
-dnl file is missing or damaged, see the license at "http://www.cups.org/".
+dnl missing or damaged, see the license at "http://www.cups.org/".
 dnl
 
 dnl Set the name of the config header file...
 AC_CONFIG_HEADER(config.h)
 
 dnl Version number information...
-CUPS_VERSION=2.1.3
-
-case "$CUPS_VERSION" in
-	*svn)
-		if test -z "$CUPS_REVISION" -a -d .svn; then
-			CUPS_REVISION="-r`svnversion . | awk -F: '{print $NF}' | sed -e '1,$s/[[a-zA-Z]]*//g'`"
-		else
-			CUPS_REVISION=""
-		fi
-		;;
-
-	*)
-		CUPS_REVISION=""
-		;;
-esac
-
+CUPS_VERSION="AC_PACKAGE_VERSION"
+CUPS_REVISION=""
 CUPS_BUILD="cups-$CUPS_VERSION"
 
 AC_ARG_WITH(cups_build, [  --with-cups-build       set "cups-config --build" string ],
@@ -58,25 +42,26 @@ AC_PROG_CXX(clang++ c++ g++)
 AC_PROG_RANLIB
 AC_PATH_PROG(AR,ar)
 AC_PATH_PROG(CHMOD,chmod)
-AC_PATH_PROG(GZIP,gzip)
+AC_PATH_PROG(GZIPPROG,gzip)
+AC_MSG_CHECKING(for install-sh script)
+INSTALL="`pwd`/install-sh"
+AC_SUBST(INSTALL)
+AC_MSG_RESULT(using $INSTALL)
 AC_PATH_PROG(LD,ld)
 AC_PATH_PROG(LN,ln)
+AC_PATH_PROG(MKDIR,mkdir)
 AC_PATH_PROG(MV,mv)
 AC_PATH_PROG(RM,rm)
 AC_PATH_PROG(RMDIR,rmdir)
 AC_PATH_PROG(SED,sed)
 AC_PATH_PROG(XDGOPEN,xdg-open)
+
 if test "x$XDGOPEN" = x; then
 	CUPS_HTMLVIEW="htmlview"
 else
 	CUPS_HTMLVIEW="$XDGOPEN"
 fi
 AC_SUBST(CUPS_HTMLVIEW)
-
-AC_MSG_CHECKING(for install-sh script)
-INSTALL="`pwd`/install-sh"
-AC_SUBST(INSTALL)
-AC_MSG_RESULT(using $INSTALL)
 
 if test "x$AR" = x; then
 	AC_MSG_ERROR([Unable to find required library archive command.])
@@ -145,7 +130,6 @@ AC_CHECK_HEADER(bstring.h,AC_DEFINE(HAVE_BSTRING_H))
 AC_CHECK_HEADER(sys/ioctl.h,AC_DEFINE(HAVE_SYS_IOCTL_H))
 AC_CHECK_HEADER(sys/param.h,AC_DEFINE(HAVE_SYS_PARAM_H))
 AC_CHECK_HEADER(sys/ucred.h,AC_DEFINE(HAVE_SYS_UCRED_H))
-AC_CHECK_HEADER(asl.h,AC_DEFINE(HAVE_ASL_H))
 
 dnl Checks for iconv.h and iconv_open
 AC_CHECK_HEADER(iconv.h,
@@ -178,7 +162,7 @@ AC_CHECK_FUNCS(statfs statvfs)
 
 dnl Checks for string functions.
 AC_CHECK_FUNCS(strdup strlcat strlcpy)
-if test "$uname" = "HP-UX" -a "$uversion" = "1020"; then
+if test "$host_os_name" = "hp-ux" -a "$host_os_version" = "1020"; then
 	echo Forcing snprintf emulation for HP-UX.
 else
 	AC_CHECK_FUNCS(snprintf vsnprintf)
@@ -197,8 +181,8 @@ dnl Check for vsyslog function.
 AC_CHECK_FUNCS(vsyslog)
 
 dnl Checks for signal functions.
-case "$uname" in
-	Linux | GNU)
+case "$host_os_name" in
+	linux* | gnu*)
 		# Do not use sigset on Linux or GNU HURD
 		;;
 	*)
@@ -214,6 +198,9 @@ AC_CHECK_FUNCS(waitpid wait3)
 
 dnl Check for posix_spawn
 AC_CHECK_FUNCS(posix_spawn)
+
+dnl Check for getgrouplist
+AC_CHECK_FUNCS(getgrouplist)
 
 dnl See if the tm structure has the tm_gmtoff member...
 AC_MSG_CHECKING(for tm_gmtoff member in tm structure)
@@ -243,7 +230,7 @@ AC_SUBST(LIBUSB)
 AC_SUBST(USBQUIRKS)
 
 if test "x$PKGCONFIG" != x; then
-	if test x$enable_libusb != xno -a $uname != Darwin; then
+	if test x$enable_libusb != xno -a $host_os_name != darwin; then
 		AC_MSG_CHECKING(for libusb-1.0)
 		if $PKGCONFIG --exists libusb-1.0; then
 			AC_MSG_RESULT(yes)
@@ -279,20 +266,20 @@ dnl ZLIB
 INSTALL_GZIP=""
 LIBZ=""
 AC_CHECK_HEADER(zlib.h,
-    AC_CHECK_LIB(z, gzgets,
+    AC_CHECK_LIB(z, gzgets,[
 	AC_DEFINE(HAVE_LIBZ)
 	LIBZ="-lz"
 	LIBS="$LIBS -lz"
 	AC_CHECK_LIB(z, inflateCopy, AC_DEFINE(HAVE_INFLATECOPY))
-	if test "x$GZIP" != z; then
+	if test "x$GZIPPROG" != x; then
 		INSTALL_GZIP="-z"
-	fi))
+	fi]))
 AC_SUBST(INSTALL_GZIP)
 AC_SUBST(LIBZ)
 
 dnl Flags for "ar" command...
-case $uname in
-        Darwin* | *BSD*)
+case $host_os_name in
+        darwin* | *bsd*)
                 ARFLAGS="-rcv"
                 ;;
         *)
@@ -319,7 +306,7 @@ fi
 LIBS="$SAVELIBS"
 
 dnl Check for DBUS support
-AC_ARG_ENABLE(dbus, [  --disable-dbus           build without DBUS support])
+AC_ARG_ENABLE(dbus, [  --disable-dbus          build without DBUS support])
 AC_ARG_WITH(dbusdir, [  --with-dbusdir          set DBUS configuration directory ],
 	DBUSDIR="$withval")
 
@@ -327,7 +314,7 @@ DBUSDIR=""
 DBUS_NOTIFIER=""
 DBUS_NOTIFIERLIBS=""
 
-if test "x$enable_dbus" != xno -a "x$PKGCONFIG" != x -a "x$uname" != xDarwin; then
+if test "x$enable_dbus" != xno -a "x$PKGCONFIG" != x -a "x$host_os_name" != xdarwin; then
 	AC_MSG_CHECKING(for DBUS)
 	if $PKGCONFIG --exists dbus-1; then
 		AC_MSG_RESULT(yes)
@@ -361,8 +348,8 @@ CUPS_DEFAULT_SYSTEM_AUTHKEY=""
 CUPS_SYSTEM_AUTHKEY=""
 INSTALLXPC=""
 
-case $uname in
-        Darwin*)
+case $host_os_name in
+        darwin*)
                 BACKLIBS="$BACKLIBS -framework IOKit"
                 SERVERLIBS="$SERVERLIBS -framework IOKit -weak_framework ApplicationServices"
                 LIBS="-framework SystemConfiguration -framework CoreFoundation -framework Security $LIBS"
@@ -402,28 +389,23 @@ case $uname in
 			if test "x$default_adminkey" != xdefault; then
 				CUPS_SYSTEM_AUTHKEY="SystemGroupAuthKey $default_adminkey"
 				CUPS_DEFAULT_SYSTEM_AUTHKEY="$default_adminkey"
-			elif grep -q system.print.operator /etc/authorization; then
+			else
 				CUPS_SYSTEM_AUTHKEY="SystemGroupAuthKey system.print.admin"
 				CUPS_DEFAULT_SYSTEM_AUTHKEY="system.print.admin"
-			else
-				CUPS_SYSTEM_AUTHKEY="SystemGroupAuthKey system.preferences"
-				CUPS_DEFAULT_SYSTEM_AUTHKEY="system.preferences"
 			fi
 
 			if test "x$default_operkey" != xdefault; then
 				CUPS_DEFAULT_PRINTOPERATOR_AUTH="@AUTHKEY($default_operkey) @admin @lpadmin"
-			elif grep -q system.print.operator /etc/authorization; then
-				CUPS_DEFAULT_PRINTOPERATOR_AUTH="@AUTHKEY(system.print.operator) @admin @lpadmin"
 			else
-				CUPS_DEFAULT_PRINTOPERATOR_AUTH="@AUTHKEY(system.print.admin) @admin @lpadmin"
+				CUPS_DEFAULT_PRINTOPERATOR_AUTH="@AUTHKEY(system.print.operator) @admin @lpadmin"
 			fi])
 		AC_CHECK_HEADER(Security/SecBasePriv.h,AC_DEFINE(HAVE_SECBASEPRIV_H))
 
 		dnl Check for sandbox/Seatbelt support
-		if test $uversion -ge 100; then
+		if test $host_os_version -ge 100; then
 			AC_CHECK_HEADER(sandbox.h,AC_DEFINE(HAVE_SANDBOX_H))
 		fi
-		if test $uversion -ge 110 -a $uversion -lt 120; then
+		if test $host_os_version -ge 110 -a $host_os_version -lt 120; then
 			# Broken public headers in 10.7.x...
 			AC_MSG_CHECKING(for sandbox/private.h presence)
 			if test -f /usr/local/include/sandbox/private.h; then
@@ -472,7 +454,3 @@ case "$COMPONENTS" in
 esac
 
 AC_SUBST(BUILDDIRS)
-
-dnl
-dnl End of "$Id: cups-common.m4 12852 2015-08-28 13:29:21Z msweet $".
-dnl

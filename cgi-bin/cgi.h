@@ -1,16 +1,14 @@
 /*
- * "$Id: cgi.h 10996 2013-05-29 11:51:34Z msweet $"
+ * CGI support library definitions for CUPS.
  *
- *   CGI support library definitions for CUPS.
+ * Copyright 2007-2010 by Apple Inc.
+ * Copyright 1997-2006 by Easy Software Products.
  *
- *   Copyright 2007-2010 by Apple Inc.
- *   Copyright 1997-2006 by Easy Software Products.
- *
- *   These coded instructions, statements, and computer programs are the
- *   property of Apple Inc. and are protected by Federal copyright
- *   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
- *   which should have been included with this file.  If this file is
- *   file is missing or damaged, see the license at "http://www.cups.org/".
+ * These coded instructions, statements, and computer programs are the
+ * property of Apple Inc. and are protected by Federal copyright
+ * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+ * which should have been included with this file.  If this file is
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 #ifndef _CUPS_CGI_H_
@@ -21,12 +19,12 @@
 #  include <time.h>
 #  include <sys/stat.h>
 
-#  ifdef WIN32
+#  ifdef _WIN32
 #    include <direct.h>
 #    include <io.h>
 #  else
 #    include <unistd.h>
-#  endif /* WIN32 */
+#  endif /* _WIN32 */
 
 #  include <cups/cups.h>
 #  include <cups/array.h>
@@ -113,7 +111,3 @@ extern const char	*cgiText(const char *message);
 #  endif /* __cplusplus */
 
 #endif /* !_CUPS_CGI_H_ */
-
-/*
- * End of "$Id: cgi.h 10996 2013-05-29 11:51:34Z msweet $".
- */

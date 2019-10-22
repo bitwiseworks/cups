@@ -1,6 +1,4 @@
 //
-// "$Id: genstrings.cxx 11800 2014-04-08 19:53:57Z msweet $"
-//
 // GNU gettext message generator for the CUPS PPD Compiler.
 //
 // This program is used to generate a dummy source file containing all of
@@ -13,7 +11,7 @@
 // property of Apple Inc. and are protected by Federal copyright
 // law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 // which should have been included with this file.  If this file is
-// file is missing or damaged, see the license at "http://www.cups.org/".
+// missing or damaged, see the license at "http://www.cups.org/".
 //
 // Usage:
 //
@@ -201,8 +199,3 @@ write_cstring(const char *s)		/* I - String to write */
   }
   puts("\");");
 }
-
-
-//
-// End of "$Id: genstrings.cxx 11800 2014-04-08 19:53:57Z msweet $".
-//

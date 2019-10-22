@@ -1,16 +1,14 @@
 /*
- * "$Id: string.c 11889 2014-05-22 13:54:15Z msweet $"
- *
  * String functions for CUPS.
  *
- * Copyright 2007-2014 by Apple Inc.
- * Copyright 1997-2007 by Easy Software Products.
+ * Copyright © 2007-2019 by Apple Inc.
+ * Copyright © 1997-2007 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -318,21 +316,20 @@ _cupsStrFree(const char *s)		/* I - String to free */
 
   key = (_cups_sp_item_t *)(s - offsetof(_cups_sp_item_t, str));
 
-#ifdef DEBUG_GUARDS
-  if (key->guard != _CUPS_STR_GUARD)
-  {
-    DEBUG_printf(("5_cupsStrFree: Freeing string %p(%s), guard=%08x, "
-                  "ref_count=%d", key, key->str, key->guard, key->ref_count));
-    abort();
-  }
-#endif /* DEBUG_GUARDS */
-
   if ((item = (_cups_sp_item_t *)cupsArrayFind(stringpool, key)) != NULL &&
       item == key)
   {
    /*
     * Found it, dereference...
     */
+
+#ifdef DEBUG_GUARDS
+    if (key->guard != _CUPS_STR_GUARD)
+    {
+      DEBUG_printf(("5_cupsStrFree: Freeing string %p(%s), guard=%08x, ref_count=%d", key, key->str, key->guard, key->ref_count));
+      abort();
+    }
+#endif /* DEBUG_GUARDS */
 
     item->ref_count --;
 
@@ -697,10 +694,11 @@ _cups_strlcat(char       *dst,		/* O - Destination string */
   */
 
   dstlen = strlen(dst);
-  size   -= dstlen + 1;
 
-  if (!size)
-    return (dstlen);		/* No room, return immediately... */
+  if (size < (dstlen + 1))
+    return (dstlen);		        /* No room, return immediately... */
+
+  size -= dstlen + 1;
 
  /*
   * Figure out how much room is needed...
@@ -769,8 +767,3 @@ compare_sp_items(_cups_sp_item_t *a,	/* I - First item */
 {
   return (strcmp(a->str, b->str));
 }
-
-
-/*
- * End of "$Id: string.c 11889 2014-05-22 13:54:15Z msweet $".
- */

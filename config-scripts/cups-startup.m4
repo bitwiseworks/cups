@@ -1,16 +1,14 @@
 dnl
-dnl "$Id: cups-startup.m4 12857 2015-08-31 15:00:45Z msweet $"
-dnl
 dnl Launch-on-demand/startup stuff for CUPS.
 dnl
-dnl Copyright 2007-2015 by Apple Inc.
+dnl Copyright 2007-2017 by Apple Inc.
 dnl Copyright 1997-2005 by Easy Software Products, all rights reserved.
 dnl
 dnl These coded instructions, statements, and computer programs are the
 dnl property of Apple Inc. and are protected by Federal copyright
 dnl law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 dnl which should have been included with this file.  If this file is
-dnl file is missing or damaged, see the license at "http://www.cups.org/".
+dnl missing or damaged, see the license at "http://www.cups.org/".
 dnl
 
 ONDEMANDFLAGS=""
@@ -18,30 +16,21 @@ ONDEMANDLIBS=""
 AC_SUBST(ONDEMANDFLAGS)
 AC_SUBST(ONDEMANDLIBS)
 
-dnl Launchd is used on OS X/Darwin...
+dnl Launchd is used on macOS/Darwin...
 AC_ARG_ENABLE(launchd, [  --disable-launchd       disable launchd support])
 LAUNCHD_DIR=""
 AC_SUBST(LAUNCHD_DIR)
 
 if test x$enable_launchd != xno; then
-	AC_CHECK_FUNC(launch_msg, AC_DEFINE(HAVE_LAUNCHD))
-	if test $uversion -ge 140; then
-		AC_CHECK_FUNC(launch_activate_socket, [
-			AC_DEFINE(HAVE_LAUNCHD)
-			AC_DEFINE(HAVE_LAUNCH_ACTIVATE_SOCKET)])
-	fi
+	AC_CHECK_FUNC(launch_activate_socket, [
+		AC_DEFINE(HAVE_LAUNCHD)
+		AC_DEFINE(HAVE_ONDEMAND)])
 	AC_CHECK_HEADER(launch.h, AC_DEFINE(HAVE_LAUNCH_H))
 
-	case "$uname" in
-		Darwin*)
-			# Darwin, MacOS X
-			LAUNCHD_DIR="/System/Library/LaunchDaemons"
-			# liblaunch is already part of libSystem
-			;;
-		*)
-			# All others; this test will need to be updated
-			;;
-	esac
+	if test "$host_os_name" = darwin; then
+	        LAUNCHD_DIR="/System/Library/LaunchDaemons"
+		# liblaunch is already part of libSystem
+	fi
 fi
 
 dnl Systemd is used on Linux...
@@ -79,12 +68,23 @@ if test x$enable_systemd != xno; then
 
 		if test $have_systemd = yes; then
                         AC_DEFINE(HAVE_SYSTEMD)
+                        AC_DEFINE(HAVE_ONDEMAND)
 			AC_CHECK_HEADER(systemd/sd-journal.h,AC_DEFINE(HAVE_SYSTEMD_SD_JOURNAL_H))
 			if test "x$SYSTEMD_DIR" = x; then
 			        SYSTEMD_DIR="`$PKGCONFIG --variable=systemdsystemunitdir systemd`"
                         fi
                 fi
         fi
+fi
+
+dnl Upstart is also used on Linux (e.g., Chrome OS)
+AC_ARG_ENABLE(upstart, [  --enable-upstart        enable upstart support])
+if test "x$enable_upstart" = "xyes"; then
+	if test "x$have_systemd" = "xyes"; then
+		AC_MSG_ERROR(Cannot support both systemd and upstart.)
+	fi
+	AC_DEFINE(HAVE_UPSTART)
+	AC_DEFINE(HAVE_ONDEMAND)
 fi
 
 dnl Solaris uses smf
@@ -117,13 +117,13 @@ if test x$rcdir = x; then
 fi
 
 if test "x$rcstart" = x; then
-	case "$uname" in
-        	Linux | GNU | GNU/k*BSD*)
+	case "$host_os_name" in
+        	linux* | gnu*)
                 	# Linux
                         rcstart="81"
                       	;;
 
-		SunOS*)
+		sunos*)
 			# Solaris
                         rcstart="81"
 			;;
@@ -136,8 +136,8 @@ if test "x$rcstart" = x; then
 fi
 
 if test "x$rcstop" = x; then
-	case "$uname" in
-        	Linux | GNU | GNU/k*BSD*)
+	case "$host_os_name" in
+        	linux* | gnu*)
                 	# Linux
                         rcstop="36"
                       	;;
@@ -185,8 +185,3 @@ if test "x$xinetd" = x; then
 elif test "x$xinetd" != xno; then
 	XINETD="$xinetd"
 fi
-
-
-dnl
-dnl End of "$Id: cups-startup.m4 12857 2015-08-31 15:00:45Z msweet $".
-dnl

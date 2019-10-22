@@ -1,16 +1,14 @@
 /*
- * "$Id: admin.c 12516 2015-02-12 20:18:11Z msweet $"
- *
  * Administration CGI for CUPS.
  *
- * Copyright 2007-2015 by Apple Inc.
- * Copyright 1997-2007 by Easy Software Products.
+ * Copyright © 2007-2019 by Apple Inc.
+ * Copyright © 1997-2007 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -769,7 +767,7 @@ do_am_class(http_t *http,		/* I - HTTP connection */
     attr = ippAddStrings(request, IPP_TAG_PRINTER, IPP_TAG_URI, "member-uris",
                          num_printers, NULL, NULL);
     for (i = 0; i < num_printers; i ++)
-      attr->values[i].string.text = _cupsStrAlloc(cgiGetArray("MEMBER_URIS", i));
+      ippSetString(request, &attr, i, cgiGetArray("MEMBER_URIS", i));
   }
 
  /*
@@ -1139,6 +1137,8 @@ do_am_printer(http_t *http,		/* I - HTTP connection */
   else if (!file &&
            (!cgiGetVariable("PPD_NAME") || cgiGetVariable("SELECT_MAKE")))
   {
+    int ipp_everywhere = !strncmp(var, "ipp://", 6) || !strncmp(var, "ipps://", 7) || (!strncmp(var, "dnssd://", 8) && (strstr(var, "_ipp._tcp") || strstr(var, "_ipps._tcp")));
+
     if (modify && !cgiGetVariable("SELECT_MAKE"))
     {
      /*
@@ -1284,9 +1284,8 @@ do_am_printer(http_t *http,		/* I - HTTP connection */
         cgiStartHTML(title);
 	if (!cgiGetVariable("PPD_MAKE"))
 	  cgiSetVariable("PPD_MAKE", cgiGetVariable("CURRENT_MAKE"));
-	if (!modify)
-	  cgiSetVariable("CURRENT_MAKE_AND_MODEL",
-	                 cgiGetArray("PPD_MAKE_AND_MODEL", 0));
+        if (ipp_everywhere)
+	  cgiSetVariable("SHOW_IPP_EVERYWHERE", "1");
 	cgiCopyTemplateLang("choose-model.tmpl");
         cgiEndHTML();
       }
@@ -2414,7 +2413,7 @@ do_list_printers(http_t *http)		/* I - HTTP connection */
          attr;
 	 attr = ippFindNextAttribute(response, "device-uri", IPP_TAG_URI))
     {
-      cupsArrayAdd(printer_devices, _cupsStrAlloc(attr->values[0].string.text));
+      cupsArrayAdd(printer_devices, strdup(attr->values[0].string.text));
     }
 
    /*
@@ -2552,7 +2551,7 @@ do_list_printers(http_t *http)		/* I - HTTP connection */
       for (printer_device = (char *)cupsArrayFirst(printer_devices);
            printer_device;
 	   printer_device = (char *)cupsArrayNext(printer_devices))
-        _cupsStrFree(printer_device);
+        free(printer_device);
 
       cupsArrayDelete(printer_devices);
     }
@@ -2949,7 +2948,7 @@ do_set_allowed_users(http_t *http)	/* I - HTTP connection */
         * Add the name...
 	*/
 
-        attr->values[i].string.text = _cupsStrAlloc(ptr);
+        ippSetString(request, &attr, i, ptr);
 
        /*
         * Advance to the next name...
@@ -3411,6 +3410,9 @@ do_set_options(http_t *http,		/* I - HTTP connection */
 
 	      switch (cparam->type)
 	      {
+	        case PPD_CUSTOM_UNKNOWN :
+	            break;
+
 		case PPD_CUSTOM_POINTS :
 		    if (!_cups_strncasecmp(option->defchoice, "Custom.", 7))
 		    {
@@ -3758,8 +3760,8 @@ do_set_options(http_t *http,		/* I - HTTP connection */
 
     attr = ippAddStrings(request, IPP_TAG_PRINTER, IPP_TAG_NAME,
                          "job-sheets-default", 2, NULL, NULL);
-    attr->values[0].string.text = _cupsStrAlloc(cgiGetVariable("job_sheets_start"));
-    attr->values[1].string.text = _cupsStrAlloc(cgiGetVariable("job_sheets_end"));
+    ippSetString(request, &attr, 0, cgiGetVariable("job_sheets_start"));
+    ippSetString(request, &attr, 1, cgiGetVariable("job_sheets_end"));
 
     if ((var = cgiGetVariable("printer_error_policy")) != NULL)
       ippAddString(request, IPP_TAG_PRINTER, IPP_TAG_NAME,
@@ -4010,6 +4012,9 @@ get_option_value(
 
     switch (cparam->type)
     {
+      case PPD_CUSTOM_UNKNOWN :
+          break;
+
       case PPD_CUSTOM_CURVE :
       case PPD_CUSTOM_INVCURVE :
       case PPD_CUSTOM_REAL :
@@ -4088,6 +4093,9 @@ get_option_value(
 
       switch (cparam->type)
       {
+        case PPD_CUSTOM_UNKNOWN :
+            break;
+
 	case PPD_CUSTOM_CURVE :
 	case PPD_CUSTOM_INVCURVE :
 	case PPD_CUSTOM_REAL :
@@ -4221,6 +4229,11 @@ get_printer_ppd(const char *uri,	/* I - Printer URI */
 		host[256],		/* Hostname */
 		resource[256];		/* Resource path */
   int		port;			/* Port number */
+  static const char * const pattrs[] =	/* Printer attributes we need */
+  {
+    "all",
+    "media-col-database"
+  };
 
 
  /*
@@ -4261,6 +4274,7 @@ get_printer_ppd(const char *uri,	/* I - Printer URI */
 
   request = ippNewRequest(IPP_OP_GET_PRINTER_ATTRIBUTES);
   ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", NULL, uri);
+  ippAddStrings(request, IPP_TAG_OPERATION, IPP_TAG_KEYWORD, "requested-attributes",  (int)(sizeof(pattrs) / sizeof(pattrs[0])), NULL, pattrs);
   response = cupsDoRequest(http, request, resource);
 
   if (!_ppdCreateFromIPP(buffer, bufsize, response))
@@ -4274,8 +4288,3 @@ get_printer_ppd(const char *uri,	/* I - Printer URI */
   else
     return (NULL);
 }
-
-
-/*
- * End of "$Id: admin.c 12516 2015-02-12 20:18:11Z msweet $".
- */

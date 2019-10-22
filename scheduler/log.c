@@ -1,16 +1,14 @@
 /*
- * "$Id: log.c 12928 2015-10-23 21:31:58Z msweet $"
- *
  * Log file routines for the CUPS scheduler.
  *
- * Copyright 2007-2015 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -227,20 +225,11 @@ cupsdCheckLogFile(cups_file_t **lf,	/* IO - Log file */
 
       if (*lf == NULL)
       {
-#ifdef HAVE_ASL_H
-	asl_object_t	m;		/* Log message */
-
-	m = asl_new(ASL_TYPE_MSG);
-	asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-	asl_log(NULL, m, ASL_LEVEL_ERR, "Unable to open log file \"%s\" - %s", filename, strerror(errno));
-	asl_release(m);
-
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
         sd_journal_print(LOG_ERR, "Unable to open log file \"%s\" - %s", filename, strerror(errno));
-
 #else
 	syslog(LOG_ERR, "Unable to open log file \"%s\" - %s", filename, strerror(errno));
-#endif /* HAVE_ASL_H */
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
         if (FatalErrors & CUPSD_FATAL_LOG)
 	  cupsdEndProcess(getpid(), 0);
@@ -281,20 +270,12 @@ cupsdCheckLogFile(cups_file_t **lf,	/* IO - Log file */
 
     if ((*lf = cupsFileOpen(filename, "a")) == NULL)
     {
-#ifdef HAVE_ASL_H
-	asl_object_t	m;		/* Log message */
-
-	m = asl_new(ASL_TYPE_MSG);
-	asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-	asl_log(NULL, m, ASL_LEVEL_ERR, "Unable to open log file \"%s\" - %s", filename, strerror(errno));
-	asl_release(m);
-
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
-        sd_journal_print(LOG_ERR, "Unable to open log file \"%s\" - %s", filename, strerror(errno));
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
+      sd_journal_print(LOG_ERR, "Unable to open log file \"%s\" - %s", filename, strerror(errno));
 
 #else
-	syslog(LOG_ERR, "Unable to open log file \"%s\" - %s", filename, strerror(errno));
-#endif /* HAVE_ASL_H */
+      syslog(LOG_ERR, "Unable to open log file \"%s\" - %s", filename, strerror(errno));
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
       if (FatalErrors & CUPSD_FATAL_LOG)
 	cupsdEndProcess(getpid(), 0);
@@ -584,106 +565,18 @@ cupsdLogJob(cupsd_job_t *job,		/* I - Job */
   if (TestConfigFile || !ErrorLog)
     return (1);
 
-  if ((level > LogLevel ||
-       (level == CUPSD_LOG_INFO && LogLevel < CUPSD_LOG_DEBUG)) &&
-      LogDebugHistory <= 0)
+  if (level > LogLevel && LogDebugHistory <= 0)
     return (1);
-
-#ifdef HAVE_ASL_H
-  if (!strcmp(ErrorLog, "syslog"))
-  {
-    asl_object_t	m;		/* Log message */
-    char		job_id[32],	/* job-id string */
-			completed[32];	/* job-impressions-completed string */
-    cupsd_printer_t *printer = job ? (job->printer ? job->printer : (job->dest ? cupsdFindDest(job->dest) : NULL)) : NULL;
-    static const char * const job_states[] =
-    {					/* job-state strings */
-      "Pending",
-      "PendingHeld",
-      "Processing",
-      "ProcessingStopped",
-      "Canceled",
-      "Aborted",
-      "Completed"
-    };
-
-    m = asl_new(ASL_TYPE_MSG);
-    asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-    if (printer)
-      asl_set(m, PWG_ServiceURI, printer->uri);
-    if (job)
-    {
-      snprintf(job_id, sizeof(job_id), "%d", job->id);
-
-      asl_set(m, PWG_Event, "JobStateChanged");
-      asl_set(m, PWG_JobID, job_id);
-      asl_set(m, PWG_JobState, job->state_value < IPP_JSTATE_PENDING ? "" : job_states[job->state_value - IPP_JSTATE_PENDING]);
-
-      if (job->impressions)
-      {
-	snprintf(completed, sizeof(completed), "%d", ippGetInteger(job->impressions, 0));
-	asl_set(m, PWG_JobImpressionsCompleted, completed);
-      }
-    }
-
-    va_start(ap, message);
-    asl_vlog(NULL, m, log_levels[level], message, ap);
-    va_end(ap);
-
-    asl_release(m);
-    return (1);
-  }
-
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
-  if (!strcmp(ErrorLog, "syslog"))
-  {
-    cupsd_printer_t *printer = job ? (job->printer ? job->printer : (job->dest ? cupsdFindDest(job->dest) : NULL)) : NULL;
-    static const char * const job_states[] =
-    {					/* job-state strings */
-      "Pending",
-      "PendingHeld",
-      "Processing",
-      "ProcessingStopped",
-      "Canceled",
-      "Aborted",
-      "Completed"
-    };
-
-    va_start(ap, message);
-
-    do
-    {
-      va_copy(ap2, ap);
-      status = format_log_line(message, ap2);
-      va_end(ap2);
-    }
-    while (status == 0);
-
-    va_end(ap);
-
-    if (job)
-      sd_journal_send("MESSAGE=%s", log_line,
-		      "PRIORITY=%i", log_levels[level],
-		      PWG_Event"=JobStateChanged",
-		      PWG_ServiceURI"=%s", printer ? printer->uri : "",
-		      PWG_JobID"=%d", job->id,
-		      PWG_JobState"=%s", job->state_value < IPP_JSTATE_PENDING ? "" : job_states[job->state_value - IPP_JSTATE_PENDING],
-		      PWG_JobImpressionsCompleted"=%d", ippGetInteger(job->impressions, 0),
-		      NULL);
-    else
-      sd_journal_send("MESSAGE=%s", log_line,
-		      "PRIORITY=%i", log_levels[level],
-		      NULL);
-
-    return (1);
-  }
-#endif /* HAVE_ASL_H */
 
  /*
   * Format and write the log message...
   */
 
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
+  if (job && strcmp(ErrorLog, "syslog"))
+#else
   if (job)
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
     snprintf(jobmsg, sizeof(jobmsg), "[Job %d] %s", job->id, message);
   else
     strlcpy(jobmsg, message, sizeof(jobmsg));
@@ -702,10 +595,7 @@ cupsdLogJob(cupsd_job_t *job,		/* I - Job */
 
   if (status > 0)
   {
-    if (job &&
-        (level > LogLevel ||
-         (level == CUPSD_LOG_INFO && LogLevel < CUPSD_LOG_DEBUG)) &&
-	LogDebugHistory > 0)
+    if (job && level > LogLevel && LogDebugHistory > 0)
     {
      /*
       * Add message to the job history...
@@ -744,9 +634,44 @@ cupsdLogJob(cupsd_job_t *job,		/* I - Job */
 
       return (1);
     }
-    else if (level <= LogLevel &&
-             (level != CUPSD_LOG_INFO || LogLevel >= CUPSD_LOG_DEBUG))
+    else if (level <= LogLevel)
+    {
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
+      if (!strcmp(ErrorLog, "syslog"))
+      {
+	cupsd_printer_t *printer = job ? (job->printer ? job->printer : (job->dest ? cupsdFindDest(job->dest) : NULL)) : NULL;
+	static const char * const job_states[] =
+	{					/* job-state strings */
+	  "Pending",
+	  "PendingHeld",
+	  "Processing",
+	  "ProcessingStopped",
+	  "Canceled",
+	  "Aborted",
+	  "Completed"
+	};
+
+	if (job)
+	  sd_journal_send("MESSAGE=%s", log_line,
+			  "PRIORITY=%i", log_levels[level],
+			  PWG_Event"=JobStateChanged",
+			  PWG_ServiceURI"=%s", printer ? printer->uri : "",
+			  PWG_JobID"=%d", job->id,
+			  PWG_JobState"=%s", job->state_value < IPP_JSTATE_PENDING ? "" : job_states[job->state_value - IPP_JSTATE_PENDING],
+			  PWG_JobImpressionsCompleted"=%d", ippGetInteger(job->impressions, 0),
+			  NULL);
+	else
+	  sd_journal_send("MESSAGE=%s", log_line,
+			  "PRIORITY=%i", log_levels[level],
+			  NULL);
+
+	return (1);
+      }
+      else
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
+
       return (cupsdWriteErrorLog(level, log_line));
+    }
     else
       return (1);
   }
@@ -773,19 +698,22 @@ cupsdLogMessage(int        level,	/* I - Log level */
   * See if we want to log this message...
   */
 
-  if ((TestConfigFile || !ErrorLog) && level <= CUPSD_LOG_WARN)
+  if (TestConfigFile && level <= CUPSD_LOG_WARN)
   {
     va_start(ap, message);
 
-#ifdef HAVE_ASL_H
-    asl_object_t	m;		/* Log message */
+    vfprintf(stderr, message, ap);
+    putc('\n', stderr);
 
-    m = asl_new(ASL_TYPE_MSG);
-    asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-    asl_vlog(NULL, m, log_levels[level], message, ap);
-    asl_release(m);
+    va_end(ap);
 
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
+    return (1);
+  }
+  else if (!ErrorLog && level <= CUPSD_LOG_WARN)
+  {
+    va_start(ap, message);
+
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
     sd_journal_printv(log_levels[level], message, ap);
 
 #elif defined(HAVE_VSYSLOG)
@@ -794,41 +722,24 @@ cupsdLogMessage(int        level,	/* I - Log level */
 #else
     vfprintf(stderr, message, ap);
     putc('\n', stderr);
-#endif /* HAVE_VSYSLOG */
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
     va_end(ap);
 
     return (1);
   }
-
-  if (level > LogLevel || !ErrorLog)
+  else if (level > LogLevel || !ErrorLog)
     return (1);
 
-#ifdef HAVE_ASL_H
-  if (!strcmp(ErrorLog, "syslog"))
-  {
-    asl_object_t	m;		/* Log message */
-
-    m = asl_new(ASL_TYPE_MSG);
-    asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-
-    va_start(ap, message);
-    asl_vlog(NULL, m, log_levels[level], message, ap);
-    va_end(ap);
-
-    asl_release(m);
-    return (1);
-  }
-
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
-  if (!strcmp(ErrorLog, "syslog"))
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
+  else if (!strcmp(ErrorLog, "syslog"))
   {
     va_start(ap, message);
     sd_journal_printv(log_levels[level], message, ap);
     va_end(ap);
     return (1);
   }
-#endif /* HAVE_ASL_H */
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
  /*
   * Format and write the log message...
@@ -1043,46 +954,8 @@ cupsdLogPage(cupsd_job_t *job,		/* I - Job being printed */
 
   *bufptr = '\0';
 
-#ifdef HAVE_ASL_H
-  if (!strcmp(ErrorLog, "syslog"))
-  {
-    asl_object_t	m;		/* Log message */
-    char		job_id[32],	/* job-id string */
-			completed[32];	/* job-impressions-completed string */
-    static const char * const job_states[] =
-    {					/* job-state strings */
-      "Pending",
-      "PendingHeld",
-      "Processing",
-      "ProcessingStopped",
-      "Canceled",
-      "Aborted",
-      "Completed"
-    };
-
-    snprintf(job_id, sizeof(job_id), "%d", job->id);
-
-    m = asl_new(ASL_TYPE_MSG);
-    asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-    asl_set(m, PWG_Event, "JobStateChanged");
-    asl_set(m, PWG_ServiceURI, job->printer->uri);
-    asl_set(m, PWG_JobID, job_id);
-    asl_set(m, PWG_JobState, job_states[job->state_value - IPP_JSTATE_PENDING]);
-
-    if (job->impressions)
-    {
-      snprintf(completed, sizeof(completed), "%d", ippGetInteger(job->impressions, 0));
-      asl_set(m, PWG_JobImpressionsCompleted, completed);
-    }
-
-    asl_log(NULL, m, ASL_LEVEL_INFO, "%s", buffer);
-
-    asl_release(m);
-    return (1);
-  }
-
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
-  if (!strcmp(ErrorLog, "syslog"))
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
+  if (!strcmp(PageLog, "syslog"))
   {
     static const char * const job_states[] =
     {					/* job-state strings */
@@ -1117,7 +990,7 @@ cupsdLogPage(cupsd_job_t *job,		/* I - Job being printed */
 
     return (1);
   }
-#endif /* HAVE_ASL_H */
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
  /*
   * Not using syslog; check the log file...
@@ -1172,7 +1045,7 @@ cupsdLogRequest(cupsd_client_t *con,	/* I - Request to log */
   * Filter requests as needed...
   */
 
-  if (AccessLogLevel == CUPSD_ACCESSLOG_NONE)
+  if (AccessLogLevel == CUPSD_ACCESSLOG_NONE || !AccessLog)
     return (1);
   else if (AccessLogLevel < CUPSD_ACCESSLOG_ALL)
   {
@@ -1278,30 +1151,8 @@ cupsdLogRequest(cupsd_client_t *con,	/* I - Request to log */
     }
   }
 
-#ifdef HAVE_ASL_H
-  if (!strcmp(ErrorLog, "syslog"))
-  {
-    asl_object_t	m;		/* Log message */
-
-    m = asl_new(ASL_TYPE_MSG);
-    asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-
-    asl_log(NULL, m, ASL_LEVEL_INFO, "REQUEST %s - %s \"%s %s HTTP/%d.%d\" %d " CUPS_LLFMT " %s %s\n",
-           con->http->hostname, con->username[0] != '\0' ? con->username : "-",
-	   states[con->operation], _httpEncodeURI(temp, con->uri, sizeof(temp)),
-	   con->http->version / 100, con->http->version % 100,
-	   code, CUPS_LLCAST con->bytes,
-	   con->request ?
-	       ippOpString(con->request->request.op.operation_id) : "-",
-	   con->response ?
-	       ippErrorString(con->response->request.status.status_code) : "-");
-
-    asl_release(m);
-    return (1);
-  }
-
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
-  if (!strcmp(ErrorLog, "syslog"))
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
+  if (!strcmp(AccessLog, "syslog"))
   {
     sd_journal_print(LOG_INFO, "REQUEST %s - %s \"%s %s HTTP/%d.%d\" %d " CUPS_LLFMT " %s %s", con->http->hostname, con->username[0] != '\0' ? con->username : "-", states[con->operation], _httpEncodeURI(temp, con->uri, sizeof(temp)), con->http->version / 100, con->http->version % 100, code, CUPS_LLCAST con->bytes, con->request ? ippOpString(con->request->request.op.operation_id) : "-", con->response ? ippErrorString(con->response->request.status.status_code) : "-");
     return (1);
@@ -1327,7 +1178,7 @@ cupsdLogRequest(cupsd_client_t *con,	/* I - Request to log */
 
     return (1);
   }
-#endif /* HAVE_ASL_H */
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
  /*
   * Not using syslog; check the log file...
@@ -1385,20 +1236,7 @@ cupsdWriteErrorLog(int        level,	/* I - Log level */
 		};
 
 
-#ifdef HAVE_ASL_H
-  if (!strcmp(ErrorLog, "syslog"))
-  {
-    asl_object_t	m;		/* Log message */
-
-    m = asl_new(ASL_TYPE_MSG);
-    asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-    asl_log(NULL, m, ASL_LEVEL_INFO, "%s", message);
-
-    asl_release(m);
-    return (1);
-  }
-
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
   if (!strcmp(ErrorLog, "syslog"))
   {
     sd_journal_print(log_levels[level], "%s", message);
@@ -1415,7 +1253,7 @@ cupsdWriteErrorLog(int        level,	/* I - Log level */
     syslog(log_levels[level], "%s", message);
     return (1);
   }
-#endif /* HAVE_ASL_H */
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
  /*
   * Not using syslog; check the log file...
@@ -1506,8 +1344,3 @@ format_log_line(const char *message,	/* I - Printf-style format string */
 
   return (1);
 }
-
-
-/*
- * End of "$Id: log.c 12928 2015-10-23 21:31:58Z msweet $".
- */

@@ -1,16 +1,14 @@
 dnl
-dnl "$Id: cups-directories.m4 11717 2014-03-21 16:42:53Z msweet $"
-dnl
 dnl Directory stuff for CUPS.
 dnl
-dnl Copyright 2007-2014 by Apple Inc.
+dnl Copyright 2007-2017 by Apple Inc.
 dnl Copyright 1997-2007 by Easy Software Products, all rights reserved.
 dnl
 dnl These coded instructions, statements, and computer programs are the
 dnl property of Apple Inc. and are protected by Federal copyright
 dnl law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 dnl which should have been included with this file.  If this file is
-dnl file is missing or damaged, see the license at "http://www.cups.org/".
+dnl missing or damaged, see the license at "http://www.cups.org/".
 dnl
 
 AC_PREFIX_DEFAULT(/)
@@ -76,7 +74,7 @@ fi
 dnl Fix "localstatedir" variable if it hasn't been specified...
 if test "$localstatedir" = "\${prefix}/var"; then
 	if test "$prefix" = "/"; then
-		if test "$uname" = Darwin; then
+		if test "$host_os_name" = darwin; then
 			localstatedir="/private/var"
 		else
 			localstatedir="/var"
@@ -89,7 +87,7 @@ fi
 dnl Fix "sysconfdir" variable if it hasn't been specified...
 if test "$sysconfdir" = "\${prefix}/etc"; then
 	if test "$prefix" = "/"; then
-		if test "$uname" = Darwin; then
+		if test "$host_os_name" = darwin; then
 			sysconfdir="/private/etc"
 		else
 			sysconfdir="/etc"
@@ -101,8 +99,8 @@ fi
 
 dnl Fix "libdir" variable...
 if test "$libdir" = "\${exec_prefix}/lib"; then
-	case "$uname" in
-		Linux*)
+	case "$host_os_name" in
+		linux*)
 			if test -d /usr/lib64 -a ! -d /usr/lib64/fakeroot; then
 				libdir="$exec_prefix/lib64"
 			fi
@@ -167,7 +165,7 @@ dnl Setup default locations...
 AC_ARG_WITH(cachedir, [  --with-cachedir         set path for cache files],cachedir="$withval",cachedir="")
 
 if test x$cachedir = x; then
-	if test "x$uname" = xDarwin; then
+	if test "x$host_os_name" = xdarwin; then
 		CUPS_CACHEDIR="$localstatedir/spool/cups/cache"
 	else
 		CUPS_CACHEDIR="$localstatedir/cache/cups"
@@ -232,8 +230,8 @@ AC_DEFINE_UNQUOTED(CUPS_FONTPATH, "$CUPS_FONTPATH")
 
 # Locale data
 if test "$localedir" = "\${datarootdir}/locale"; then
-	case "$uname" in
-		Linux | GNU | *BSD* | Darwin*)
+	case "$host_os_name" in
+		linux* | gnu* | *bsd* | darwin*)
 			CUPS_LOCALEDIR="$datarootdir/locale"
 			;;
 
@@ -267,9 +265,9 @@ AC_DEFINE_UNQUOTED(CUPS_REQUESTS, "$localstatedir/spool/cups")
 AC_SUBST(CUPS_REQUESTS)
 
 # Server executables...
-case "$uname" in
-	*BSD* | Darwin*)
-		# *BSD and Darwin (MacOS X)
+case "$host_os_name" in
+	*bsd* | darwin*)
+		# *BSD and Darwin (macOS)
 		INSTALL_SYSV=""
 		CUPS_SERVERBIN="$exec_prefix/libexec/cups"
 		;;
@@ -291,9 +289,9 @@ AC_SUBST(CUPS_SERVERROOT)
 
 # Transient run-time state
 AC_ARG_WITH(rundir, [  --with-rundir           set transient run-time state directory],CUPS_STATEDIR="$withval",[
-	case "$uname" in
-		Darwin*)
-			# Darwin (OS X)
+	case "$host_os_name" in
+		darwin*)
+			# Darwin (macOS)
 			CUPS_STATEDIR="$CUPS_SERVERROOT"
 			;;
 		*)
@@ -303,7 +301,3 @@ AC_ARG_WITH(rundir, [  --with-rundir           set transient run-time state dire
 	esac])
 AC_DEFINE_UNQUOTED(CUPS_STATEDIR, "$CUPS_STATEDIR")
 AC_SUBST(CUPS_STATEDIR)
-
-dnl
-dnl End of "$Id: cups-directories.m4 11717 2014-03-21 16:42:53Z msweet $".
-dnl

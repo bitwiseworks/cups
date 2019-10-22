@@ -1,16 +1,14 @@
 /*
- * "$Id: ipptool.c 13075 2016-01-29 21:14:05Z msweet $"
- *
  * ipptool command for CUPS.
  *
- * Copyright 2007-2016 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -23,7 +21,7 @@
 #include <cups/file-private.h>
 #include <regex.h>
 #include <sys/stat.h>
-#ifdef WIN32
+#ifdef _WIN32
 #  include <windows.h>
 #  ifndef R_OK
 #    define R_OK 0
@@ -31,7 +29,7 @@
 #else
 #  include <signal.h>
 #  include <termios.h>
-#endif /* WIN32 */
+#endif /* _WIN32 */
 #ifndef O_BINARY
 #  define O_BINARY 0
 #endif /* !O_BINARY */
@@ -137,7 +135,8 @@ static int	Cancel = 0,		/* Cancel test? */
 		IgnoreErrors = 0,	/* Ignore errors? */
 		StopAfterIncludeError = 0,
 					/* Stop after include errors? */
-		Verbosity = 0,		/* Show all attributes? */
+		ValidateHeaders = 0,    /* Validate HTTP headers in response? */
+                Verbosity = 0,          /* Show all attributes? */
 		Version = 11,		/* Default IPP version */
 		XMLHeader = 0,		/* 1 if header is written */
 		TestCount = 0,		/* Number of tests run */
@@ -153,34 +152,36 @@ static int	PasswordTries = 0;	/* Number of tries with password */
  * Local functions...
  */
 
-static void	add_stringf(cups_array_t *a, const char *s, ...) __attribute__ ((__format__ (__printf__, 2, 3)));
+static void	add_stringf(cups_array_t *a, const char *s, ...) _CUPS_FORMAT(2, 3);
+static int      compare_uris(const char *a, const char *b);
 static int	compare_vars(_cups_var_t *a, _cups_var_t *b);
-static int	do_tests(FILE *outfile, _cups_vars_t *vars, const char *testfile);
-static void	expand_variables(_cups_vars_t *vars, char *dst, const char *src, size_t dstsize) __attribute__((nonnull(1,2,3)));
+static int	do_tests(cups_file_t *outfile, _cups_vars_t *vars, const char *testfile);
+static void	expand_variables(_cups_vars_t *vars, char *dst, const char *src, size_t dstsize) _CUPS_NONNULL((1,2,3));
 static int      expect_matches(_cups_expect_t *expect, ipp_tag_t value_tag);
-static ipp_t	*get_collection(FILE *outfile, _cups_vars_t *vars, FILE *fp, int *linenum);
+static ipp_t	*get_collection(cups_file_t *outfile, _cups_vars_t *vars, cups_file_t *fp, int *linenum);
 static char	*get_filename(const char *testfile, char *dst, const char *src, size_t dstsize);
 static const char *get_string(ipp_attribute_t *attr, int element, int flags, char *buffer, size_t bufsize);
-static char	*get_token(FILE *fp, char *buf, int buflen, int *linenum);
+static char	*get_token(cups_file_t *fp, char *buf, int buflen, int *linenum);
 static char	*get_variable(_cups_vars_t *vars, const char *name);
 static char	*iso_date(ipp_uchar_t *date);
 static const char *password_cb(const char *prompt);
 static void	pause_message(const char *message);
-static void	print_attr(FILE *outfile, int format, ipp_attribute_t *attr, ipp_tag_t *group);
-static void	print_csv(FILE *outfile, ipp_attribute_t *attr, int num_displayed, char **displayed, size_t *widths);
-static void	print_fatal_error(FILE *outfile, const char *s, ...) __attribute__ ((__format__ (__printf__, 2, 3)));
-static void	print_line(FILE *outfile, ipp_attribute_t *attr, int num_displayed, char **displayed, size_t *widths);
-static void	print_xml_header(FILE *outfile);
-static void	print_xml_string(FILE *outfile, const char *element, const char *s);
-static void	print_xml_trailer(FILE *outfile, int success, const char *message);
-static void	set_variable(FILE *outfile, _cups_vars_t *vars, const char *name, const char *value);
-#ifndef WIN32
+static void	print_attr(cups_file_t *outfile, int format, ipp_attribute_t *attr, ipp_tag_t *group);
+static void	print_csv(cups_file_t *outfile, ipp_attribute_t *attr, int num_displayed, char **displayed, size_t *widths);
+static void	print_fatal_error(cups_file_t *outfile, const char *s, ...) _CUPS_FORMAT(2, 3);
+static void	print_line(cups_file_t *outfile, ipp_attribute_t *attr, int num_displayed, char **displayed, size_t *widths);
+static void	print_xml_header(cups_file_t *outfile);
+static void	print_xml_string(cups_file_t *outfile, const char *element, const char *s);
+static void	print_xml_trailer(cups_file_t *outfile, int success, const char *message);
+static void	set_variable(cups_file_t *outfile, _cups_vars_t *vars, const char *name, const char *value);
+#ifndef _WIN32
 static void	sigterm_handler(int sig);
-#endif /* WIN32 */
+#endif /* _WIN32 */
 static int	timeout_cb(http_t *http, void *user_data);
-static void	usage(void) __attribute__((noreturn));
-static int	validate_attr(FILE *outfile, cups_array_t *errors, ipp_attribute_t *attr);
-static int      with_value(FILE *outfile, cups_array_t *errors, char *value, int flags, ipp_attribute_t *attr, char *matchbuf, size_t matchlen);
+static void	usage(void) _CUPS_NORETURN;
+static int	validate_attr(cups_file_t *outfile, cups_array_t *errors, ipp_attribute_t *attr);
+static const char *with_flags_string(int flags);
+static int      with_value(cups_file_t *outfile, cups_array_t *errors, char *value, int flags, ipp_attribute_t *attr, char *matchbuf, size_t matchlen);
 static int      with_value_from(cups_array_t *errors, ipp_attribute_t *fromattr, ipp_attribute_t *attr, char *matchbuf, size_t matchlen);
 
 
@@ -194,8 +195,8 @@ main(int  argc,				/* I - Number of command-line args */
 {
   int			i;		/* Looping var */
   int			status;		/* Status of tests... */
-  FILE			*outfile = stdout;
-					/* Output file */
+  cups_file_t		*outfile = cupsFileStdout();
+                                        /* Output file */
   char			*opt,		/* Current option */
 			name[1024],	/* Name/value buffer */
 			*value,		/* Pointer to value */
@@ -212,14 +213,14 @@ main(int  argc,				/* I - Number of command-line args */
 					/* Global data */
 
 
-#ifndef WIN32
+#ifndef _WIN32
  /*
   * Catch SIGINT and SIGTERM...
   */
 
   signal(SIGINT, sigterm_handler);
   signal(SIGTERM, sigterm_handler);
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
 
  /*
   * Initialize the locale and variables...
@@ -303,10 +304,10 @@ main(int  argc,				/* I - Number of command-line args */
 		usage();
               }
 
-              if (outfile != stdout)
+              if (outfile != cupsFileStdout())
                 usage();
 
-              if ((outfile = fopen(argv[i], "w")) == NULL)
+              if ((outfile = cupsFileOpen(argv[i], "w")) == NULL)
               {
                 _cupsLangPrintf(stderr, _("%s: Unable to open \"%s\": %s"), "ipptool", argv[i], strerror(errno));
                 exit(1);
@@ -431,9 +432,9 @@ main(int  argc,				/* I - Number of command-line args */
 
 		snprintf(filename, sizeof(filename), "%s.gz", argv[i]);
                 if (access(filename, 0) && filename[0] != '/'
-#ifdef WIN32
+#ifdef _WIN32
                     && (!isalpha(filename[0] & 255) || filename[1] != ':')
-#endif /* WIN32 */
+#endif /* _WIN32 */
                     )
 		{
 		  snprintf(filename, sizeof(filename), "%s/ipptool/%s",
@@ -510,6 +511,10 @@ main(int  argc,				/* I - Number of command-line args */
 		set_variable(outfile, &vars, "filetype", "application/octet-stream");
               }
 	      break;
+
+          case 'h' : /* Validate response headers */
+              ValidateHeaders = 1;
+              break;
 
           case 'i' : /* Test every N seconds */
 	      i ++;
@@ -645,9 +650,9 @@ main(int  argc,				/* I - Number of command-line args */
       }
 
       if (access(argv[i], 0) && argv[i][0] != '/'
-#ifdef WIN32
+#ifdef _WIN32
           && (!isalpha(argv[i][0] & 255) || argv[i][1] != ':')
-#endif /* WIN32 */
+#endif /* _WIN32 */
           )
       {
         snprintf(testname, sizeof(testname), "%s/ipptool/%s", cg->cups_datadir,
@@ -698,12 +703,12 @@ main(int  argc,				/* I - Number of command-line args */
     * Show a summary report if there were multiple tests...
     */
 
-    printf("\nSummary: %d tests, %d passed, %d failed, %d skipped\n"
-           "Score: %d%%\n", TestCount, PassCount, FailCount, SkipCount,
-           100 * (PassCount + SkipCount) / TestCount);
+    cupsFilePrintf(cupsFileStdout(), "\nSummary: %d tests, %d passed, %d failed, %d skipped\nScore: %d%%\n", TestCount, PassCount, FailCount, SkipCount, 100 * (PassCount + SkipCount) / TestCount);
   }
 
- /*
+  cupsFileClose(outfile);
+
+/*
   * Exit...
   */
 
@@ -748,6 +753,71 @@ add_stringf(cups_array_t *a,		/* I - Array */
 
 
 /*
+ * 'compare_uris()' - Compare two URIs...
+ */
+
+static int                              /* O - Result of comparison */
+compare_uris(const char *a,             /* I - First URI */
+             const char *b)             /* I - Second URI */
+{
+  char  ascheme[32],                    /* Components of first URI */
+        auserpass[256],
+        ahost[256],
+        aresource[256];
+  int   aport;
+  char  bscheme[32],                    /* Components of second URI */
+        buserpass[256],
+        bhost[256],
+        bresource[256];
+  int   bport;
+  char  *ptr;                           /* Pointer into string */
+  int   result;                         /* Result of comparison */
+
+
+ /*
+  * Separate the URIs into their components...
+  */
+
+  if (httpSeparateURI(HTTP_URI_CODING_ALL, a, ascheme, sizeof(ascheme), auserpass, sizeof(auserpass), ahost, sizeof(ahost), &aport, aresource, sizeof(aresource)) < HTTP_URI_STATUS_OK)
+    return (-1);
+
+  if (httpSeparateURI(HTTP_URI_CODING_ALL, b, bscheme, sizeof(bscheme), buserpass, sizeof(buserpass), bhost, sizeof(bhost), &bport, bresource, sizeof(bresource)) < HTTP_URI_STATUS_OK)
+    return (-1);
+
+ /*
+  * Strip trailing dots from the host components, if present...
+  */
+
+  if ((ptr = ahost + strlen(ahost) - 1) > ahost && *ptr == '.')
+    *ptr = '\0';
+
+  if ((ptr = bhost + strlen(bhost) - 1) > bhost && *ptr == '.')
+    *ptr = '\0';
+
+ /*
+  * Compare each component...
+  */
+
+  if ((result = _cups_strcasecmp(ascheme, bscheme)) != 0)
+    return (result);
+
+  if ((result = strcmp(auserpass, buserpass)) != 0)
+    return (result);
+
+  if ((result = _cups_strcasecmp(ahost, bhost)) != 0)
+    return (result);
+
+  if (aport != bport)
+    return (aport - bport);
+
+  if (!_cups_strcasecmp(ascheme, "mailto") || !_cups_strcasecmp(ascheme, "urn"))
+    return (_cups_strcasecmp(aresource, bresource));
+  else
+    return (strcmp(aresource, bresource));
+}
+
+
+/*
  * 'compare_vars()' - Compare two variables.
  */
 
@@ -764,7 +834,7 @@ compare_vars(_cups_var_t *a,		/* I - First variable */
  */
 
 static int				/* 1 = success, 0 = failure */
-do_tests(FILE         *outfile,		/* I - Output file */
+do_tests(cups_file_t  *outfile,		/* I - Output file */
          _cups_vars_t *vars,		/* I - Variables */
          const char   *testfile)	/* I - Test file to use */
 {
@@ -777,16 +847,16 @@ do_tests(FILE         *outfile,		/* I - Output file */
 		ignore_errors,		/* Ignore test failures? */
 		skip_previous = 0,	/* Skip on previous test failure? */
 		repeat_count,		/* Repeat count */
-		repeat_interval,	/* Repeat interval */
-		repeat_prev,		/* Previous repeat interval */
 		repeat_test;		/* Repeat a test? */
+  useconds_t	delay,                  /* Initial delay */
+		repeat_interval;	/* Repeat interval (delay) */
   http_t	*http = NULL;		/* HTTP connection to server */
-  FILE		*fp = NULL;		/* Test file */
+  cups_file_t	*fp = NULL;		/* Test file */
   char		resource[512],		/* Resource for request */
 		token[1024],		/* Token from file */
 		*tokenptr,		/* Pointer into token */
 		temp[1024],		/* Temporary string */
-		buffer[8192],		/* Copy buffer */
+		buffer[131072],		/* Copy buffer */
 		compression[16];	/* COMPRESSION value */
   ipp_t		*request = NULL,	/* IPP request */
 		*response = NULL;	/* IPP response */
@@ -811,7 +881,8 @@ do_tests(FILE         *outfile,		/* I - Output file */
   int		num_statuses = 0;	/* Number of valid status codes */
   _cups_status_t statuses[100],		/* Valid status codes */
 		*last_status;		/* Last STATUS (for predicates) */
-  int		num_expects = 0;	/* Number of expected attributes */
+  int           status_ok,              /* Did we get a matching status? */
+	        num_expects = 0;  /* Number of expected attributes */
   _cups_expect_t expects[200],		/* Expected attributes */
 		*expect,		/* Current expected attribute */
 		*last_expect;		/* Last EXPECT (for predicates) */
@@ -827,7 +898,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
   * Open the test file...
   */
 
-  if ((fp = fopen(testfile, "r")) == NULL)
+  if ((fp = cupsFileOpen(testfile, "r")) == NULL)
   {
     print_fatal_error(outfile, "Unable to open test file %s - %s", testfile,
                       strerror(errno));
@@ -862,7 +933,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
   * Loop on tests...
   */
 
-  CUPS_SRAND(time(NULL));
+  CUPS_SRAND((unsigned)time(NULL));
 
   errors     = cupsArrayNew3(NULL, NULL, NULL, 0, (cups_acopy_func_t)strdup,
                              (cups_afree_func_t)free);
@@ -1199,8 +1270,8 @@ do_tests(FILE         *outfile,		/* I - Output file */
     {
       if (Output == _CUPS_OUTPUT_PLIST)
 	print_xml_header(outfile);
-      if (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != stdout))
-	printf("\"%s\":\n", testfile);
+      if (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != cupsFileStdout()))
+	cupsFilePrintf(cupsFileStdout(), "\"%s\":\n", testfile);
 
       show_header = 0;
     }
@@ -1208,19 +1279,22 @@ do_tests(FILE         *outfile,		/* I - Output file */
     strlcpy(resource, vars->resource, sizeof(resource));
 
     request_id ++;
-    request        = ippNew();
-    op             = (ipp_op_t)0;
-    group          = IPP_TAG_ZERO;
-    ignore_errors  = IgnoreErrors;
-    last_expect    = NULL;
-    last_status    = NULL;
-    filename[0]    = '\0';
-    skip_previous  = 0;
-    skip_test      = 0;
-    test_id[0]     = '\0';
-    version        = Version;
-    transfer       = Transfer;
-    compression[0] = '\0';
+    request         = ippNew();
+    op              = (ipp_op_t)0;
+    group           = IPP_TAG_ZERO;
+    ignore_errors   = IgnoreErrors;
+    last_expect     = NULL;
+    last_status     = NULL;
+    filename[0]     = '\0';
+    skip_previous   = 0;
+    skip_test       = 0;
+    test_id[0]      = '\0';
+    version         = Version;
+    transfer        = Transfer;
+    compression[0]  = '\0';
+    delay           = 0;
+    repeat_count    = 0;
+    repeat_interval = 5000000;
 
     strlcpy(name, testfile, sizeof(name));
     if (strrchr(name, '.') != NULL)
@@ -1617,7 +1691,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	  goto test_exit;
 	}
 
-	if ((value = ippTagValue(token)) < 0)
+	if ((value = ippTagValue(token)) == IPP_TAG_ZERO || value >= IPP_TAG_UNSUPPORTED_VALUE)
 	{
 	  print_fatal_error(outfile, "Bad GROUP tag \"%s\" on line %d.", token, linenum);
 	  pass = 0;
@@ -1635,7 +1709,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
         * Delay before operation...
 	*/
 
-        double delay;
+        double dval;                    /* Delay value */
 
 	if (!get_token(fp, temp, sizeof(temp), &linenum))
 	{
@@ -1646,20 +1720,30 @@ do_tests(FILE         *outfile,		/* I - Output file */
 
 	expand_variables(vars, token, temp, sizeof(token));
 
-	if ((delay = _cupsStrScand(token, NULL, localeconv())) <= 0.0)
+	if ((dval = _cupsStrScand(token, &tokenptr, localeconv())) < 0.0 || (*tokenptr && *tokenptr != ','))
 	{
 	  print_fatal_error(outfile, "Bad DELAY value \"%s\" on line %d.", token,
 	                    linenum);
 	  pass = 0;
 	  goto test_exit;
 	}
-	else
-	{
-	  if (Output == _CUPS_OUTPUT_TEST)
-	    printf("    [%g second delay]\n", delay);
 
-	  usleep((useconds_t)(1000000.0 * delay));
-	}
+        delay = (useconds_t)(1000000.0 * dval);
+
+        if (*tokenptr == ',')
+        {
+          if ((dval = _cupsStrScand(tokenptr + 1, &tokenptr, localeconv())) <= 0.0 || *tokenptr)
+          {
+            print_fatal_error(outfile, "Bad DELAY value \"%s\" on line %d.", token,
+                              linenum);
+            pass = 0;
+            goto test_exit;
+          }
+
+          repeat_interval = (useconds_t)(1000000.0 * dval);
+        }
+        else
+          repeat_interval = delay;
       }
       else if (!_cups_strcasecmp(token, "ATTR"))
       {
@@ -1674,7 +1758,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	  goto test_exit;
 	}
 
-	if ((value = ippTagValue(token)) == IPP_TAG_ZERO)
+	if ((value = ippTagValue(token)) < IPP_TAG_UNSUPPORTED_VALUE)
 	{
 	  print_fatal_error(outfile, "Bad ATTR value tag \"%s\" on line %d.", token,
 	                    linenum);
@@ -1689,18 +1773,46 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	  goto test_exit;
 	}
 
-	if (!get_token(fp, temp, sizeof(temp), &linenum))
+        if (value < IPP_TAG_INTEGER)
+        {
+         /*
+          * Add out-of-band value - no value string needed...
+          */
+
+          token[0] = '\0';
+        }
+        else if (!get_token(fp, temp, sizeof(temp), &linenum))
 	{
 	  print_fatal_error(outfile, "Missing ATTR value on line %d.", linenum);
 	  pass = 0;
 	  goto test_exit;
 	}
+	else
+	{
+          expand_variables(vars, token, temp, sizeof(token));
+        }
 
-        expand_variables(vars, token, temp, sizeof(token));
         attrptr = NULL;
 
         switch (value)
 	{
+          default :
+              if (value < IPP_TAG_INTEGER)
+              {
+               /*
+                * Add out-of-band value...
+                */
+
+                attrptr = ippAddOutOfBand(request, group, value, attr);
+              }
+              else
+              {
+                print_fatal_error(outfile, "Unsupported ATTR value tag %s for \"%s\" on line %d.", ippTagString(value), attr, linenum);
+                pass = 0;
+                goto test_exit;
+              }
+              break;
+
 	  case IPP_TAG_BOOLEAN :
 	      if (!_cups_strcasecmp(token, "true"))
 		attrptr = ippAddBoolean(request, group, attr, 1);
@@ -1882,16 +1994,16 @@ do_tests(FILE         *outfile,		/* I - Output file */
 
 	      do
 	      {
-	        ipp_t	*col;			/* Collection value */
-	        long	savepos = ftell(fp);	/* Save position of file */
-	        int	savelinenum = linenum;	/* Save line number */
+	        ipp_t	*col;			        /* Collection value */
+	        off_t	savepos = cupsFileTell(fp);	/* Save position of file */
+	        int	savelinenum = linenum;	        /* Save line number */
 
 		if (!get_token(fp, token, sizeof(token), &linenum))
 		  break;
 
 		if (strcmp(token, ","))
 		{
-		  fseek(fp, savepos, SEEK_SET);
+		  cupsFileSeek(fp, savepos);
 		  linenum = savelinenum;
 		  break;
 		}
@@ -1916,11 +2028,6 @@ do_tests(FILE         *outfile,		/* I - Output file */
           case IPP_TAG_STRING :
               attrptr = ippAddOctetString(request, group, attr, token, (int)strlen(token));
 	      break;
-
-	  default :
-	      print_fatal_error(outfile, "Unsupported ATTR value tag %s for \"%s\" on line %d.", ippTagString(value), attr, linenum);
-	      pass = 0;
-	      goto test_exit;
 
 	  case IPP_TAG_TEXTLANG :
 	  case IPP_TAG_NAMELANG :
@@ -2203,15 +2310,17 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	  goto test_exit;
 	}
 
-        if ((in_group = ippTagValue(token)) == (ipp_tag_t)-1)
+        if ((in_group = ippTagValue(token)) == IPP_TAG_ZERO || in_group >= IPP_TAG_UNSUPPORTED_VALUE)
 	{
+          print_fatal_error(outfile, "Bad IN-GROUP group tag \"%s\" on line %d.", token, linenum);
+          pass = 0;
+          goto test_exit;
 	}
 	else if (last_expect)
 	  last_expect->in_group = in_group;
 	else
 	{
-	  print_fatal_error(outfile, "IN-GROUP without a preceding EXPECT on line %d.",
-	                    linenum);
+	  print_fatal_error(outfile, "IN-GROUP without a preceding EXPECT on line %d.", linenum);
 	  pass = 0;
 	  goto test_exit;
 	}
@@ -2237,8 +2346,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	  last_expect->repeat_limit = atoi(token);
 	else
 	{
-	  print_fatal_error(outfile, "REPEAT-LIMIT without a preceding EXPECT or STATUS "
-	                    "on line %d.", linenum);
+	  print_fatal_error(outfile, "REPEAT-LIMIT without a preceding EXPECT or STATUS on line %d.", linenum);
 	  pass = 0;
 	  goto test_exit;
 	}
@@ -2251,8 +2359,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	  last_expect->repeat_match = 1;
 	else
 	{
-	  print_fatal_error(outfile, "REPEAT-MATCH without a preceding EXPECT or STATUS "
-	                    "on line %d.", linenum);
+	  print_fatal_error(outfile, "REPEAT-MATCH without a preceding EXPECT or STATUS on line %d.", linenum);
 	  pass = 0;
 	  goto test_exit;
 	}
@@ -2265,8 +2372,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	  last_expect->repeat_no_match = 1;
 	else
 	{
-	  print_fatal_error(outfile, "REPEAT-NO-MATCH without a preceding EXPECT or "
-	                    "STATUS on ine %d.", linenum);
+	  print_fatal_error(outfile, "REPEAT-NO-MATCH without a preceding EXPECT or STATUS on ine %d.", linenum);
 	  pass = 0;
 	  goto test_exit;
 	}
@@ -2305,8 +2411,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	  last_status->if_defined = strdup(token);
 	else
 	{
-	  print_fatal_error(outfile, "IF-DEFINED without a preceding EXPECT or STATUS "
-	                    "on line %d.", linenum);
+	  print_fatal_error(outfile, "IF-DEFINED without a preceding EXPECT or STATUS on line %d.", linenum);
 	  pass = 0;
 	  goto test_exit;
 	}
@@ -2326,8 +2431,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	  last_status->if_not_defined = strdup(token);
 	else
 	{
-	  print_fatal_error(outfile, "IF-NOT-DEFINED without a preceding EXPECT or STATUS "
-			    "on line %d.", linenum);
+	  print_fatal_error(outfile, "IF-NOT-DEFINED without a preceding EXPECT or STATUS on line %d.", linenum);
 	  pass = 0;
 	  goto test_exit;
 	}
@@ -2412,8 +2516,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	}
 	else
 	{
-	  print_fatal_error(outfile, "%s without a preceding EXPECT on line %d.", token,
-		            linenum);
+	  print_fatal_error(outfile, "%s without a preceding EXPECT on line %d.", token, linenum);
 	  pass = 0;
 	  goto test_exit;
 	}
@@ -2440,8 +2543,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	}
 	else
 	{
-	  print_fatal_error(outfile, "%s without a preceding EXPECT on line %d.", token,
-		            linenum);
+	  print_fatal_error(outfile, "%s without a preceding EXPECT on line %d.", token, linenum);
 	  pass = 0;
 	  goto test_exit;
 	}
@@ -2471,8 +2573,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
       }
       else
       {
-	print_fatal_error(outfile, "Unexpected token %s seen on line %d.", token,
-	                  linenum);
+	print_fatal_error(outfile, "Unexpected token %s seen on line %d.", token, linenum);
 	pass = 0;
 	goto test_exit;
       }
@@ -2490,52 +2591,51 @@ do_tests(FILE         *outfile,		/* I - Output file */
 
     if (Output == _CUPS_OUTPUT_PLIST)
     {
-      fputs("<dict>\n", outfile);
-      fputs("<key>Name</key>\n", outfile);
+      cupsFilePuts(outfile, "<dict>\n");
+      cupsFilePuts(outfile, "<key>Name</key>\n");
       print_xml_string(outfile, "string", name);
       if (file_id[0])
       {
-	fputs("<key>FileId</key>\n", outfile);
+	cupsFilePuts(outfile, "<key>FileId</key>\n");
 	print_xml_string(outfile, "string", file_id);
       }
       if (test_id[0])
       {
-        fputs("<key>TestId</key>\n", outfile);
+        cupsFilePuts(outfile, "<key>TestId</key>\n");
         print_xml_string(outfile, "string", test_id);
       }
-      fputs("<key>Version</key>\n", outfile);
-      fprintf(outfile, "<string>%d.%d</string>\n", version / 10, version % 10);
-      fputs("<key>Operation</key>\n", outfile);
+      cupsFilePuts(outfile, "<key>Version</key>\n");
+      cupsFilePrintf(outfile, "<string>%d.%d</string>\n", version / 10, version % 10);
+      cupsFilePuts(outfile, "<key>Operation</key>\n");
       print_xml_string(outfile, "string", ippOpString(op));
-      fputs("<key>RequestId</key>\n", outfile);
-      fprintf(outfile, "<integer>%d</integer>\n", request_id);
-      fputs("<key>RequestAttributes</key>\n", outfile);
-      fputs("<array>\n", outfile);
+      cupsFilePuts(outfile, "<key>RequestId</key>\n");
+      cupsFilePrintf(outfile, "<integer>%d</integer>\n", request_id);
+      cupsFilePuts(outfile, "<key>RequestAttributes</key>\n");
+      cupsFilePuts(outfile, "<array>\n");
       if (request->attrs)
       {
-	fputs("<dict>\n", outfile);
+	cupsFilePuts(outfile, "<dict>\n");
 	for (attrptr = request->attrs,
 	         group = attrptr ? attrptr->group_tag : IPP_TAG_ZERO;
 	     attrptr;
 	     attrptr = attrptr->next)
 	  print_attr(outfile, Output, attrptr, &group);
-	fputs("</dict>\n", outfile);
+	cupsFilePuts(outfile, "</dict>\n");
       }
-      fputs("</array>\n", outfile);
+      cupsFilePuts(outfile, "</array>\n");
     }
 
-    if (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != stdout))
+    if (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != cupsFileStdout()))
     {
       if (Verbosity)
       {
-	printf("    %s:\n", ippOpString(op));
+	cupsFilePrintf(cupsFileStdout(), "    %s:\n", ippOpString(op));
 
 	for (attrptr = request->attrs; attrptr; attrptr = attrptr->next)
-	  print_attr(stdout, _CUPS_OUTPUT_TEST, attrptr, NULL);
+	  print_attr(cupsFileStdout(), _CUPS_OUTPUT_TEST, attrptr, NULL);
       }
 
-      printf("    %-68.68s [", name);
-      fflush(stdout);
+      cupsFilePrintf(cupsFileStdout(), "    %-68.68s [", name);
     }
 
     if ((skip_previous && !prev_pass) || skip_test)
@@ -2547,29 +2647,30 @@ do_tests(FILE         *outfile,		/* I - Output file */
 
       if (Output == _CUPS_OUTPUT_PLIST)
       {
-	fputs("<key>Successful</key>\n", outfile);
-	fputs("<true />\n", outfile);
-	fputs("<key>Skipped</key>\n", outfile);
-	fputs("<true />\n", outfile);
-	fputs("<key>StatusCode</key>\n", outfile);
+	cupsFilePuts(outfile, "<key>Successful</key>\n");
+	cupsFilePuts(outfile, "<true />\n");
+	cupsFilePuts(outfile, "<key>Skipped</key>\n");
+	cupsFilePuts(outfile, "<true />\n");
+	cupsFilePuts(outfile, "<key>StatusCode</key>\n");
 	print_xml_string(outfile, "string", "skip");
-	fputs("<key>ResponseAttributes</key>\n", outfile);
-	fputs("<dict />\n", outfile);
+	cupsFilePuts(outfile, "<key>ResponseAttributes</key>\n");
+	cupsFilePuts(outfile, "<dict />\n");
       }
 
-      if (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != stdout))
-	puts("SKIP]");
+      if (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != cupsFileStdout()))
+	cupsFilePuts(cupsFileStdout(), "SKIP]\n");
 
       goto skip_error;
     }
 
     PasswordTries   = 0;
-    repeat_count    = 0;
-    repeat_interval = 1;
-    repeat_prev     = 1;
 
     do
     {
+      if (delay > 0)
+        usleep(delay);
+
+      delay = repeat_interval;
       repeat_count ++;
 
       status = HTTP_STATUS_OK;
@@ -2656,11 +2757,11 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	  }
 
 	  if (!Cancel && status == HTTP_STATUS_ERROR && http->error != EINVAL &&
-#ifdef WIN32
+#ifdef _WIN32
 	      http->error != WSAETIMEDOUT)
 #else
 	      http->error != ETIMEDOUT)
-#endif /* WIN32 */
+#endif /* _WIN32 */
 	  {
 	    if (httpReconnect2(http, 30000, NULL))
 	      prev_pass = 0;
@@ -2683,11 +2784,11 @@ do_tests(FILE         *outfile,		/* I - Output file */
       }
 
       if (!Cancel && status == HTTP_STATUS_ERROR && http->error != EINVAL &&
-#ifdef WIN32
+#ifdef _WIN32
 	  http->error != WSAETIMEDOUT)
 #else
 	  http->error != ETIMEDOUT)
-#endif /* WIN32 */
+#endif /* _WIN32 */
       {
 	if (httpReconnect2(http, 30000, NULL))
 	  prev_pass = 0;
@@ -2714,6 +2815,17 @@ do_tests(FILE         *outfile,		/* I - Output file */
       if (http->version != HTTP_1_1)
 	add_stringf(errors, "Bad HTTP version (%d.%d)", http->version / 100,
 		    http->version % 100);
+
+      if (ValidateHeaders)
+      {
+        const char *header;               /* HTTP header value */
+
+        if ((header = httpGetField(http, HTTP_FIELD_CONTENT_TYPE)) == NULL || _cups_strcasecmp(header, "application/ipp"))
+          add_stringf(errors, "Bad HTTP Content-Type in response (%s)", header && *header ? header : "<missing>");
+
+        if ((header = httpGetField(http, HTTP_FIELD_DATE)) != NULL && *header && httpGetDateTime(header) == 0)
+          add_stringf(errors, "Bad HTTP Date in response (%s)", header);
+      }
 
       if (!response)
       {
@@ -2932,7 +3044,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
 
           if (attrptr->name)
           {
-            if (cupsArrayFind(a, attrptr->name))
+            if (cupsArrayFind(a, attrptr->name) && Output < _CUPS_OUTPUT_LIST)
               add_stringf(errors, "Duplicate \"%s\" attribute in %s group",
 			  attrptr->name, ippTagString(group));
 
@@ -2947,7 +3059,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
         * values...
         */
 
-	for (i = 0; i < num_statuses; i ++)
+	for (i = 0, status_ok = 0; i < num_statuses; i ++)
 	{
 	  if (statuses[i].if_defined &&
 	      !get_variable(vars, statuses[i].if_defined))
@@ -2957,32 +3069,30 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	      get_variable(vars, statuses[i].if_not_defined))
 	    continue;
 
-	  if (response->request.status.status_code == statuses[i].status)
+	  if (ippGetStatusCode(response) == statuses[i].status)
 	  {
-	    if (statuses[i].repeat_match &&
-	        repeat_count < statuses[i].repeat_limit)
-	      repeat_test = 1;
+            status_ok = 1;
+
+            if (statuses[i].repeat_match && repeat_count < statuses[i].repeat_limit)
+              repeat_test = 1;
 
             if (statuses[i].define_match)
               set_variable(outfile, vars, statuses[i].define_match, "1");
-
-            break;
 	  }
 	  else
 	  {
-	    if (statuses[i].repeat_no_match &&
-		repeat_count < statuses[i].repeat_limit)
-	      repeat_test = 1;
+	    if (statuses[i].repeat_no_match && repeat_count < statuses[i].repeat_limit)
+              repeat_test = 1;
 
             if (statuses[i].define_no_match)
             {
               set_variable(outfile, vars, statuses[i].define_no_match, "1");
-              break;
+              status_ok = 1;
             }
           }
 	}
 
-	if (i == num_statuses && num_statuses > 0)
+	if (!status_ok && num_statuses > 0)
 	{
 	  for (i = 0; i < num_statuses; i ++)
 	  {
@@ -2994,7 +3104,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
 		get_variable(vars, statuses[i].if_not_defined))
 	      continue;
 
-            if (!statuses[i].repeat_match)
+            if (!statuses[i].repeat_match || repeat_count >= statuses[i].repeat_limit)
 	      add_stringf(errors, "EXPECTED: STATUS %s (got %s)",
 			  ippErrorString(statuses[i].status),
 			  ippErrorString(cupsLastError()));
@@ -3047,9 +3157,8 @@ do_tests(FILE         *outfile,		/* I - Output file */
 		}
 	      }
 
-	      if (expect->repeat_no_match &&
-		  repeat_count < expect->repeat_limit)
-		repeat_test = 1;
+	      if (expect->repeat_no_match && repeat_count < expect->repeat_limit)
+                repeat_test = 1;
 
 	      break;
 	    }
@@ -3061,7 +3170,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	    {
 	      if (expect->define_no_match)
 		set_variable(outfile, vars, expect->define_no_match, "1");
-	      else if (!expect->define_match && !expect->define_value && !expect->repeat_match && !expect->repeat_no_match)
+	      else if (!expect->define_match && !expect->define_value && ((!expect->repeat_match && !expect->repeat_no_match) || repeat_count >= expect->repeat_limit))
 	      {
 		add_stringf(errors, "EXPECTED: %s WITH-VALUES-FROM %s", expect->name, expect->with_value_from);
 
@@ -3078,23 +3187,14 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	      if (expect->define_no_match)
 		set_variable(outfile, vars, expect->define_no_match, "1");
 	      else if (!expect->define_match && !expect->define_value &&
-		       !expect->repeat_match && !expect->repeat_no_match)
+		       !expect->repeat_match && (!expect->repeat_no_match || repeat_count >= expect->repeat_limit))
 	      {
 		if (expect->with_flags & _CUPS_WITH_REGEX)
-		  add_stringf(errors, "EXPECTED: %s %s /%s/",
-			      expect->name,
-			      (expect->with_flags & _CUPS_WITH_ALL) ?
-				  "WITH-ALL-VALUES" : "WITH-VALUE",
-			      expect->with_value);
+		  add_stringf(errors, "EXPECTED: %s %s /%s/", expect->name, with_flags_string(expect->with_flags), expect->with_value);
 		else
-		  add_stringf(errors, "EXPECTED: %s %s \"%s\"",
-			      expect->name,
-			      (expect->with_flags & _CUPS_WITH_ALL) ?
-				  "WITH-ALL-VALUES" : "WITH-VALUE",
-			      expect->with_value);
+		  add_stringf(errors, "EXPECTED: %s %s \"%s\"", expect->name, with_flags_string(expect->with_flags), expect->with_value);
 
-		with_value(outfile, errors, expect->with_value, expect->with_flags, found,
-			   buffer, sizeof(buffer));
+		with_value(outfile, errors, expect->with_value, expect->with_flags, found, buffer, sizeof(buffer));
 	      }
 
 	      if (expect->repeat_no_match &&
@@ -3223,17 +3323,15 @@ do_tests(FILE         *outfile,		/* I - Output file */
       }
 
      /*
-      * If we are going to repeat this test, sleep 1 second so we don't flood
-      * the printer with requests...
+      * If we are going to repeat this test, display intermediate results...
       */
 
       if (repeat_test)
       {
-	if (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != stdout))
+	if (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != cupsFileStdout()))
         {
-          printf("%04d]\n", repeat_count);
-          fflush(stdout);
-
+          cupsFilePrintf(cupsFileStdout(), "%04d]\n", repeat_count);
+\
 	  if (num_displayed > 0)
 	  {
 	    for (attrptr = ippFirstAttribute(response); attrptr; attrptr = ippNextAttribute(response))
@@ -3245,7 +3343,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
 		{
 		  if (!strcmp(displayed[i], attrname))
 		  {
-		    print_attr(stdout, _CUPS_OUTPUT_TEST, attrptr, NULL);
+		    print_attr(cupsFileStdout(), _CUPS_OUTPUT_TEST, attrptr, NULL);
 		    break;
 		  }
 		}
@@ -3254,14 +3352,13 @@ do_tests(FILE         *outfile,		/* I - Output file */
 	  }
         }
 
-        sleep((unsigned)repeat_interval);
-        repeat_interval = _cupsNextDelay(repeat_interval, &repeat_prev);
-
-	if (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != stdout))
+	if (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != cupsFileStdout()))
 	{
-	  printf("    %-68.68s [", name);
-	  fflush(stdout);
+	  cupsFilePrintf(cupsFileStdout(), "    %-68.68s [", name);
 	}
+
+        ippDelete(response);
+        response = NULL;
       }
     }
     while (repeat_test);
@@ -3280,39 +3377,37 @@ do_tests(FILE         *outfile,		/* I - Output file */
 
     if (Output == _CUPS_OUTPUT_PLIST)
     {
-      fputs("<key>Successful</key>\n", outfile);
-      fputs(prev_pass ? "<true />\n" : "<false />\n", outfile);
-      fputs("<key>StatusCode</key>\n", outfile);
+      cupsFilePuts(outfile, "<key>Successful</key>\n");
+      cupsFilePuts(outfile, prev_pass ? "<true />\n" : "<false />\n");
+      cupsFilePuts(outfile, "<key>StatusCode</key>\n");
       print_xml_string(outfile, "string", ippErrorString(cupsLastError()));
-      fputs("<key>ResponseAttributes</key>\n", outfile);
-      fputs("<array>\n", outfile);
-      fputs("<dict>\n", outfile);
+      cupsFilePuts(outfile, "<key>ResponseAttributes</key>\n");
+      cupsFilePuts(outfile, "<array>\n");
+      cupsFilePuts(outfile, "<dict>\n");
       for (attrptr = response ? response->attrs : NULL,
                group = attrptr ? attrptr->group_tag : IPP_TAG_ZERO;
 	   attrptr;
 	   attrptr = attrptr->next)
 	print_attr(outfile, Output, attrptr, &group);
-      fputs("</dict>\n", outfile);
-      fputs("</array>\n", outfile);
+      cupsFilePuts(outfile, "</dict>\n");
+      cupsFilePuts(outfile, "</array>\n");
     }
 
-    if (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != stdout))
+    if (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != cupsFileStdout()))
     {
-      puts(prev_pass ? "PASS]" : "FAIL]");
+      cupsFilePuts(cupsFileStdout(), prev_pass ? "PASS]\n" : "FAIL]\n");
 
       if (!prev_pass || (Verbosity && response))
       {
-	printf("        RECEIVED: %lu bytes in response\n",
-	       (unsigned long)ippLength(response));
-	printf("        status-code = %s (%s)\n", ippErrorString(cupsLastError()),
-	       cupsLastErrorString());
+	cupsFilePrintf(cupsFileStdout(), "        RECEIVED: %lu bytes in response\n", (unsigned long)ippLength(response));
+	cupsFilePrintf(cupsFileStdout(), "        status-code = %s (%s)\n", ippErrorString(cupsLastError()), cupsLastErrorString());
 
         if (Verbosity && response)
         {
 	  for (attrptr = response->attrs;
 	       attrptr != NULL;
 	       attrptr = attrptr->next)
-	    print_attr(stdout, _CUPS_OUTPUT_TEST, attrptr, NULL);
+	    print_attr(cupsFileStdout(), _CUPS_OUTPUT_TEST, attrptr, NULL);
 	}
       }
     }
@@ -3367,27 +3462,27 @@ do_tests(FILE         *outfile,		/* I - Output file */
     {
       if (Output == _CUPS_OUTPUT_PLIST)
       {
-	fputs("<key>Errors</key>\n", outfile);
-	fputs("<array>\n", outfile);
+	cupsFilePuts(outfile, "<key>Errors</key>\n");
+	cupsFilePuts(outfile, "<array>\n");
 
 	for (error = (char *)cupsArrayFirst(errors);
 	     error;
 	     error = (char *)cupsArrayNext(errors))
 	  print_xml_string(outfile, "string", error);
 
-	fputs("</array>\n", outfile);
+	cupsFilePuts(outfile, "</array>\n");
       }
 
-      if (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != stdout))
+      if (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != cupsFileStdout()))
       {
 	for (error = (char *)cupsArrayFirst(errors);
 	     error;
 	     error = (char *)cupsArrayNext(errors))
-	  printf("        %s\n", error);
+	  cupsFilePrintf(cupsFileStdout(), "        %s\n", error);
       }
     }
 
-    if (num_displayed > 0 && !Verbosity && response && (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != stdout)))
+    if (num_displayed > 0 && !Verbosity && response && (Output == _CUPS_OUTPUT_TEST || (Output == _CUPS_OUTPUT_PLIST && outfile != cupsFileStdout())))
     {
       for (attrptr = response->attrs;
 	   attrptr != NULL;
@@ -3410,9 +3505,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
     skip_error:
 
     if (Output == _CUPS_OUTPUT_PLIST)
-      fputs("</dict>\n", outfile);
-
-    fflush(stdout);
+      cupsFilePuts(outfile, "</dict>\n");
 
     ippDelete(response);
     response = NULL;
@@ -3465,7 +3558,7 @@ do_tests(FILE         *outfile,		/* I - Output file */
   cupsArrayDelete(errors);
 
   if (fp)
-    fclose(fp);
+    cupsFileClose(fp);
 
   httpClose(http);
   ippDelete(request);
@@ -3477,10 +3570,10 @@ do_tests(FILE         *outfile,		/* I - Output file */
       free(statuses[i].if_defined);
     if (statuses[i].if_not_defined)
       free(statuses[i].if_not_defined);
-      if (statuses[i].define_match)
-        free(statuses[i].define_match);
-      if (statuses[i].define_no_match)
-        free(statuses[i].define_no_match);
+    if (statuses[i].define_match)
+      free(statuses[i].define_match);
+    if (statuses[i].define_no_match)
+      free(statuses[i].define_no_match);
   }
 
   for (i = num_expects, expect = expects; i > 0; i --, expect ++)
@@ -3688,9 +3781,9 @@ expect_matches(
  */
 
 static ipp_t *				/* O  - Collection value */
-get_collection(FILE         *outfile,	/* I  - Output file */
+get_collection(cups_file_t  *outfile,	/* I  - Output file */
                _cups_vars_t *vars,	/* I  - Variables */
-               FILE         *fp,	/* I  - File to read from */
+               cups_file_t  *fp,	/* I  - File to read from */
 	       int          *linenum)	/* IO - Line number */
 {
   char		token[1024],		/* Token from file */
@@ -3733,7 +3826,7 @@ get_collection(FILE         *outfile,	/* I  - Output file */
 	goto col_error;
       }
 
-      if ((value = ippTagValue(token)) == IPP_TAG_ZERO)
+      if ((value = ippTagValue(token)) < IPP_TAG_UNSUPPORTED_VALUE)
       {
 	print_fatal_error(outfile, "Bad MEMBER value tag \"%s\" on line %d.", token,
 			  *linenum);
@@ -3746,17 +3839,43 @@ get_collection(FILE         *outfile,	/* I  - Output file */
 	goto col_error;
       }
 
-      if (!get_token(fp, temp, sizeof(temp), linenum))
+      if (value < IPP_TAG_INTEGER)
+      {
+       /*
+        * Out-of-band member attributes have no value...
+        */
+
+        token[0] = '\0';
+      }
+      else if (!get_token(fp, temp, sizeof(temp), linenum))
       {
 	print_fatal_error(outfile, "Missing MEMBER value on line %d.", *linenum);
 	goto col_error;
       }
-
-      expand_variables(vars, token, temp, sizeof(token));
+      else
+      {
+        expand_variables(vars, token, temp, sizeof(token));
+      }
 
       switch (value)
       {
-	case IPP_TAG_BOOLEAN :
+        default :
+              if (value < IPP_TAG_INTEGER)
+              {
+               /*
+                * Add out-of-band value...
+                */
+
+                ippAddOutOfBand(col, IPP_TAG_ZERO, value, attr);
+              }
+              else
+              {
+                print_fatal_error(outfile, "Unsupported MEMBER value tag %s for \"%s\" on line %d.", ippTagString(value), attr, *linenum);
+                goto col_error;
+              }
+              break;
+
+        case IPP_TAG_BOOLEAN :
 	    if (!_cups_strcasecmp(token, "true"))
 	      ippAddBoolean(col, IPP_TAG_ZERO, attr, 1);
 	    else
@@ -3840,11 +3959,21 @@ get_collection(FILE         *outfile,	/* I  - Output file */
 	      goto col_error;
 	    }
 	    break;
-	case IPP_TAG_STRING :
+
+        case IPP_TAG_STRING :
 	    ippAddOctetString(col, IPP_TAG_ZERO, attr, token, (int)strlen(token));
 	    break;
 
-	default :
+        case IPP_TAG_TEXTLANG :
+        case IPP_TAG_NAMELANG :
+        case IPP_TAG_TEXT :
+        case IPP_TAG_NAME :
+        case IPP_TAG_KEYWORD :
+        case IPP_TAG_URI :
+        case IPP_TAG_URISCHEME :
+        case IPP_TAG_CHARSET :
+        case IPP_TAG_LANGUAGE :
+        case IPP_TAG_MIMETYPE :
 	    if (!strchr(token, ','))
 	      ippAddString(col, IPP_TAG_ZERO, value, attr, NULL, token);
 	    else
@@ -3863,9 +3992,14 @@ get_collection(FILE         *outfile,	/* I  - Output file */
 
 	      for (ptr = strchr(token, ','); ptr; ptr = strchr(ptr, ','))
 	      {
-		*ptr++ = '\0';
-		values[num_values] = ptr;
-		num_values ++;
+                if (ptr > token && ptr[-1] == '\\')
+                  _cups_strcpy(ptr - 1, ptr);
+                else
+                {
+                  *ptr++ = '\0';
+                  values[num_values] = ptr;
+                  num_values ++;
+                }
 	      }
 
 	      ippAddStrings(col, IPP_TAG_ZERO, value, attr, num_values,
@@ -3922,9 +4056,9 @@ get_filename(const char *testfile,	/* I - Current test file */
       *dstptr = '\0';
   }
   else if (*src == '/' || !strchr(testfile, '/')
-#ifdef WIN32
+#ifdef _WIN32
            || (isalpha(*src & 255) && src[1] == ':')
-#endif /* WIN32 */
+#endif /* _WIN32 */
            )
   {
    /*
@@ -4035,10 +4169,10 @@ get_string(ipp_attribute_t *attr,	/* I - IPP attribute */
  */
 
 static char *				/* O  - Token from file or NULL on EOF */
-get_token(FILE *fp,			/* I  - File to read from */
-          char *buf,			/* I  - Buffer to read into */
-	  int  buflen,			/* I  - Length of buffer */
-	  int  *linenum)		/* IO - Current line number */
+get_token(cups_file_t *fp,		/* I  - File to read from */
+          char        *buf,		/* I  - Buffer to read into */
+	  int         buflen,		/* I  - Length of buffer */
+	  int         *linenum)		/* IO - Current line number */
 {
   int	ch,				/* Character from file */
 	quote;				/* Quoting character */
@@ -4052,7 +4186,7 @@ get_token(FILE *fp,			/* I  - File to read from */
     * Skip whitespace...
     */
 
-    while (isspace(ch = getc(fp)))
+    while (isspace(ch = cupsFileGetChar(fp)))
     {
       if (ch == '\n')
         (*linenum) ++;
@@ -4074,7 +4208,7 @@ get_token(FILE *fp,			/* I  - File to read from */
       bufptr = buf;
       bufend = buf + buflen - 1;
 
-      while ((ch = getc(fp)) != EOF)
+      while ((ch = cupsFileGetChar(fp)) != EOF)
       {
         if (ch == '\\')
 	{
@@ -4085,7 +4219,7 @@ get_token(FILE *fp,			/* I  - File to read from */
 	  if (bufptr < bufend)
 	    *bufptr++ = (char)ch;
 
-	  if ((ch = getc(fp)) != EOF && bufptr < bufend)
+	  if ((ch = cupsFileGetChar(fp)) != EOF && bufptr < bufend)
 	    *bufptr++ = (char)ch;
 	}
 	else if (ch == quote)
@@ -4104,7 +4238,7 @@ get_token(FILE *fp,			/* I  - File to read from */
       * Comment...
       */
 
-      while ((ch = getc(fp)) != EOF)
+      while ((ch = cupsFileGetChar(fp)) != EOF)
 	if (ch == '\n')
           break;
 
@@ -4123,19 +4257,19 @@ get_token(FILE *fp,			/* I  - File to read from */
       * Whitespace delimited text...
       */
 
-      ungetc(ch, fp);
+      cupsFileSeek(fp, cupsFileTell(fp) - 1);
 
       bufptr = buf;
       bufend = buf + buflen - 1;
 
-      while ((ch = getc(fp)) != EOF)
+      while ((ch = cupsFileGetChar(fp)) != EOF)
 	if (isspace(ch) || ch == '#')
           break;
 	else if (bufptr < bufend)
           *bufptr++ = (char)ch;
 
       if (ch == '#')
-        ungetc(ch, fp);
+        cupsFileSeek(fp, cupsFileTell(fp) - 1);
       else if (ch == '\n')
         (*linenum) ++;
 
@@ -4219,7 +4353,7 @@ password_cb(const char *prompt)		/* I - Prompt (unused) */
 static void
 pause_message(const char *message)	/* I - Message */
 {
-#ifdef WIN32
+#ifdef _WIN32
   HANDLE	tty;			/* Console handle */
   DWORD		mode;			/* Console mode */
   char		key;			/* Key press */
@@ -4267,16 +4401,15 @@ pause_message(const char *message)	/* I - Message */
     close(tty);
     return;
   }
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
  /*
   * Display the prompt...
   */
 
-  printf("%s\n---- PRESS ANY KEY ----", message);
-  fflush(stdout);
+  cupsFilePrintf(cupsFileStdout(), "%s\n---- PRESS ANY KEY ----", message);
 
-#ifdef WIN32
+#ifdef _WIN32
  /*
   * Read a key...
   */
@@ -4302,14 +4435,13 @@ pause_message(const char *message)	/* I - Message */
 
   tcsetattr(tty, TCSAFLUSH, &original);
   close(tty);
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
  /*
   * Erase the "press any key" prompt...
   */
 
-  fputs("\r                       \r", stdout);
-  fflush(stdout);
+  cupsFilePuts(cupsFileStdout(), "\r                       \r");
 }
 
 
@@ -4318,7 +4450,7 @@ pause_message(const char *message)	/* I - Message */
  */
 
 static void
-print_attr(FILE            *outfile,	/* I  - Output file */
+print_attr(cups_file_t     *outfile,	/* I  - Output file */
            int             format,	/* I  - Output format */
            ipp_attribute_t *attr,	/* I  - Attribute to print */
            ipp_tag_t       *group)	/* IO - Current group */
@@ -4333,8 +4465,8 @@ print_attr(FILE            *outfile,	/* I  - Output file */
     {
       if (attr->group_tag != IPP_TAG_ZERO)
       {
-	fputs("</dict>\n", outfile);
-	fputs("<dict>\n", outfile);
+	cupsFilePuts(outfile, "</dict>\n");
+	cupsFilePuts(outfile, "<dict>\n");
       }
 
       if (group)
@@ -4346,31 +4478,31 @@ print_attr(FILE            *outfile,	/* I  - Output file */
 
     print_xml_string(outfile, "key", attr->name);
     if (attr->num_values > 1)
-      fputs("<array>\n", outfile);
+      cupsFilePuts(outfile, "<array>\n");
 
     switch (attr->value_tag)
     {
       case IPP_TAG_INTEGER :
       case IPP_TAG_ENUM :
 	  for (i = 0; i < attr->num_values; i ++)
-	    fprintf(outfile, "<integer>%d</integer>\n", attr->values[i].integer);
+	    cupsFilePrintf(outfile, "<integer>%d</integer>\n", attr->values[i].integer);
 	  break;
 
       case IPP_TAG_BOOLEAN :
 	  for (i = 0; i < attr->num_values; i ++)
-	    fputs(attr->values[i].boolean ? "<true />\n" : "<false />\n", outfile);
+	    cupsFilePuts(outfile, attr->values[i].boolean ? "<true />\n" : "<false />\n");
 	  break;
 
       case IPP_TAG_RANGE :
 	  for (i = 0; i < attr->num_values; i ++)
-	    fprintf(outfile, "<dict><key>lower</key><integer>%d</integer>"
+	    cupsFilePrintf(outfile, "<dict><key>lower</key><integer>%d</integer>"
 			     "<key>upper</key><integer>%d</integer></dict>\n",
 		    attr->values[i].range.lower, attr->values[i].range.upper);
 	  break;
 
       case IPP_TAG_RESOLUTION :
 	  for (i = 0; i < attr->num_values; i ++)
-	    fprintf(outfile, "<dict><key>xres</key><integer>%d</integer>"
+	    cupsFilePrintf(outfile, "<dict><key>xres</key><integer>%d</integer>"
 			     "<key>yres</key><integer>%d</integer>"
 			     "<key>units</key><string>%s</string></dict>\n",
 		   attr->values[i].resolution.xres,
@@ -4381,7 +4513,7 @@ print_attr(FILE            *outfile,	/* I  - Output file */
 
       case IPP_TAG_DATE :
 	  for (i = 0; i < attr->num_values; i ++)
-	    fprintf(outfile, "<date>%s</date>\n", iso_date(attr->values[i].date));
+	    cupsFilePrintf(outfile, "<date>%s</date>\n", iso_date(attr->values[i].date));
 	  break;
 
       case IPP_TAG_STRING :
@@ -4390,7 +4522,7 @@ print_attr(FILE            *outfile,	/* I  - Output file */
 	    char	buffer[IPP_MAX_LENGTH * 5 / 4 + 1];
 					/* Output buffer */
 
-	    fprintf(outfile, "<data>%s</data>\n",
+	    cupsFilePrintf(outfile, "<data>%s</data>\n",
 		    httpEncode64_2(buffer, sizeof(buffer),
 				   attr->values[i].unknown.data,
 				   attr->values[i].unknown.length));
@@ -4400,10 +4532,11 @@ print_attr(FILE            *outfile,	/* I  - Output file */
       case IPP_TAG_TEXT :
       case IPP_TAG_NAME :
       case IPP_TAG_KEYWORD :
-      case IPP_TAG_CHARSET :
       case IPP_TAG_URI :
-      case IPP_TAG_MIMETYPE :
+      case IPP_TAG_URISCHEME :
+      case IPP_TAG_CHARSET :
       case IPP_TAG_LANGUAGE :
+      case IPP_TAG_MIMETYPE :
 	  for (i = 0; i < attr->num_values; i ++)
 	    print_xml_string(outfile, "string", attr->values[i].string.text);
 	  break;
@@ -4412,51 +4545,51 @@ print_attr(FILE            *outfile,	/* I  - Output file */
       case IPP_TAG_NAMELANG :
 	  for (i = 0; i < attr->num_values; i ++)
 	  {
-	    fputs("<dict><key>language</key><string>", outfile);
+	    cupsFilePuts(outfile, "<dict><key>language</key><string>");
 	    print_xml_string(outfile, NULL, attr->values[i].string.language);
-	    fputs("</string><key>string</key><string>", outfile);
+	    cupsFilePuts(outfile, "</string><key>string</key><string>");
 	    print_xml_string(outfile, NULL, attr->values[i].string.text);
-	    fputs("</string></dict>\n", outfile);
+	    cupsFilePuts(outfile, "</string></dict>\n");
 	  }
 	  break;
 
       case IPP_TAG_BEGIN_COLLECTION :
 	  for (i = 0; i < attr->num_values; i ++)
 	  {
-	    fputs("<dict>\n", outfile);
+	    cupsFilePuts(outfile, "<dict>\n");
 	    for (colattr = attr->values[i].collection->attrs;
 		 colattr;
 		 colattr = colattr->next)
 	      print_attr(outfile, format, colattr, NULL);
-	    fputs("</dict>\n", outfile);
+	    cupsFilePuts(outfile, "</dict>\n");
 	  }
 	  break;
 
       default :
-	  fprintf(outfile, "<string>&lt;&lt;%s&gt;&gt;</string>\n", ippTagString(attr->value_tag));
+	  cupsFilePrintf(outfile, "<string>&lt;&lt;%s&gt;&gt;</string>\n", ippTagString(attr->value_tag));
 	  break;
     }
 
     if (attr->num_values > 1)
-      fputs("</array>\n", outfile);
+      cupsFilePuts(outfile, "</array>\n");
   }
   else
   {
-    char	buffer[8192];		/* Value buffer */
+    char	buffer[131072];		/* Value buffer */
 
     if (format == _CUPS_OUTPUT_TEST)
     {
       if (!attr->name)
       {
-        fputs("        -- separator --\n", outfile);
+        cupsFilePuts(outfile, "        -- separator --\n");
         return;
       }
 
-      fprintf(outfile, "        %s (%s%s) = ", attr->name, attr->num_values > 1 ? "1setOf " : "", ippTagString(attr->value_tag));
+      cupsFilePrintf(outfile, "        %s (%s%s) = ", attr->name, attr->num_values > 1 ? "1setOf " : "", ippTagString(attr->value_tag));
     }
 
     ippAttributeString(attr, buffer, sizeof(buffer));
-    fprintf(outfile, "%s\n", buffer);
+    cupsFilePrintf(outfile, "%s\n", buffer);
   }
 }
 
@@ -4467,7 +4600,7 @@ print_attr(FILE            *outfile,	/* I  - Output file */
 
 static void
 print_csv(
-    FILE            *outfile,		/* I - Output file */
+    cups_file_t     *outfile,		/* I - Output file */
     ipp_attribute_t *attr,		/* I - First attribute for line */
     int             num_displayed,	/* I - Number of attributes to display */
     char            **displayed,	/* I - Attributes to display */
@@ -4502,7 +4635,7 @@ print_csv(
     for (i = 0; i < num_displayed; i ++)
     {
       if (i)
-        fputc(',', outfile);
+        cupsFilePutChar(outfile, ',');
 
       buffer[0] = '\0';
 
@@ -4520,30 +4653,30 @@ print_csv(
       if (strchr(buffer, ',') != NULL || strchr(buffer, '\"') != NULL ||
 	  strchr(buffer, '\\') != NULL)
       {
-        putc('\"', outfile);
+        cupsFilePutChar(cupsFileStdout(), '\"');
         for (bufptr = buffer; *bufptr; bufptr ++)
         {
           if (*bufptr == '\\' || *bufptr == '\"')
-            putc('\\', outfile);
-          putc(*bufptr, outfile);
+            cupsFilePutChar(cupsFileStdout(), '\\');
+          cupsFilePutChar(cupsFileStdout(), *bufptr);
         }
-        putc('\"', outfile);
+        cupsFilePutChar(cupsFileStdout(), '\"');
       }
       else
-        fputs(buffer, outfile);
+        cupsFilePuts(outfile, buffer);
     }
-    putc('\n', outfile);
+    cupsFilePutChar(cupsFileStdout(), '\n');
   }
   else
   {
     for (i = 0; i < num_displayed; i ++)
     {
       if (i)
-        putc(',', outfile);
+        cupsFilePutChar(cupsFileStdout(), ',');
 
-      fputs(displayed[i], outfile);
+      cupsFilePuts(outfile, displayed[i]);
     }
-    putc('\n', outfile);
+    cupsFilePutChar(cupsFileStdout(), '\n');
   }
 
   free(buffer);
@@ -4555,8 +4688,8 @@ print_csv(
  */
 
 static void
-print_fatal_error(FILE       *outfile,	/* I - Output file */
-		  const char *s,	/* I - Printf-style format string */
+print_fatal_error(cups_file_t *outfile,	/* I - Output file */
+		  const char  *s,	/* I - Printf-style format string */
                   ...)			/* I - Additional arguments as needed */
 {
   char		buffer[10240];		/* Format buffer */
@@ -4591,7 +4724,7 @@ print_fatal_error(FILE       *outfile,	/* I - Output file */
 
 static void
 print_line(
-    FILE            *outfile,		/* I - Output file */
+    cups_file_t     *outfile,		/* I - Output file */
     ipp_attribute_t *attr,		/* I - First attribute for line */
     int             num_displayed,	/* I - Number of attributes to display */
     char            **displayed,	/* I - Attributes to display */
@@ -4625,7 +4758,7 @@ print_line(
     for (i = 0; i < num_displayed; i ++)
     {
       if (i)
-        putc(' ', outfile);
+        cupsFilePutChar(cupsFileStdout(), ' ');
 
       buffer[0] = '\0';
 
@@ -4640,31 +4773,31 @@ print_line(
         }
       }
 
-      fprintf(outfile, "%*s", (int)-widths[i], buffer);
+      cupsFilePrintf(outfile, "%*s", (int)-widths[i], buffer);
     }
-    putc('\n', outfile);
+    cupsFilePutChar(cupsFileStdout(), '\n');
   }
   else
   {
     for (i = 0; i < num_displayed; i ++)
     {
       if (i)
-        putc(' ', outfile);
+        cupsFilePutChar(cupsFileStdout(), ' ');
 
-      fprintf(outfile, "%*s", (int)-widths[i], displayed[i]);
+      cupsFilePrintf(outfile, "%*s", (int)-widths[i], displayed[i]);
     }
-    putc('\n', outfile);
+    cupsFilePutChar(cupsFileStdout(), '\n');
 
     for (i = 0; i < num_displayed; i ++)
     {
       if (i)
-	putc(' ', outfile);
+	cupsFilePutChar(cupsFileStdout(), ' ');
 
       memset(buffer, '-', widths[i]);
       buffer[widths[i]] = '\0';
-      fputs(buffer, outfile);
+      cupsFilePuts(outfile, buffer);
     }
-    putc('\n', outfile);
+    cupsFilePutChar(cupsFileStdout(), '\n');
   }
 
   free(buffer);
@@ -4676,23 +4809,23 @@ print_line(
  */
 
 static void
-print_xml_header(FILE *outfile)		/* I - Output file */
+print_xml_header(cups_file_t *outfile)		/* I - Output file */
 {
   if (!XMLHeader)
   {
-    fputs("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n", outfile);
-    fputs("<!DOCTYPE plist PUBLIC \"-//Apple Computer//DTD PLIST 1.0//EN\" "
-         "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n", outfile);
-    fputs("<plist version=\"1.0\">\n", outfile);
-    fputs("<dict>\n", outfile);
-    fputs("<key>ipptoolVersion</key>\n", outfile);
-    fputs("<string>" CUPS_SVERSION "</string>\n", outfile);
-    fputs("<key>Transfer</key>\n", outfile);
-    fprintf(outfile, "<string>%s</string>\n",
+    cupsFilePuts(outfile, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    cupsFilePuts(outfile, "<!DOCTYPE plist PUBLIC \"-//Apple Computer//DTD PLIST 1.0//EN\" "
+         "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n");
+    cupsFilePuts(outfile, "<plist version=\"1.0\">\n");
+    cupsFilePuts(outfile, "<dict>\n");
+    cupsFilePuts(outfile, "<key>ipptoolVersion</key>\n");
+    cupsFilePuts(outfile, "<string>" CUPS_SVERSION "</string>\n");
+    cupsFilePuts(outfile, "<key>Transfer</key>\n");
+    cupsFilePrintf(outfile, "<string>%s</string>\n",
 	    Transfer == _CUPS_TRANSFER_AUTO ? "auto" :
 		Transfer == _CUPS_TRANSFER_CHUNKED ? "chunked" : "length");
-    fputs("<key>Tests</key>\n", outfile);
-    fputs("<array>\n", outfile);
+    cupsFilePuts(outfile, "<key>Tests</key>\n");
+    cupsFilePuts(outfile, "<array>\n");
 
     XMLHeader = 1;
   }
@@ -4704,21 +4837,21 @@ print_xml_header(FILE *outfile)		/* I - Output file */
  */
 
 static void
-print_xml_string(FILE       *outfile,	/* I - Output file */
-                 const char *element,	/* I - Element name or NULL */
-		 const char *s)		/* I - String to print */
+print_xml_string(cups_file_t *outfile,	/* I - Output file */
+                 const char  *element,	/* I - Element name or NULL */
+		 const char  *s)	/* I - String to print */
 {
   if (element)
-    fprintf(outfile, "<%s>", element);
+    cupsFilePrintf(outfile, "<%s>", element);
 
   while (*s)
   {
     if (*s == '&')
-      fputs("&amp;", outfile);
+      cupsFilePuts(outfile, "&amp;");
     else if (*s == '<')
-      fputs("&lt;", outfile);
+      cupsFilePuts(outfile, "&lt;");
     else if (*s == '>')
-      fputs("&gt;", outfile);
+      cupsFilePuts(outfile, "&gt;");
     else if ((*s & 0xe0) == 0xc0)
     {
      /*
@@ -4727,13 +4860,13 @@ print_xml_string(FILE       *outfile,	/* I - Output file */
 
       if ((s[1] & 0xc0) != 0x80)
       {
-        putc('?', outfile);
+        cupsFilePutChar(outfile, '?');
         s ++;
       }
       else
       {
-        putc(*s++, outfile);
-        putc(*s, outfile);
+        cupsFilePutChar(outfile, *s++);
+        cupsFilePutChar(outfile, *s);
       }
     }
     else if ((*s & 0xf0) == 0xe0)
@@ -4744,14 +4877,14 @@ print_xml_string(FILE       *outfile,	/* I - Output file */
 
       if ((s[1] & 0xc0) != 0x80 || (s[2] & 0xc0) != 0x80)
       {
-        putc('?', outfile);
+        cupsFilePutChar(outfile, '?');
         s += 2;
       }
       else
       {
-        putc(*s++, outfile);
-        putc(*s++, outfile);
-        putc(*s, outfile);
+        cupsFilePutChar(outfile, *s++);
+        cupsFilePutChar(outfile, *s++);
+        cupsFilePutChar(outfile, *s);
       }
     }
     else if ((*s & 0xf8) == 0xf0)
@@ -4763,15 +4896,15 @@ print_xml_string(FILE       *outfile,	/* I - Output file */
       if ((s[1] & 0xc0) != 0x80 || (s[2] & 0xc0) != 0x80 ||
           (s[3] & 0xc0) != 0x80)
       {
-        putc('?', outfile);
+        cupsFilePutChar(outfile, '?');
         s += 3;
       }
       else
       {
-        putc(*s++, outfile);
-        putc(*s++, outfile);
-        putc(*s++, outfile);
-        putc(*s, outfile);
+        cupsFilePutChar(outfile, *s++);
+        cupsFilePutChar(outfile, *s++);
+        cupsFilePutChar(outfile, *s++);
+        cupsFilePutChar(outfile, *s);
       }
     }
     else if ((*s & 0x80) || (*s < ' ' && !isspace(*s & 255)))
@@ -4780,16 +4913,16 @@ print_xml_string(FILE       *outfile,	/* I - Output file */
       * Invalid control character...
       */
 
-      putc('?', outfile);
+      cupsFilePutChar(outfile, '?');
     }
     else
-      putc(*s, outfile);
+      cupsFilePutChar(outfile, *s);
 
     s ++;
   }
 
   if (element)
-    fprintf(outfile, "</%s>\n", element);
+    cupsFilePrintf(outfile, "</%s>\n", element);
 }
 
 
@@ -4798,22 +4931,22 @@ print_xml_string(FILE       *outfile,	/* I - Output file */
  */
 
 static void
-print_xml_trailer(FILE       *outfile,	/* I - Output file */
-                  int        success,	/* I - 1 on success, 0 on failure */
-                  const char *message)	/* I - Error message or NULL */
+print_xml_trailer(cups_file_t *outfile,	/* I - Output file */
+                  int         success,	/* I - 1 on success, 0 on failure */
+                  const char  *message)	/* I - Error message or NULL */
 {
   if (XMLHeader)
   {
-    fputs("</array>\n", outfile);
-    fputs("<key>Successful</key>\n", outfile);
-    fputs(success ? "<true />\n" : "<false />\n", outfile);
+    cupsFilePuts(outfile, "</array>\n");
+    cupsFilePuts(outfile, "<key>Successful</key>\n");
+    cupsFilePuts(outfile, success ? "<true />\n" : "<false />\n");
     if (message)
     {
-      fputs("<key>ErrorMessage</key>\n", outfile);
+      cupsFilePuts(outfile, "<key>ErrorMessage</key>\n");
       print_xml_string(outfile, "string", message);
     }
-    fputs("</dict>\n", outfile);
-    fputs("</plist>\n", outfile);
+    cupsFilePuts(outfile, "</dict>\n");
+    cupsFilePuts(outfile, "</plist>\n");
 
     XMLHeader = 0;
   }
@@ -4825,7 +4958,7 @@ print_xml_trailer(FILE       *outfile,	/* I - Output file */
  */
 
 static void
-set_variable(FILE         *outfile,	/* I - Output file */
+set_variable(cups_file_t  *outfile,	/* I - Output file */
              _cups_vars_t *vars,	/* I - Variables */
              const char   *name,	/* I - Variable name */
              const char   *value)	/* I - Value string */
@@ -4864,7 +4997,7 @@ set_variable(FILE         *outfile,	/* I - Output file */
 }
 
 
-#ifndef WIN32
+#ifndef _WIN32
 /*
  * 'sigterm_handler()' - Handle SIGINT and SIGTERM.
  */
@@ -4879,7 +5012,7 @@ sigterm_handler(int sig)		/* I - Signal number (unused) */
   signal(SIGINT, SIG_DFL);
   signal(SIGTERM, SIG_DFL);
 }
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
 
 
 /*
@@ -4901,7 +5034,7 @@ timeout_cb(http_t *http,		/* I - Connection to server */
   * buffer is empty...
   */
 
-#ifdef SO_NWRITE			/* OS X and some versions of Linux */
+#ifdef SO_NWRITE			/* macOS and some versions of Linux */
   socklen_t len = sizeof(buffered);	/* Size of return value */
 
   if (getsockopt(httpGetFd(http), SOL_SOCKET, SO_NWRITE, &buffered, &len))
@@ -4926,8 +5059,7 @@ timeout_cb(http_t *http,		/* I - Connection to server */
 static void
 usage(void)
 {
-  _cupsLangPuts(stderr, _("Usage: ipptool [options] URI filename [ ... "
-		          "filenameN ]"));
+  _cupsLangPuts(stderr, _("Usage: ipptool [options] URI filename [ ... filenameN ]"));
   _cupsLangPuts(stderr, _("Options:"));
   _cupsLangPuts(stderr, _("  --help                  Show help."));
   _cupsLangPuts(stderr, _("  --stop-after-include-error\n"
@@ -4937,30 +5069,21 @@ usage(void)
   _cupsLangPuts(stderr, _("  -6                      Connect using IPv6."));
   _cupsLangPuts(stderr, _("  -C                      Send requests using "
                           "chunking (default)."));
-  _cupsLangPuts(stdout, _("  -E                      Test with HTTP Upgrade to "
-                          "TLS."));
+  _cupsLangPuts(stderr, _("  -E                      Test with encryption using HTTP Upgrade to TLS."));
   _cupsLangPuts(stderr, _("  -I                      Ignore errors."));
-  _cupsLangPuts(stderr, _("  -L                      Send requests using "
-                          "content-length."));
+  _cupsLangPuts(stderr, _("  -L                      Send requests using content-length."));
   _cupsLangPuts(stderr, _("  -P filename.plist       Produce XML plist to a file and test report to standard output."));
-  _cupsLangPuts(stderr, _("  -S                      Test with SSL "
-			  "encryption."));
-  _cupsLangPuts(stderr, _("  -T seconds              Set the receive/send "
-                          "timeout in seconds."));
-  _cupsLangPuts(stderr, _("  -V version              Set default IPP "
-                          "version."));
-  _cupsLangPuts(stderr, _("  -X                      Produce XML plist instead "
-                          "of plain text."));
+  _cupsLangPuts(stderr, _("  -S                      Test with encryption using HTTPS."));
+  _cupsLangPuts(stderr, _("  -T seconds              Set the receive/send timeout in seconds."));
+  _cupsLangPuts(stderr, _("  -V version              Set default IPP version."));
+  _cupsLangPuts(stderr, _("  -X                      Produce XML plist instead of plain text."));
   _cupsLangPuts(stderr, _("  -c                      Produce CSV output."));
-  _cupsLangPuts(stderr, _("  -d name=value           Set named variable to "
-                          "value."));
-  _cupsLangPuts(stderr, _("  -f filename             Set default request "
-                          "filename."));
-  _cupsLangPuts(stderr, _("  -i seconds              Repeat the last file with "
-                          "the given time interval."));
+  _cupsLangPuts(stderr, _("  -d name=value           Set named variable to value."));
+  _cupsLangPuts(stderr, _("  -f filename             Set default request filename."));
+  _cupsLangPuts(stderr, _("  -h                      Validate HTTP response headers."));
+  _cupsLangPuts(stderr, _("  -i seconds              Repeat the last file with the given time interval."));
   _cupsLangPuts(stderr, _("  -l                      Produce plain text output."));
-  _cupsLangPuts(stderr, _("  -n count                Repeat the last file the "
-                          "given number of times."));
+  _cupsLangPuts(stderr, _("  -n count                Repeat the last file the given number of times."));
   _cupsLangPuts(stderr, _("  -q                      Run silently."));
   _cupsLangPuts(stderr, _("  -t                      Produce a test report."));
   _cupsLangPuts(stderr, _("  -v                      Be verbose."));
@@ -4974,7 +5097,7 @@ usage(void)
  */
 
 static int				/* O - 1 if valid, 0 otherwise */
-validate_attr(FILE            *outfile,	/* I - Output file */
+validate_attr(cups_file_t     *outfile,	/* I - Output file */
               cups_array_t    *errors,	/* I - Errors array */
               ipp_attribute_t *attr)	/* I - Attribute to validate */
 {
@@ -5631,11 +5754,41 @@ validate_attr(FILE            *outfile,	/* I - Output file */
 
 
 /*
+ * 'with_flags_string()' - Return the "WITH-xxx" predicate that corresponds to
+                           the flags.
+ */
+
+static const char *                     /* O - WITH-xxx string */
+with_flags_string(int flags)            /* I - WITH flags */
+{
+  if (flags & _CUPS_WITH_ALL)
+  {
+    if (flags & _CUPS_WITH_HOSTNAME)
+      return ("WITH-ALL-HOSTNAMES");
+    else if (flags & _CUPS_WITH_RESOURCE)
+      return ("WITH-ALL-RESOURCES");
+    else if (flags & _CUPS_WITH_SCHEME)
+      return ("WITH-ALL-SCHEMES");
+    else
+      return ("WITH-ALL-VALUES");
+  }
+  else if (flags & _CUPS_WITH_HOSTNAME)
+    return ("WITH-HOSTNAME");
+  else if (flags & _CUPS_WITH_RESOURCE)
+    return ("WITH-RESOURCE");
+  else if (flags & _CUPS_WITH_SCHEME)
+    return ("WITH-SCHEME");
+  else
+    return ("WITH-VALUE");
+}
+
+
+/*
  * 'with_value()' - Test a WITH-VALUE predicate.
  */
 
 static int				/* O - 1 on match, 0 on non-match */
-with_value(FILE            *outfile,	/* I - Output file */
+with_value(cups_file_t     *outfile,	/* I - Output file */
            cups_array_t    *errors,	/* I - Errors array */
            char            *value,	/* I - Value string */
            int             flags,	/* I - Flags for match */
@@ -5803,7 +5956,7 @@ with_value(FILE            *outfile,	/* I - Output file */
     case IPP_TAG_BOOLEAN :
 	for (i = 0; i < attr->num_values; i ++)
 	{
-          if (!strcmp(value, "true") == attr->values[i].boolean)
+          if ((!strcmp(value, "true")) == attr->values[i].boolean)
           {
             if (!matchbuf[0])
 	      strlcpy(matchbuf, value, matchlen);
@@ -5946,36 +6099,15 @@ with_value(FILE            *outfile,	/* I - Output file */
 
 	  regfree(&re);
 	}
-	else if (ippGetValueTag(attr) == IPP_TAG_URI)
+	else if (ippGetValueTag(attr) == IPP_TAG_URI && !(flags & (_CUPS_WITH_SCHEME | _CUPS_WITH_HOSTNAME | _CUPS_WITH_RESOURCE)))
 	{
-          if (!strncmp(value, "ipp://", 6) || !strncmp(value, "http://", 7) || !strncmp(value, "ipps://", 7) || !strncmp(value, "https://", 8))
-          {
-	    char	scheme[256],	/* URI scheme */
-			userpass[256],	/* username:password, if any */
-			hostname[256],	/* hostname */
-			*hostptr,	/* Pointer into hostname */
-			resource[1024];	/* Resource path */
-	    int		port;		/* Port number */
-
-            if (httpSeparateURI(HTTP_URI_CODING_ALL, value, scheme, sizeof(scheme), userpass, sizeof(userpass), hostname, sizeof(hostname), &port, resource, sizeof(resource)) >= HTTP_URI_STATUS_OK && (hostptr = hostname + strlen(hostname) - 1) > hostname && *hostptr == '.')
-            {
-             /*
-              * Strip trailing "." in hostname of URI...
-              */
-
-              *hostptr = '\0';
-              httpAssembleURI(HTTP_URI_CODING_ALL, temp, sizeof(temp), scheme, userpass, hostname, port, resource);
-              value = temp;
-            }
-          }
-
 	 /*
 	  * Value is a literal URI string, see if the value(s) match...
 	  */
 
 	  for (i = 0; i < attr->num_values; i ++)
 	  {
-	    if (!strcmp(value, get_string(attr, i, flags, temp, sizeof(temp))))
+	    if (!compare_uris(value, get_string(attr, i, flags, temp, sizeof(temp))))
 	    {
 	      if (!matchbuf[0])
 		strlcpy(matchbuf,
@@ -6003,7 +6135,46 @@ with_value(FILE            *outfile,	/* I - Output file */
 
 	  for (i = 0; i < attr->num_values; i ++)
 	  {
-	    if (!strcmp(value, get_string(attr, i, flags, temp, sizeof(temp))))
+	    int result;
+
+            switch (ippGetValueTag(attr))
+            {
+              case IPP_TAG_URI :
+                 /*
+                  * Some URI components are case-sensitive, some not...
+                  */
+
+                  if (flags & (_CUPS_WITH_SCHEME | _CUPS_WITH_HOSTNAME))
+                    result = _cups_strcasecmp(value, get_string(attr, i, flags, temp, sizeof(temp)));
+                  else
+                    result = strcmp(value, get_string(attr, i, flags, temp, sizeof(temp)));
+                  break;
+
+              case IPP_TAG_MIMETYPE :
+              case IPP_TAG_NAME :
+              case IPP_TAG_NAMELANG :
+              case IPP_TAG_TEXT :
+              case IPP_TAG_TEXTLANG :
+                 /*
+                  * mimeMediaType, nameWithoutLanguage, nameWithLanguage,
+                  * textWithoutLanguage, and textWithLanguage are defined to
+                  * be case-insensitive strings...
+                  */
+
+                  result = _cups_strcasecmp(value, get_string(attr, i, flags, temp, sizeof(temp)));
+                  break;
+
+              default :
+                 /*
+                  * Other string syntaxes are defined as lowercased so we use
+                  * case-sensitive comparisons to catch problems...
+                  */
+
+                  result = strcmp(value, get_string(attr, i, flags, temp, sizeof(temp)));
+                  break;
+            }
+
+            if (!result)
 	    {
 	      if (!matchbuf[0])
 		strlcpy(matchbuf,
@@ -6164,7 +6335,6 @@ with_value_from(
     case IPP_TAG_NAMELANG :
     case IPP_TAG_TEXT :
     case IPP_TAG_TEXTLANG :
-    case IPP_TAG_URI :
     case IPP_TAG_URISCHEME :
 	for (i = 0; i < count; i ++)
 	{
@@ -6177,6 +6347,31 @@ with_value_from(
 	      strlcpy(matchbuf, value, matchlen);
 	  }
 	  else
+	  {
+	    add_stringf(errors, "GOT: %s='%s'", ippGetName(attr), value);
+	    match = 0;
+	  }
+	}
+	break;
+
+    case IPP_TAG_URI :
+	for (i = 0; i < count; i ++)
+	{
+	  const char *value = ippGetString(attr, i, NULL);
+					/* Current string value */
+          int fromcount = ippGetCount(fromattr);
+
+          for (j = 0; j < fromcount; j ++)
+          {
+            if (!compare_uris(value, ippGetString(fromattr, j, NULL)))
+            {
+              if (!matchbuf[0])
+                strlcpy(matchbuf, value, matchlen);
+              break;
+            }
+          }
+
+	  if (j >= fromcount)
 	  {
 	    add_stringf(errors, "GOT: %s='%s'", ippGetName(attr), value);
 	    match = 0;
@@ -6198,8 +6393,3 @@ with_value_from(
 
   return (0);
 }
-
-
-/*
- * End of "$Id: ipptool.c 13075 2016-01-29 21:14:05Z msweet $".
- */

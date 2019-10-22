@@ -1,17 +1,15 @@
 /*
- * "$Id: ippfind.c 12638 2015-05-19 02:36:15Z msweet $"
- *
  * Utility to find IPP printers via Bonjour/DNS-SD and optionally run
  * commands such as IPP and Bonjour conformance tests.  This tool is
  * inspired by the UNIX "find" command, thus its name.
  *
- * Copyright 2008-2015 by Apple Inc.
+ * Copyright 2008-2018 by Apple Inc.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -22,12 +20,12 @@
 
 #define _CUPS_NO_DEPRECATED
 #include <cups/cups-private.h>
-#ifdef WIN32
+#ifdef _WIN32
 #  include <process.h>
 #  include <sys/timeb.h>
 #else
 #  include <sys/wait.h>
-#endif /* WIN32 */
+#endif /* _WIN32 */
 #include <regex.h>
 #ifdef HAVE_DNSSD
 #  include <dns_sd.h>
@@ -41,9 +39,9 @@
 #  define kDNSServiceMaxDomainName AVAHI_DOMAIN_NAME_MAX
 #endif /* HAVE_DNSSD */
 
-#ifndef WIN32
+#ifndef _WIN32
 extern char **environ;			/* Process environment variables */
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
 
 
 /*
@@ -71,6 +69,7 @@ typedef enum ippfind_op_e		/* Operations for expressions */
   IPPFIND_OP_IS_REMOTE,			/* Is a remote service */
   IPPFIND_OP_DOMAIN_REGEX,		/* Domain matches regular expression */
   IPPFIND_OP_NAME_REGEX,		/* Name matches regular expression */
+  IPPFIND_OP_NAME_LITERAL,		/* Name matches literal string */
   IPPFIND_OP_HOST_REGEX,		/* Hostname matches regular expression */
   IPPFIND_OP_PORT_RANGE,		/* Port matches range */
   IPPFIND_OP_PATH_REGEX,		/* Path matches regular expression */
@@ -95,7 +94,7 @@ typedef struct ippfind_expr_s		/* Expression */
 		*child;			/* Child expressions */
   ippfind_op_t	op;			/* Operation code (see above) */
   int		invert;			/* Invert the result */
-  char		*key;			/* TXT record key */
+  char		*name;			/* TXT record key or literal name */
   regex_t	re;			/* Regular expression for matching */
   int		range[2];		/* Port number range */
   int		num_args;		/* Number of arguments for exec */
@@ -157,7 +156,7 @@ static void DNSSD_API	browse_callback(DNSServiceRef sdRef,
 				        const char *serviceName,
 				        const char *regtype,
 				        const char *replyDomain, void *context)
-					__attribute__((nonnull(1,5,6,7,8)));
+					_CUPS_NONNULL((1,5,6,7,8));
 static void DNSSD_API	browse_local_callback(DNSServiceRef sdRef,
 					      DNSServiceFlags flags,
 					      uint32_t interfaceIndex,
@@ -166,7 +165,7 @@ static void DNSSD_API	browse_local_callback(DNSServiceRef sdRef,
 					      const char *regtype,
 					      const char *replyDomain,
 					      void *context)
-					      __attribute__((nonnull(1,5,6,7,8)));
+					      _CUPS_NONNULL((1,5,6,7,8));
 #elif defined(HAVE_AVAHI)
 static void		browse_callback(AvahiServiceBrowser *browser,
 					AvahiIfIndex interface,
@@ -192,7 +191,7 @@ static ippfind_srv_t	*get_service(cups_array_t *services,
 				     const char *serviceName,
 				     const char *regtype,
 				     const char *replyDomain)
-				     __attribute__((nonnull(1,2,3,4)));
+				     _CUPS_NONNULL((1,2,3,4));
 static double		get_time(void);
 static int		list_service(ippfind_srv_t *service);
 static ippfind_expr_t	*new_expr(ippfind_op_t op, int invert,
@@ -208,7 +207,7 @@ static void DNSSD_API	resolve_callback(DNSServiceRef sdRef,
 				         uint16_t txtLen,
 				         const unsigned char *txtRecord,
 				         void *context)
-				         __attribute__((nonnull(1,5,6,9, 10)));
+				         _CUPS_NONNULL((1,5,6,9, 10));
 #elif defined(HAVE_AVAHI)
 static int		poll_callback(struct pollfd *pollfds,
 			              unsigned int num_pollfds, int timeout,
@@ -228,8 +227,8 @@ static void		resolve_callback(AvahiServiceResolver *res,
 					 void *context);
 #endif /* HAVE_DNSSD */
 static void		set_service_uri(ippfind_srv_t *service);
-static void		show_usage(void) __attribute__((noreturn));
-static void		show_version(void) __attribute__((noreturn));
+static void		show_usage(void) _CUPS_NORETURN;
+static void		show_version(void) _CUPS_NORETURN;
 
 
 /*
@@ -276,6 +275,7 @@ main(int  argc,				/* I - Number of command-line args */
     "IS_REMOTE",
     "DOMAIN_REGEX",
     "NAME_REGEX",
+    "NAME_LITERAL",
     "HOST_REGEX",
     "PORT_RANGE",
     "PATH_REGEX",
@@ -419,6 +419,18 @@ main(int  argc,				/* I - Number of command-line args */
         {
           if ((temp = new_expr(IPPFIND_OP_IS_LOCAL, invert, NULL, NULL,
                                NULL)) == NULL)
+            return (IPPFIND_EXIT_MEMORY);
+        }
+        else if (!strcmp(argv[i], "--literal-name"))
+        {
+          i ++;
+          if (i >= argc)
+          {
+            _cupsLangPrintf(stderr, _("ippfind: Missing name after %s."), "--literal-name");
+            show_usage();
+          }
+
+          if ((temp = new_expr(IPPFIND_OP_NAME_LITERAL, invert, argv[i], NULL, NULL)) == NULL)
             return (IPPFIND_EXIT_MEMORY);
         }
         else if (!strcmp(argv[i], "--name"))
@@ -725,6 +737,18 @@ main(int  argc,				/* I - Number of command-line args */
             case '6' :
                 address_family = AF_INET6;
                 break;
+
+            case 'N' : /* Literal name */
+		i ++;
+		if (i >= argc)
+		{
+		  _cupsLangPrintf(stderr, _("ippfind: Missing name after %s."), "-N");
+		  show_usage();
+		}
+
+		if ((temp = new_expr(IPPFIND_OP_NAME_LITERAL, invert, argv[i], NULL, NULL)) == NULL)
+		  return (IPPFIND_EXIT_MEMORY);
+		break;
 
             case 'P' :
 		i ++;
@@ -1175,27 +1199,51 @@ main(int  argc,				/* I - Number of command-line args */
 			*domain;	/* Domain, if any */
 
     strlcpy(buf, search, sizeof(buf));
-    if (buf[0] == '_')
+
+    if (!strncmp(buf, "_http._", 7) || !strncmp(buf, "_https._", 8) || !strncmp(buf, "_ipp._", 6) || !strncmp(buf, "_ipps._", 7))
     {
       regtype = buf;
     }
     else if ((regtype = strstr(buf, "._")) != NULL)
     {
-      name = buf;
-      *regtype++ = '\0';
+      if (strcmp(regtype, "._tcp"))
+      {
+       /*
+        * "something._protocol._tcp" -> search for something with the given
+        * protocol...
+        */
+
+	name = buf;
+	*regtype++ = '\0';
+      }
+      else
+      {
+       /*
+        * "_protocol._tcp" -> search for everything with the given protocol...
+        */
+
+        /* name = NULL; */
+        regtype = buf;
+      }
     }
     else
     {
+     /*
+      * "something" -> search for something with IPP protocol...
+      */
+
       name    = buf;
       regtype = "_ipp._tcp";
     }
 
     for (domain = regtype; *domain; domain ++)
+    {
       if (*domain == '.' && domain[1] != '_')
       {
-        *domain++ = '\0';
-        break;
+	*domain++ = '\0';
+	break;
       }
+    }
 
     if (!*domain)
       domain = NULL;
@@ -1210,6 +1258,9 @@ main(int  argc,				/* I - Number of command-line args */
         domain = "local.";
 
       service = get_service(services, name, regtype, domain);
+
+      if (getenv("IPPFIND_DEBUG"))
+        fprintf(stderr, "Resolving name=\"%s\", regtype=\"%s\", domain=\"%s\"\n", name, regtype, domain);
 
 #ifdef HAVE_DNSSD
       service->ref = dnssd_ref;
@@ -1235,6 +1286,9 @@ main(int  argc,				/* I - Number of command-line args */
      /*
       * Browse for services of the given type...
       */
+
+      if (getenv("IPPFIND_DEBUG"))
+        fprintf(stderr, "Browsing for regtype=\"%s\", domain=\"%s\"\n", regtype, domain);
 
 #ifdef HAVE_DNSSD
       DNSServiceRef	ref;		/* Browse reference */
@@ -1265,14 +1319,6 @@ main(int  argc,				/* I - Number of command-line args */
     {
       _cupsLangPrintf(stderr, _("ippfind: Unable to browse or resolve: %s"),
                       dnssd_error_string(err));
-
-      if (name)
-        printf("name=\"%s\"\n", name);
-
-      printf("regtype=\"%s\"\n", regtype);
-
-      if (domain)
-        printf("domain=\"%s\"\n", domain);
 
       return (IPPFIND_EXIT_BONJOUR);
     }
@@ -1720,10 +1766,10 @@ dnssd_error_string(int error)		/* I - Error number */
     case kDNSServiceErr_PollingMode :
         return ("Service polling mode error.");
 
-#ifndef WIN32
+#ifndef _WIN32
     case kDNSServiceErr_Timeout :
         return ("Service timeout.");
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
   }
 
 #  elif defined(HAVE_AVAHI)
@@ -1786,6 +1832,9 @@ eval_expr(ippfind_srv_t  *service,	/* I - Service */
       case IPPFIND_OP_NAME_REGEX :
           result = !regexec(&(expression->re), service->name, 0, NULL, 0);
           break;
+      case IPPFIND_OP_NAME_LITERAL :
+          result = !_cups_strcasecmp(expression->name, service->name);
+          break;
       case IPPFIND_OP_HOST_REGEX :
           result = !regexec(&(expression->re), service->host, 0, NULL, 0);
           break;
@@ -1797,11 +1846,11 @@ eval_expr(ippfind_srv_t  *service,	/* I - Service */
           result = !regexec(&(expression->re), service->resource, 0, NULL, 0);
           break;
       case IPPFIND_OP_TXT_EXISTS :
-          result = cupsGetOption(expression->key, service->num_txt,
+          result = cupsGetOption(expression->name, service->num_txt,
 				 service->txt) != NULL;
           break;
       case IPPFIND_OP_TXT_REGEX :
-          val = cupsGetOption(expression->key, service->num_txt,
+          val = cupsGetOption(expression->name, service->num_txt,
 			      service->txt);
 	  if (val)
 	    result = !regexec(&(expression->re), val, 0, NULL, 0);
@@ -1871,10 +1920,10 @@ exec_program(ippfind_srv_t *service,	/* I - Service */
   int		i,			/* Looping var */
 		myenvc,			/* Number of environment variables */
 		status;			/* Exit status of program */
-#ifndef WIN32
+#ifndef _WIN32
   char		program[1024];		/* Program to execute */
   int		pid;			/* Process ID */
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
 
 
  /*
@@ -2009,7 +2058,7 @@ exec_program(ippfind_srv_t *service,	/* I - Service */
       myargv[i] = strdup(args[i]);
   }
 
-#ifdef WIN32
+#ifdef _WIN32
   if (getenv("IPPFIND_DEBUG"))
   {
     printf("\nProgram:\n    %s\n", args[0]);
@@ -2072,7 +2121,7 @@ exec_program(ippfind_srv_t *service,	/* I - Service */
     while (wait(&status) != pid)
       ;
   }
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
  /*
   * Free memory...
@@ -2090,14 +2139,14 @@ exec_program(ippfind_srv_t *service,	/* I - Service */
 
   if (getenv("IPPFIND_DEBUG"))
   {
-#ifdef WIN32
+#ifdef _WIN32
     printf("Exit Status: %d\n", status);
 #else
     if (WIFEXITED(status))
       printf("Exit Status: %d\n", WEXITSTATUS(status));
     else
       printf("Terminating Signal: %d\n", WTERMSIG(status));
-#endif /* WIN32 */
+#endif /* _WIN32 */
   }
 
   return (status == 0);
@@ -2171,7 +2220,7 @@ get_service(cups_array_t *services,	/* I - Service array */
 static double
 get_time(void)
 {
-#ifdef WIN32
+#ifdef _WIN32
   struct _timeb curtime;		/* Current Windows time */
 
   _ftime(&curtime);
@@ -2185,7 +2234,7 @@ get_time(void)
     return (0.0);
   else
     return (curtime.tv_sec + 0.000001 * curtime.tv_usec);
-#endif /* WIN32 */
+#endif /* _WIN32 */
 }
 
 
@@ -2429,8 +2478,8 @@ new_expr(ippfind_op_t op,		/* I - Operation */
   temp->op = op;
   temp->invert = invert;
 
-  if (op == IPPFIND_OP_TXT_EXISTS || op == IPPFIND_OP_TXT_REGEX)
-    temp->key = (char *)value;
+  if (op == IPPFIND_OP_TXT_EXISTS || op == IPPFIND_OP_TXT_REGEX || op == IPPFIND_OP_NAME_LITERAL)
+    temp->name = (char *)value;
   else if (op == IPPFIND_OP_PORT_RANGE)
   {
    /*
@@ -2840,8 +2889,3 @@ show_version(void)
 
   exit(IPPFIND_EXIT_TRUE);
 }
-
-
-/*
- * End of "$Id: ippfind.c 12638 2015-05-19 02:36:15Z msweet $".
- */

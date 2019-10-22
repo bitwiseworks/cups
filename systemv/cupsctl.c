@@ -1,23 +1,16 @@
 /*
- * "$Id: cupsctl.c 10996 2013-05-29 11:51:34Z msweet $"
+ * Scheduler control program for CUPS.
  *
- *   Scheduler control program for CUPS.
+ * Copyright 2007-2019 by Apple Inc.
+ * Copyright 2006-2007 by Easy Software Products.
  *
- *   Copyright 2007-2012 by Apple Inc.
- *   Copyright 2006-2007 by Easy Software Products.
+ * These coded instructions, statements, and computer programs are the
+ * property of Apple Inc. and are protected by Federal copyright
+ * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+ * which should have been included with this file.  If this file is
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
- *   These coded instructions, statements, and computer programs are the
- *   property of Apple Inc. and are protected by Federal copyright
- *   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
- *   which should have been included with this file.  If this file is
- *   file is missing or damaged, see the license at "http://www.cups.org/".
- *
- *   This file is subject to the Apple OS-Developed Software exception.
- *
- * Contents:
- *
- *   main()  - Get/set server settings.
- *   usage() - Show program usage.
+ * This file is subject to the Apple OS-Developed Software exception.
  */
 
 /*
@@ -32,7 +25,7 @@
  * Local functions...
  */
 
-static void	usage(const char *opt) __attribute__((noreturn));
+static void	usage(const char *opt) _CUPS_NORETURN;
 
 
 /*
@@ -43,11 +36,47 @@ int					/* O - Exit status */
 main(int  argc,				/* I - Number of command-line args */
      char *argv[])			/* I - Command-line arguments */
 {
-  int		i,			/* Looping var */
+  int		i, j,			/* Looping vars */
 		num_settings;		/* Number of settings */
-  cups_option_t	*settings;		/* Settings */
+  cups_option_t	*settings,		/* Settings */
+		*setting;		/* Current setting */
   const char	*opt;			/* Current option character */
   http_t	*http;			/* Connection to server */
+  static const char * const disallowed[] =
+  {					/* List of disallowed directives for cupsd.conf */
+    "AccessLog",
+    "CacheDir",
+    "ConfigFilePerm",
+    "DataDir",
+    "DocumentRoot",
+    "ErrorLog",
+    "FatalErrors",
+    "FileDevice",
+    "FontPath",
+    "Group",
+    "Listen",
+    "LogFilePerm",
+    "LPDConfigFile",
+    "PageLog",
+    "PassEnv",
+    "Port",
+    "Printcap",
+    "PrintcapFormat",
+    "RemoteRoot",
+    "RequestRoot",
+    "ServerBin",
+    "ServerCertificate",
+    "ServerKey",
+    "ServerKeychain",
+    "ServerRoot",
+    "SetEnv",
+    "SMBConfigFile",
+    "StateDir",
+    "SystemGroup",
+    "SystemGroupAuthKey",
+    "TempDir",
+    "User"
+  };
 
 
  /*
@@ -135,11 +164,16 @@ main(int  argc,				/* I - Number of command-line args */
       usage(argv[i]);
   }
 
-  if (cupsGetOption("Listen", num_settings, settings) ||
-      cupsGetOption("Port", num_settings, settings))
+  for (i = num_settings, setting = settings; i > 0; i --, setting ++)
   {
-    _cupsLangPuts(stderr, _("cupsctl: Cannot set Listen or Port directly."));
-    return (1);
+    for (j = 0; j < (int)(sizeof(disallowed) / sizeof(disallowed[0])); j ++)
+    {
+      if (!_cups_strcasecmp(setting->name, disallowed[j]))
+      {
+	_cupsLangPrintf(stderr, _("cupsctl: Cannot set %s directly."), disallowed[j]);
+	return (1);
+      }
+    }
   }
 
  /*
@@ -220,8 +254,3 @@ usage(const char *opt)			/* I - Option character/string */
 
   exit(1);
 }
-
-
-/*
- * End of "$Id: cupsctl.c 10996 2013-05-29 11:51:34Z msweet $".
- */
