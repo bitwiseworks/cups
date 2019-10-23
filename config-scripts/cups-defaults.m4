@@ -168,6 +168,11 @@ dnl Determine the correct username and group for this OS...
 AC_ARG_WITH(cups_user, [  --with-cups-user        set default user for CUPS],
 	CUPS_USER="$withval",
 	AC_MSG_CHECKING(for default print user)
+	if test x$host_os_name = xos2-emx; then
+		passwd_file="/@unixroot/etc/master.passwd";
+	else
+		passwd_file="/etc/passwd";
+	fi
 	if test x$host_os_name = xdarwin; then
 		if test x`id -u _lp 2>/dev/null` = x; then
 			CUPS_USER="lp";
@@ -175,10 +180,10 @@ AC_ARG_WITH(cups_user, [  --with-cups-user        set default user for CUPS],
 			CUPS_USER="_lp";
 		fi
 		AC_MSG_RESULT($CUPS_USER)
-	elif test -f /etc/passwd; then
+	elif test -f $passwd_file; then
 		CUPS_USER=""
 		for user in lp lpd guest daemon nobody; do
-			if test "`grep \^${user}: /etc/passwd`" != ""; then
+			if test "`grep \^${user}: $passwd_file`" != ""; then
 				CUPS_USER="$user"
 				AC_MSG_RESULT($user)
 				break;
@@ -201,6 +206,11 @@ fi
 AC_ARG_WITH(cups_group, [  --with-cups-group       set default group for CUPS],
 	CUPS_GROUP="$withval",
 	AC_MSG_CHECKING(for default print group)
+	if test x$host_os_name = xos2-emx; then
+		group_file="/@unixroot/etc/group";
+	else
+		group_file="/etc/group";
+	fi
 	if test x$host_os_name = xdarwin; then
 		if test x`id -g _lp 2>/dev/null` = x; then
 			CUPS_GROUP="lp";
@@ -208,11 +218,11 @@ AC_ARG_WITH(cups_group, [  --with-cups-group       set default group for CUPS],
 			CUPS_GROUP="_lp";
 		fi
 		AC_MSG_RESULT($CUPS_GROUP)
-	elif test -f /etc/group; then
+	elif test -f $group_file; then
 		GROUP_LIST="_lp lp nobody"
 		CUPS_GROUP=""
 		for group in $GROUP_LIST; do
-			if test "`grep \^${group}: /etc/group`" != ""; then
+			if test "`grep \^${group}: $group_file`" != ""; then
 				CUPS_GROUP="$group"
 				AC_MSG_RESULT($group)
 				break;
@@ -238,11 +248,16 @@ AC_ARG_WITH(system_groups, [  --with-system-groups    set default system groups 
 		CUPS_SYSTEM_GROUPS="admin"
 	else
 		AC_MSG_CHECKING(for default system groups)
-		if test -f /etc/group; then
+		if test x$host_os_name = xos2-emx; then
+			group_file="/@unixroot/etc/group";
+		else
+			group_file="/etc/group";
+		fi
+		if test -f $group_file; then
 			CUPS_SYSTEM_GROUPS=""
 			GROUP_LIST="lpadmin sys system root"
 			for group in $GROUP_LIST; do
-				if test "`grep \^${group}: /etc/group`" != ""; then
+				if test "`grep \^${group}: $group_file`" != ""; then
 					if test "x$CUPS_SYSTEM_GROUPS" = x; then
 						CUPS_SYSTEM_GROUPS="$group"
 					else
@@ -297,6 +312,9 @@ if test x$default_printcap != xno; then
 				;;
 			sunos*)
 				CUPS_DEFAULT_PRINTCAP="/etc/printers.conf"
+				;;
+			os2*)
+				CUPS_DEFAULT_PRINTCAP="/@unixroot/etc/printcap"
 				;;
 			*)
 				CUPS_DEFAULT_PRINTCAP="/etc/printcap"

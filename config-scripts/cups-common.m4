@@ -197,8 +197,8 @@ dnl Checks for wait functions.
 AC_CHECK_FUNCS(waitpid wait3)
 
 dnl Check for posix_spawn
-case "$uname" in
-	OS/2*)
+case "$host_os_name" in
+	os2*)
 	   # Do not use posix_spawn on OS/2
 	   ;;
 	*)
