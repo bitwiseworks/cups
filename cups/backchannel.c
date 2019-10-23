@@ -1,6 +1,4 @@
 /*
- * "$Id: backchannel.c 11558 2014-02-06 18:33:34Z msweet $"
- *
  * Backchannel functions for CUPS.
  *
  * Copyright 2007-2014 by Apple Inc.
@@ -10,7 +8,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -21,12 +19,12 @@
 
 #include "cups.h"
 #include <errno.h>
-#ifdef WIN32
+#ifdef _WIN32
 #  include <io.h>
 #  include <fcntl.h>
 #else
 #  include <sys/time.h>
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
 
 /*
@@ -44,7 +42,7 @@ static void	cups_setup(fd_set *set, struct timeval *tval,
  * parameter controls how many seconds to wait for the data - use 0.0 to
  * return immediately if there is no data, -1.0 to wait for data indefinitely.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 ssize_t					/* O - Bytes read or -1 on error */
@@ -79,11 +77,11 @@ cupsBackChannelRead(char   *buffer,	/* I - Buffer to read into */
   * Read bytes from the pipe...
   */
 
-#ifdef WIN32
+#ifdef _WIN32
   return ((ssize_t)_read(3, buffer, (unsigned)bytes));
 #else
   return (read(3, buffer, bytes));
-#endif /* WIN32 */
+#endif /* _WIN32 */
 }
 
 
@@ -95,7 +93,7 @@ cupsBackChannelRead(char   *buffer,	/* I - Buffer to read into */
  * 0.0 to return immediately if the data cannot be written, -1.0 to wait
  * indefinitely.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 ssize_t					/* O - Bytes written or -1 on error */
@@ -141,11 +139,11 @@ cupsBackChannelWrite(
     * Write bytes to the pipe...
     */
 
-#ifdef WIN32
+#ifdef _WIN32
     count = (ssize_t)_write(3, buffer, (unsigned)(bytes - total));
 #else
     count = write(3, buffer, bytes - total);
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
     if (count < 0)
     {
@@ -186,8 +184,3 @@ cups_setup(fd_set         *set,		/* I - Set for select() */
   FD_ZERO(set);
   FD_SET(3, set);
 }
-
-
-/*
- * End of "$Id: backchannel.c 11558 2014-02-06 18:33:34Z msweet $".
- */

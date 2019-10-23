@@ -1,16 +1,14 @@
 /*
- * "$Id: tlscheck.c 12688 2015-06-03 17:31:30Z msweet $"
- *
  * TLS check program for CUPS.
  *
- * Copyright 2007-2015 by Apple Inc.
+ * Copyright 2007-2017 by Apple Inc.
  * Copyright 1997-2006 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -53,8 +51,11 @@ main(int  argc,				/* I - Number of command-line arguments */
 		host[256],		/* Hostname */
 		userpass[256],		/* Username/password */
 		resource[256];		/* Resource path */
-  int		tls_options = _HTTP_TLS_NONE,
+  int		af = AF_UNSPEC,		/* Address family */
+		tls_options = _HTTP_TLS_NONE,
 					/* TLS options */
+		tls_min_version = _HTTP_TLS_1_0,
+		tls_max_version = _HTTP_TLS_MAX,
 		verbose = 0;		/* Verbosity */
   ipp_t		*request,		/* IPP Get-Printer-Attributes request */
 		*response;		/* IPP Get-Printer-Attributes response */
@@ -83,9 +84,33 @@ main(int  argc,				/* I - Number of command-line arguments */
     {
       tls_options |= _HTTP_TLS_ALLOW_DH;
     }
+    else if (!strcmp(argv[i], "--no-cbc"))
+    {
+      tls_options |= _HTTP_TLS_DENY_CBC;
+    }
     else if (!strcmp(argv[i], "--no-tls10"))
     {
-      tls_options |= _HTTP_TLS_DENY_TLS10;
+      tls_min_version = _HTTP_TLS_1_1;
+    }
+    else if (!strcmp(argv[i], "--tls10"))
+    {
+      tls_min_version = _HTTP_TLS_1_0;
+      tls_max_version = _HTTP_TLS_1_0;
+    }
+    else if (!strcmp(argv[i], "--tls11"))
+    {
+      tls_min_version = _HTTP_TLS_1_1;
+      tls_max_version = _HTTP_TLS_1_1;
+    }
+    else if (!strcmp(argv[i], "--tls12"))
+    {
+      tls_min_version = _HTTP_TLS_1_2;
+      tls_max_version = _HTTP_TLS_1_2;
+    }
+    else if (!strcmp(argv[i], "--tls13"))
+    {
+      tls_min_version = _HTTP_TLS_1_3;
+      tls_max_version = _HTTP_TLS_1_3;
     }
     else if (!strcmp(argv[i], "--rc4"))
     {
@@ -94,6 +119,14 @@ main(int  argc,				/* I - Number of command-line arguments */
     else if (!strcmp(argv[i], "--verbose") || !strcmp(argv[i], "-v"))
     {
       verbose = 1;
+    }
+    else if (!strcmp(argv[i], "-4"))
+    {
+      af = AF_INET;
+    }
+    else if (!strcmp(argv[i], "-6"))
+    {
+      af = AF_INET6;
     }
     else if (argv[i][0] == '-')
     {
@@ -133,9 +166,9 @@ main(int  argc,				/* I - Number of command-line arguments */
   if (!port)
     port = 631;
 
-  _httpTLSSetOptions(tls_options);
+  _httpTLSSetOptions(tls_options, tls_min_version, tls_max_version);
 
-  http = httpConnect2(server, port, NULL, AF_UNSPEC, HTTP_ENCRYPTION_ALWAYS, 1, 30000, NULL);
+  http = httpConnect2(server, port, NULL, af, HTTP_ENCRYPTION_ALWAYS, 1, 30000, NULL);
   if (!http)
   {
     printf("%s: ERROR (%s)\n", server, cupsLastErrorString());
@@ -722,9 +755,16 @@ usage(void)
   puts("");
   puts("Options:");
   puts("  --dh        Allow DH/DHE key exchange");
+  puts("  --no-cbc    Disable CBC cipher suites");
   puts("  --no-tls10  Disable TLS/1.0");
   puts("  --rc4       Allow RC4 encryption");
+  puts("  --tls10     Only use TLS/1.0");
+  puts("  --tls11     Only use TLS/1.1");
+  puts("  --tls12     Only use TLS/1.2");
+  puts("  --tls13     Only use TLS/1.3");
   puts("  --verbose   Be verbose");
+  puts("  -4          Connect using IPv4 addresses only");
+  puts("  -6          Connect using IPv6 addresses only");
   puts("  -v          Be verbose");
   puts("");
   puts("The default port is 631.");
@@ -732,8 +772,3 @@ usage(void)
   exit(1);
 }
 #endif /* !HAVE_SSL */
-
-
-/*
- * End of "$Id: tlscheck.c 12688 2015-06-03 17:31:30Z msweet $".
- */

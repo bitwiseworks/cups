@@ -1,21 +1,19 @@
 /*
- * "$Id: file.h 11627 2014-02-20 16:15:09Z msweet $"
- *
  * Public file definitions for CUPS.
  *
  * Since stdio files max out at 256 files on many systems, we have to
  * write similar functions without this limit.  At the same time, using
  * our own file functions allows us to provide transparent support of
- * gzip'd print files, PPD files, etc.
+ * different line endings, gzip'd print files, PPD files, etc.
  *
- * Copyright 2007-2014 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -31,11 +29,11 @@
 #  include "versioning.h"
 #  include <stddef.h>
 #  include <sys/types.h>
-#  if defined(WIN32) && !defined(__CUPS_SSIZE_T_DEFINED)
+#  if defined(_WIN32) && !defined(__CUPS_SSIZE_T_DEFINED)
 #    define __CUPS_SSIZE_T_DEFINED
 /* Windows does not support the ssize_t type, so map it to off_t... */
 typedef off_t ssize_t;			/* @private@ */
-#  endif /* WIN32 && !__CUPS_SSIZE_T_DEFINED */
+#  endif /* _WIN32 && !__CUPS_SSIZE_T_DEFINED */
 
 
 /*
@@ -87,9 +85,7 @@ extern cups_file_t	*cupsFileOpen(const char *filename, const char *mode)
 			_CUPS_API_1_2;
 extern cups_file_t	*cupsFileOpenFd(int fd, const char *mode) _CUPS_API_1_2;
 extern int		cupsFilePeekChar(cups_file_t *fp) _CUPS_API_1_2;
-extern int		cupsFilePrintf(cups_file_t *fp, const char *format, ...)
-			__attribute__((__format__ (__printf__, 2, 3)))
-			_CUPS_API_1_2;
+extern int		cupsFilePrintf(cups_file_t *fp, const char *format, ...) _CUPS_FORMAT(2, 3) _CUPS_API_1_2;
 extern int		cupsFilePutChar(cups_file_t *fp, int c) _CUPS_API_1_2;
 extern ssize_t		cupsFilePutConf(cups_file_t *fp, const char *directive,
 			                const char *value) _CUPS_API_1_4;
@@ -112,7 +108,3 @@ extern ssize_t		cupsFileWrite(cups_file_t *fp, const char *buf,
 }
 #  endif /* __cplusplus */
 #endif /* !_CUPS_FILE_H_ */
-
-/*
- * End of "$Id: file.h 11627 2014-02-20 16:15:09Z msweet $".
- */

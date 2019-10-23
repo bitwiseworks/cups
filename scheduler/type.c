@@ -1,16 +1,14 @@
 /*
- * "$Id: type.c 12577 2015-03-30 19:07:17Z msweet $"
- *
  * MIME typing routines for CUPS.
  *
- * Copyright 2007-2015 by Apple Inc.
+ * Copyright 2007-2016 by Apple Inc.
  * Copyright 1997-2006 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -65,7 +63,8 @@ static const char * const debug_ops[] =
 		  "INT",		/* Integer/32-bit word matches */
 		  "LOCALE",		/* Current locale matches string */
 		  "CONTAINS",		/* File contains a string */
-		  "ISTRING"		/* Case-insensitive string matches */
+		  "ISTRING",		/* Case-insensitive string matches */
+		  "REGEX"		/* Regular expression matches */
 		};
 #endif /* DEBUG */
 
@@ -1088,7 +1087,7 @@ mime_check_rules(
 	  break;
 
       case MIME_MAGIC_LOCALE :
-#if defined(WIN32) || defined(__APPLE__)
+#if defined(_WIN32) || defined(__APPLE__)
           result = !strcmp(rules->value.localev, setlocale(LC_ALL, ""));
 #else
           result = !strcmp(rules->value.localev, setlocale(LC_MESSAGES, ""));
@@ -1276,8 +1275,3 @@ mime_patmatch(const char *s,		/* I - String to match against */
 
   return (*s == *pat);
 }
-
-
-/*
- * End of "$Id: type.c 12577 2015-03-30 19:07:17Z msweet $".
- */

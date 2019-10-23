@@ -1,18 +1,16 @@
 #
-# "$Id: Makefile 12568 2015-03-25 13:49:23Z msweet $"
+# Filter makefile for CUPS.
 #
-#   Filter makefile for CUPS.
+# Copyright 2007-2017 by Apple Inc.
+# Copyright 1997-2006 by Easy Software Products.
 #
-#   Copyright 2007-2012 by Apple Inc.
-#   Copyright 1997-2006 by Easy Software Products.
+# These coded instructions, statements, and computer programs are the
+# property of Apple Inc. and are protected by Federal copyright
+# law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+# which should have been included with this file.  If this file is
+# missing or damaged, see the license at "http://www.cups.org/".
 #
-#   These coded instructions, statements, and computer programs are the
-#   property of Apple Inc. and are protected by Federal copyright
-#   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
-#   which should have been included with this file.  If this file is
-#   file is missing or damaged, see the license at "http://www.cups.org/".
-#
-#   This file is subject to the Apple OS-Developed Software exception.
+# This file is subject to the Apple OS-Developed Software exception.
 #
 
 include ../Makedefs
@@ -31,6 +29,7 @@ LIBTARGETS =	\
 		libcupsimage.a
 UNITTARGETS =	\
 		rasterbench$(EXEEXT) \
+		testclient$(EXEEXT) \
 		testraster$(EXEEXT)
 TARGETS	=	\
 		$(LIBTARGETS) \
@@ -40,7 +39,7 @@ IMAGEOBJS =	error.o interpret.o raster.o
 OBJS	=	$(IMAGEOBJS) \
 		commandtops.o gziptoany.o common.o pstops.o \
 		rasterbench.o rastertoepson.o rastertohp.o rastertolabel.o \
-		rastertopwg.o testraster.o
+		rastertopwg.o testclient.o testraster.o
 
 
 #
@@ -213,38 +212,6 @@ apihelp:
 		--intro spec-ppd.shtml \
 		>../doc/help/spec-ppd.html
 
-framedhelp:
-	echo Generating CUPS API help files...
-	mxmldoc --section "Programming" --title "Raster API" \
-		--framed ../cups/api-raster \
-		--css ../doc/cups-printable.css \
-		--header api-raster.header --intro api-raster.shtml \
-		../cups/raster.h interpret.c raster.c
-	mxmldoc --section "Programming" \
-		--title "Developing PostScript Printer Drivers" \
-		--framed ../cups/postscript-driver \
-		--css ../doc/cups-printable.css \
-		--header postscript-driver.header \
-		--intro postscript-driver.shtml
-	mxmldoc --section "Programming" \
-		--title "Introduction to the PPD Compiler" \
-		--framed ../cups/ppd-compiler \
-		--css ../doc/cups-printable.css \
-		--header ppd-compiler.header \
-		--intro ppd-compiler.shtml
-	mxmldoc --section "Programming" \
-		--title "Developing Raster Printer Drivers" \
-		--framed ../cups/raster-driver \
-		--css ../doc/cups-printable.css \
-		--header raster-driver.header \
-		--intro raster-driver.shtml
-	mxmldoc --section "Specifications" \
-		--title "CUPS PPD Extensions" \
-		--framed ../cups/spec-ppd \
-		--css ../doc/cups-printable.css \
-		--header spec-ppd.header \
-		--intro spec-ppd.shtml \
-
 
 #
 # commandtops
@@ -252,7 +219,8 @@ framedhelp:
 
 commandtops$(EXEEXT):	commandtops.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ commandtops.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ commandtops.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -261,7 +229,8 @@ commandtops$(EXEEXT):	commandtops.o ../cups/$(LIBCUPS)
 
 gziptoany$(EXEEXT):	gziptoany.o ../Makedefs ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ gziptoany.o $(LIBZ) $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ gziptoany.o $(LIBZ) $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -270,8 +239,9 @@ gziptoany$(EXEEXT):	gziptoany.o ../Makedefs ../cups/$(LIBCUPS)
 
 $(LIBCUPSIMAGE) libcupsimage.sl.2:	$(IMAGEOBJS) $(DEFFILE)
 	echo Linking $@...
-	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(DEFFILE) $(IMAGEOBJS) $(DSOLIBS) \
+	$(DSO) $(ARCHFLAGS) $(LDFLAGS) $(DSOFLAGS) -o $@ $(DEFFILE) $(IMAGEOBJS) $(DSOLIBS) \
 		-L../cups $(LINKCUPS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 #	$(RM) `basename $@ .2`
 #	$(LN) $@ `basename $@ .2`
 
@@ -289,25 +259,14 @@ $(DEFFILE):
 
 libcupsimage.2.dylib:	$(IMAGEOBJS) $(LIBCUPSIMAGEORDER)
 	echo Linking $@...
-	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ \
+	$(DSO) $(ARCHFLAGS) $(LDFLAGS) $(DSOFLAGS) -o $@ \
 		-install_name $(libdir)/$@ \
 		-current_version 2.3.0 \
 		-compatibility_version 2.0.0 \
 		$(IMAGEOBJS) $(DSOLIBS) -L../cups $(LINKCUPS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 	$(RM) libcupsimage.dylib
 	$(LN) $@ libcupsimage.dylib
-
-
-#
-# libcupsimage_s.a
-#
-
-libcupsimage_s.a:	$(IMAGEOBJS) libcupsimage_s.exp
-	echo Linking $@...
-	$(DSO) $(DSOFLAGS) -Wl,-berok,-bexport:libcupsimage_s.exp \
-		-o libcupsimage_s.o $(IMAGEOBJS) $(DSOLIBS)
-	$(RM) $@
-	$(AR) $(ARFLAGS) $@ libcupsimage_s.o
 
 
 #
@@ -316,7 +275,7 @@ libcupsimage_s.a:	$(IMAGEOBJS) libcupsimage_s.exp
 
 libcupsimage.la:       $(IMAGEOBJS)
 	echo Linking $@...
-	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(IMAGEOBJS:.o=.lo) $(DSOLIBS) \
+	$(DSO) $(ARCHFLAGS) $(LDFLAGS) $(DSOFLAGS) -o $@ $(IMAGEOBJS:.o=.lo) $(DSOLIBS) \
 		-L../cups $(LINKCUPS) \
 		-rpath $(LIBDIR) -version-info 2:3
 
@@ -339,7 +298,8 @@ libcupsimage.a:	$(IMAGEOBJS)
 
 pstops$(EXEEXT):	pstops.o common.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ pstops.o common.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ pstops.o common.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -348,7 +308,8 @@ pstops$(EXEEXT):	pstops.o common.o ../cups/$(LIBCUPS)
 
 rastertoepson$(EXEEXT):	rastertoepson.o ../cups/$(LIBCUPS) $(LIBCUPSIMAGE)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ rastertoepson.o $(LINKCUPSIMAGE) $(IMGLIBS) $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ rastertoepson.o $(LINKCUPSIMAGE) $(IMGLIBS) $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -357,7 +318,8 @@ rastertoepson$(EXEEXT):	rastertoepson.o ../cups/$(LIBCUPS) $(LIBCUPSIMAGE)
 
 rastertohp$(EXEEXT):	rastertohp.o ../cups/$(LIBCUPS) $(LIBCUPSIMAGE)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ rastertohp.o $(LINKCUPSIMAGE) $(IMGLIBS) $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ rastertohp.o $(LINKCUPSIMAGE) $(IMGLIBS) $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -366,7 +328,8 @@ rastertohp$(EXEEXT):	rastertohp.o ../cups/$(LIBCUPS) $(LIBCUPSIMAGE)
 
 rastertolabel$(EXEEXT):	rastertolabel.o ../cups/$(LIBCUPS) $(LIBCUPSIMAGE)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ rastertolabel.o $(LINKCUPSIMAGE) $(IMGLIBS) $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ rastertolabel.o $(LINKCUPSIMAGE) $(IMGLIBS) $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -375,13 +338,27 @@ rastertolabel$(EXEEXT):	rastertolabel.o ../cups/$(LIBCUPS) $(LIBCUPSIMAGE)
 
 rastertopwg$(EXEEXT):	rastertopwg.o ../cups/$(LIBCUPS) $(LIBCUPSIMAGE)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ rastertopwg.o $(LINKCUPSIMAGE) $(IMGLIBS) $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ rastertopwg.o $(LINKCUPSIMAGE) $(IMGLIBS) $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 rastertopwg-static$(EXEEXT):	rastertopwg.o ../cups/$(LIBCUPSSTATIC) libcupsimage.a
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ rastertopwg.o libcupsimage.a \
+	$(LD_CC) $(LDFLAGS) -o $@ rastertopwg.o libcupsimage.a \
 		../cups/$(LIBCUPSSTATIC) $(IMGLIBS) $(DSOLIBS) $(COMMONLIBS) \
 		$(SSLLIBS) $(DNSSDLIBS) $(LIBGSSAPI)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
+
+
+#
+# testclient (dependency on static libraries is intentional)
+#
+
+testclient$(EXEEXT):	testclient.o ../cups/$(LIBCUPSSTATIC) libcupsimage.a
+	echo Linking $@...
+	$(LD_CC) $(LDFLAGS) -o $@ testclient.o \
+		libcupsimage.a ../cups/$(LIBCUPSSTATIC) \
+		$(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) $(COMMONLIBS) $(LIBZ)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -390,9 +367,10 @@ rastertopwg-static$(EXEEXT):	rastertopwg.o ../cups/$(LIBCUPSSTATIC) libcupsimage
 
 testraster$(EXEEXT):	testraster.o ../cups/$(LIBCUPSSTATIC) libcupsimage.a
 	echo Linking $@...
-	$(CC) $(ARCHFLAGS) $(LDFLAGS) -o $@ testraster.o libcupsimage.a \
+	$(LD_CC) $(ARCHFLAGS) $(LDFLAGS) -o $@ testraster.o libcupsimage.a \
 		../cups/$(LIBCUPSSTATIC) $(IMGLIBS) $(DSOLIBS) $(COMMONLIBS) \
 		$(SSLLIBS) $(DNSSDLIBS) $(LIBGSSAPI)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 	echo Running raster API tests...
 	./testraster
 
@@ -403,7 +381,8 @@ testraster$(EXEEXT):	testraster.o ../cups/$(LIBCUPSSTATIC) libcupsimage.a
 
 rasterbench$(EXEEXT):	rasterbench.o libcupsimage.a
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ rasterbench.o libcupsimage.a $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ rasterbench.o libcupsimage.a $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -411,8 +390,3 @@ rasterbench$(EXEEXT):	rasterbench.o libcupsimage.a
 #
 
 include Dependencies
-
-
-#
-# End of "$Id: Makefile 12568 2015-03-25 13:49:23Z msweet $".
-#

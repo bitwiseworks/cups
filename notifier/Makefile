@@ -1,16 +1,14 @@
 #
-# "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $"
+# Notifier makefile for CUPS.
 #
-#   Notifier makefile for CUPS.
+# Copyright 2007-2017 by Apple Inc.
+# Copyright 1997-2007 by Easy Software Products, all rights reserved.
 #
-#   Copyright 2007-2012 by Apple Inc.
-#   Copyright 1997-2007 by Easy Software Products, all rights reserved.
-#
-#   These coded instructions, statements, and computer programs are the
-#   property of Apple Inc. and are protected by Federal copyright
-#   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
-#   which should have been included with this file.  If this file is
-#   file is missing or damaged, see the license at "http://www.cups.org/".
+# These coded instructions, statements, and computer programs are the
+# property of Apple Inc. and are protected by Federal copyright
+# law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+# which should have been included with this file.  If this file is
+# missing or damaged, see the license at "http://www.cups.org/".
 #
 
 include ../Makedefs
@@ -125,7 +123,8 @@ depend:
 
 dbus$(EXEEXT):	dbus.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ dbus.o $(DBUS_NOTIFIERLIBS) $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ dbus.o $(DBUS_NOTIFIERLIBS) $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -134,7 +133,8 @@ dbus$(EXEEXT):	dbus.o ../cups/$(LIBCUPS)
 
 mailto$(EXEEXT):	mailto.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ mailto.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ mailto.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -143,7 +143,8 @@ mailto$(EXEEXT):	mailto.o ../cups/$(LIBCUPS)
 
 rss$(EXEEXT):	rss.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ rss.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ rss.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -152,14 +153,10 @@ rss$(EXEEXT):	rss.o ../cups/$(LIBCUPS)
 
 testnotify$(EXEEXT):	testnotify.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ testnotify.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ testnotify.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 $(OBJS):	../Makedefs
 
 include Dependencies
-
-
-#
-# End of "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $".
-#

@@ -1,6 +1,4 @@
 /*
- * "$Id: runloop.c 11558 2014-02-06 18:33:34Z msweet $"
- *
  * Common run loop APIs for CUPS backends.
  *
  * Copyright 2007-2014 by Apple Inc.
@@ -79,7 +77,7 @@ backendDrainOutput(int print_fd,	/* I - Print file descriptor */
       * Read error - bail if we don't see EAGAIN or EINTR...
       */
 
-      if (errno != EAGAIN || errno != EINTR)
+      if (errno != EAGAIN && errno != EINTR)
       {
 	fprintf(stderr, "DEBUG: Read failed: %s\n", strerror(errno));
 	_cupsLangPrintFilter(stderr, "ERROR", _("Unable to read print data."));
@@ -307,7 +305,7 @@ backendRunLoop(
         * Read error - bail if we don't see EAGAIN or EINTR...
 	*/
 
-	if (errno != EAGAIN || errno != EINTR)
+	if (errno != EAGAIN && errno != EINTR)
 	{
 	  fprintf(stderr, "DEBUG: Read failed: %s\n", strerror(errno));
 	  _cupsLangPrintFilter(stderr, "ERROR",
@@ -525,8 +523,3 @@ backendWaitLoop(
 
   return (1);
 }
-
-
-/*
- * End of "$Id: runloop.c 11558 2014-02-06 18:33:34Z msweet $".
- */

@@ -1,6 +1,4 @@
 /*
- * "$Id: transcode.c 12330 2014-12-09 20:57:28Z msweet $"
- *
  * Transcoding support for CUPS.
  *
  * Copyright 2007-2014 by Apple Inc.
@@ -10,7 +8,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -90,8 +88,7 @@ cupsCharsetToUTF8(
   * Check for valid arguments...
   */
 
-  DEBUG_printf(("2cupsCharsetToUTF8(dest=%p, src=\"%s\", maxout=%d, encoding=%d)",
-	        dest, src, maxout, encoding));
+  DEBUG_printf(("2cupsCharsetToUTF8(dest=%p, src=\"%s\", maxout=%d, encoding=%d)", (void *)dest, src, maxout, encoding));
 
   if (!dest || !src || maxout < 1)
   {
@@ -362,8 +359,7 @@ cupsUTF8ToUTF32(
   * Check for valid arguments and clear output...
   */
 
-  DEBUG_printf(("2cupsUTF8ToUTF32(dest=%p, src=\"%s\", maxout=%d)", dest,
-                src, maxout));
+  DEBUG_printf(("2cupsUTF8ToUTF32(dest=%p, src=\"%s\", maxout=%d)", (void *)dest, src, maxout));
 
   if (dest)
     *dest = 0;
@@ -583,8 +579,7 @@ cupsUTF32ToUTF8(
   * Check for valid arguments and clear output...
   */
 
-  DEBUG_printf(("2cupsUTF32ToUTF8(dest=%p, src=%p, maxout=%d)", dest, src,
-                maxout));
+  DEBUG_printf(("2cupsUTF32ToUTF8(dest=%p, src=%p, maxout=%d)", (void *)dest, (void *)src, maxout));
 
   if (dest)
     *dest = '\0';
@@ -721,8 +716,3 @@ cupsUTF32ToUTF8(
 
   return ((int)(dest - start));
 }
-
-
-/*
- * End of "$Id: transcode.c 12330 2014-12-09 20:57:28Z msweet $"
- */

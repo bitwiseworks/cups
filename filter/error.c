@@ -1,6 +1,4 @@
 /*
- * "$Id: error.c 12747 2015-06-24 15:55:05Z msweet $"
- *
  * Raster error handling for CUPS.
  *
  * Copyright 2007-2015 by Apple Inc.
@@ -10,7 +8,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -133,7 +131,7 @@ _cupsRasterClearError(void)
  *
  * If there are no recent errors, NULL is returned.
  *
- * @since CUPS 1.3/OS X 10.5@
+ * @since CUPS 1.3/macOS 10.5@
  */
 
 const char *				/* O - Last error */
@@ -209,7 +207,7 @@ get_error_buffer(void)
     buf = calloc(1, sizeof(_cups_raster_error_t));
     pthread_setspecific(raster_key, buf);
 
-    DEBUG_printf(("4get_error_buffer: buf=%p", buf));
+    DEBUG_printf(("4get_error_buffer: buf=%p", (void *)buf));
   }
 
  /*
@@ -272,8 +270,3 @@ get_error_buffer(void)
   return (&buf);
 }
 #endif /* HAVE_PTHREAD_H */
-
-
-/*
- * End of "$Id: error.c 12747 2015-06-24 15:55:05Z msweet $".
- */

@@ -1,16 +1,14 @@
 dnl
-dnl "$Id: cups-ssl.m4 12645 2015-05-20 01:20:52Z msweet $"
-dnl
 dnl TLS stuff for CUPS.
 dnl
-dnl Copyright 2007-2015 by Apple Inc.
+dnl Copyright 2007-2017 by Apple Inc.
 dnl Copyright 1997-2007 by Easy Software Products, all rights reserved.
 dnl
 dnl These coded instructions, statements, and computer programs are the
 dnl property of Apple Inc. and are protected by Federal copyright
 dnl law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 dnl which should have been included with this file.  If this file is
-dnl file is missing or damaged, see the license at "http://www.cups.org/".
+dnl missing or damaged, see the license at "http://www.cups.org/".
 dnl
 
 AC_ARG_ENABLE(ssl, [  --disable-ssl           disable SSL/TLS support])
@@ -25,7 +23,7 @@ CUPS_SERVERKEYCHAIN=""
 if test x$enable_ssl != xno; then
     dnl Look for CDSA...
     if test $have_ssl = 0 -a "x$enable_cdsassl" != "xno"; then
-	if test $uname = Darwin; then
+	if test $host_os_name = darwin; then
 	    AC_CHECK_HEADER(Security/SecureTransport.h, [
 	    	have_ssl=1
 		AC_DEFINE(HAVE_SSL)
@@ -54,7 +52,7 @@ if test x$enable_ssl != xno; then
 		AC_DEFINE(HAVE_CSSMERRORSTRING)
 		AC_DEFINE(HAVE_SECKEYCHAINOPEN)])
 
-		if test $uversion -ge 150; then
+		if test $host_os_version -ge 150; then
 			AC_DEFINE(HAVE_SSLSETENABLEDCIPHERS)
 		fi
 	fi
@@ -63,7 +61,6 @@ if test x$enable_ssl != xno; then
     dnl Then look for GNU TLS...
     if test $have_ssl = 0 -a "x$enable_gnutls" != "xno" -a "x$PKGCONFIG" != x; then
     	AC_PATH_TOOL(LIBGNUTLSCONFIG,libgnutls-config)
-    	AC_PATH_TOOL(LIBGCRYPTCONFIG,libgcrypt-config)
 	if $PKGCONFIG --exists gnutls; then
 	    have_ssl=1
 	    SSLLIBS=`$PKGCONFIG --libs gnutls`
@@ -83,6 +80,7 @@ if test x$enable_ssl != xno; then
 
 	    SAVELIBS="$LIBS"
 	    LIBS="$LIBS $SSLLIBS"
+	    AC_CHECK_FUNC(gnutls_fips140_set_mode, AC_DEFINE(HAVE_GNUTLS_FIPS140_SET_MODE))
 	    AC_CHECK_FUNC(gnutls_transport_set_pull_timeout_function, AC_DEFINE(HAVE_GNUTLS_TRANSPORT_SET_PULL_TIMEOUT_FUNCTION))
 	    AC_CHECK_FUNC(gnutls_priority_set_direct, AC_DEFINE(HAVE_GNUTLS_PRIORITY_SET_DIRECT))
 	    LIBS="$SAVELIBS"
@@ -106,7 +104,3 @@ AC_SUBST(SSLLIBS)
 
 EXPORT_SSLLIBS="$SSLLIBS"
 AC_SUBST(EXPORT_SSLLIBS)
-
-dnl
-dnl End of "$Id: cups-ssl.m4 12645 2015-05-20 01:20:52Z msweet $".
-dnl

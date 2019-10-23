@@ -1,6 +1,4 @@
 /*
- * "$Id: policy.c 11681 2014-03-05 19:07:24Z msweet $"
- *
  * Policy routines for the CUPS scheduler.
  *
  * Copyright 2007-2011, 2014 by Apple Inc.
@@ -10,7 +8,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -500,8 +498,3 @@ hash_op(cupsd_location_t *op)		/* I - Operation */
 {
   return (((op->op >> 6) & 0x40) | (op->op & 0x3f));
 }
-
-
-/*
- * End of "$Id: policy.c 11681 2014-03-05 19:07:24Z msweet $".
- */

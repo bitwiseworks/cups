@@ -1,6 +1,4 @@
 #
-# "$Id: Makefile 11776 2014-03-28 19:16:05Z msweet $"
-#
 # System V commands makefile for CUPS.
 #
 # Copyright 2007-2014 by Apple Inc.
@@ -10,7 +8,7 @@
 # property of Apple Inc. and are protected by Federal copyright
 # law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 # which should have been included with this file.  If this file is
-# file is missing or damaged, see the license at "http://www.cups.org/".
+# missing or damaged, see the license at "http://www.cups.org/".
 #
 
 include ../Makedefs
@@ -160,7 +158,8 @@ uninstall:
 
 cancel$(EXEEXT):	cancel.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ cancel.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ cancel.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -169,7 +168,8 @@ cancel$(EXEEXT):	cancel.o ../cups/$(LIBCUPS)
 
 cupsaccept$(EXEEXT):	cupsaccept.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ cupsaccept.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ cupsaccept.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 	for file in accept cupsenable cupsdisable cupsreject reject; do \
 		$(RM) $$file; \
 		$(LN) $@ $$file; \
@@ -182,7 +182,8 @@ cupsaccept$(EXEEXT):	cupsaccept.o ../cups/$(LIBCUPS)
 
 cupsaddsmb$(EXEEXT):	cupsaddsmb.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ cupsaddsmb.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ cupsaddsmb.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -191,7 +192,8 @@ cupsaddsmb$(EXEEXT):	cupsaddsmb.o ../cups/$(LIBCUPS)
 
 cupsctl$(EXEEXT):	cupsctl.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ cupsctl.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ cupsctl.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -200,7 +202,8 @@ cupsctl$(EXEEXT):	cupsctl.o ../cups/$(LIBCUPS)
 
 cupstestdsc$(EXEEXT):	cupstestdsc.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ cupstestdsc.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ cupstestdsc.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -209,12 +212,14 @@ cupstestdsc$(EXEEXT):	cupstestdsc.o ../cups/$(LIBCUPS)
 
 cupstestppd$(EXEEXT):	cupstestppd.o ../cups/$(LIBCUPS) ../filter/$(LIBCUPSIMAGE)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ cupstestppd.o $(LINKCUPSIMAGE) $(IMGLIBS) $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ cupstestppd.o $(LINKCUPSIMAGE) $(IMGLIBS) $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 cupstestppd-static$(EXEEXT):	cupstestppd.o ../cups/$(LIBCUPSSTATIC) ../filter/libcupsimage.a
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ cupstestppd.o ../filter/libcupsimage.a \
+	$(LD_CC) $(LDFLAGS) -o $@ cupstestppd.o ../filter/libcupsimage.a \
 		../cups/$(LIBCUPSSTATIC) $(IMGLIBS) $(LIBGSSAPI) $(LIBS) $(LIBZ)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -223,7 +228,8 @@ cupstestppd-static$(EXEEXT):	cupstestppd.o ../cups/$(LIBCUPSSTATIC) ../filter/li
 
 lp$(EXEEXT):	lp.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ lp.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ lp.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -232,7 +238,8 @@ lp$(EXEEXT):	lp.o ../cups/$(LIBCUPS)
 
 lpadmin$(EXEEXT):	lpadmin.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ lpadmin.o $(LIBZ) $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ lpadmin.o $(LIBZ) $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -241,7 +248,8 @@ lpadmin$(EXEEXT):	lpadmin.o ../cups/$(LIBCUPS)
 
 lpinfo$(EXEEXT):	lpinfo.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ lpinfo.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ lpinfo.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -250,7 +258,8 @@ lpinfo$(EXEEXT):	lpinfo.o ../cups/$(LIBCUPS)
 
 lpmove$(EXEEXT):	lpmove.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ lpmove.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ lpmove.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -259,7 +268,8 @@ lpmove$(EXEEXT):	lpmove.o ../cups/$(LIBCUPS)
 
 lpoptions$(EXEEXT):	lpoptions.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ lpoptions.o $(LIBZ) $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ lpoptions.o $(LIBZ) $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -268,7 +278,8 @@ lpoptions$(EXEEXT):	lpoptions.o ../cups/$(LIBCUPS)
 
 lpstat$(EXEEXT):	lpstat.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ lpstat.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ lpstat.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -276,8 +287,3 @@ lpstat$(EXEEXT):	lpstat.o ../cups/$(LIBCUPS)
 #
 
 include Dependencies
-
-
-#
-# End of "$Id: Makefile 11776 2014-03-28 19:16:05Z msweet $".
-#

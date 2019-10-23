@@ -1,6 +1,4 @@
 /*
- * "$Id: colorman.c 12619 2015-05-06 21:00:19Z msweet $"
- *
  * Color management routines for the CUPS scheduler.
  *
  * Copyright 2007-2014 by Apple Inc.
@@ -10,7 +8,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * Original DBUS/colord code is Copyright 2011 Red Hat, Inc.
  *
@@ -1516,8 +1514,3 @@ colord_unregister_printer(
   colord_delete_device(device_id);
 }
 #endif /* __APPLE__ */
-
-
-/*
- * End of "$Id: colorman.c 12619 2015-05-06 21:00:19Z msweet $".
- */

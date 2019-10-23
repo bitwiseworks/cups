@@ -1,16 +1,14 @@
 /*
- * "$Id: tempfile.c 12073 2014-07-31 00:58:00Z msweet $"
- *
  * Temp file utilities for CUPS.
  *
- * Copyright 2007-2014 by Apple Inc.
- * Copyright 1997-2006 by Easy Software Products.
+ * Copyright © 2007-2018 by Apple Inc.
+ * Copyright © 1997-2006 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -23,11 +21,11 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#if defined(WIN32) || defined(__EMX__)
+#if defined(_WIN32) || defined(__EMX__)
 #  include <io.h>
 #else
 #  include <unistd.h>
-#endif /* WIN32 || __EMX__ */
+#endif /* _WIN32 || __EMX__ */
 
 
 /*
@@ -44,24 +42,46 @@ cupsTempFd(char *filename,		/* I - Pointer to buffer */
   int		fd;			/* File descriptor for temp file */
   int		tries;			/* Number of tries */
   const char	*tmpdir;		/* TMPDIR environment var */
-#ifdef WIN32
-  char		tmppath[1024];		/* Windows temporary directory */
+#if defined(__APPLE__) || defined(_WIN32)
+  char		tmppath[1024];		/* Temporary directory */
+#endif /* __APPLE__ || _WIN32 */
+#ifdef _WIN32
   DWORD		curtime;		/* Current time */
 #else
   struct timeval curtime;		/* Current time */
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
 
  /*
   * See if TMPDIR is defined...
   */
 
-#ifdef WIN32
+#ifdef _WIN32
   if ((tmpdir = getenv("TEMP")) == NULL)
   {
     GetTempPath(sizeof(tmppath), tmppath);
     tmpdir = tmppath;
   }
+
+#elif defined(__APPLE__)
+ /*
+  * On macOS and iOS, the TMPDIR environment variable is not always the best
+  * location to place temporary files due to sandboxing.  Instead, the confstr
+  * function should be called to get the proper per-user, per-process TMPDIR
+  * value.
+  */
+
+  if ((tmpdir = getenv("TMPDIR")) != NULL && access(tmpdir, W_OK))
+    tmpdir = NULL;
+
+  if (!tmpdir)
+  {
+    if (confstr(_CS_DARWIN_USER_TEMP_DIR, tmppath, sizeof(tmppath)))
+      tmpdir = tmppath;
+    else
+      tmpdir = "/private/tmp";		/* This should never happen */
+  }
+
 #else
  /*
   * Previously we put root temporary files in the default CUPS temporary
@@ -71,12 +91,8 @@ cupsTempFd(char *filename,		/* I - Pointer to buffer */
   */
 
   if ((tmpdir = getenv("TMPDIR")) == NULL)
-#  ifdef __APPLE__
-    tmpdir = "/private/tmp";		/* /tmp is a symlink to /private/tmp */
-#  else
     tmpdir = "/tmp";
-#  endif /* __APPLE__ */
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
  /*
   * Make the temporary name using the specified directory...
@@ -86,7 +102,7 @@ cupsTempFd(char *filename,		/* I - Pointer to buffer */
 
   do
   {
-#ifdef WIN32
+#ifdef _WIN32
    /*
     * Get the current time of day...
     */
@@ -110,14 +126,14 @@ cupsTempFd(char *filename,		/* I - Pointer to buffer */
     */
 
     snprintf(filename, (size_t)len - 1, "%s/%05x%08x", tmpdir, (unsigned)getpid(), (unsigned)(curtime.tv_sec + curtime.tv_usec + tries));
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
    /*
     * Open the file in "exclusive" mode, making sure that we don't
     * stomp on an existing file or someone's symlink crack...
     */
 
-#ifdef WIN32
+#ifdef _WIN32
     fd = open(filename, _O_CREAT | _O_RDWR | _O_TRUNC | _O_BINARY,
               _S_IREAD | _S_IWRITE);
 #elif __OS2__
@@ -126,7 +142,7 @@ cupsTempFd(char *filename,		/* I - Pointer to buffer */
     fd = open(filename, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
 #else
     fd = open(filename, O_RDWR | O_CREAT | O_EXCL, 0600);
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
     if (fd < 0 && errno != EEXIST)
       break;
@@ -172,7 +188,7 @@ cupsTempFile(char *filename,		/* I - Pointer to buffer */
  * The temporary filename is returned in the filename buffer.
  * The temporary file is opened for writing.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 cups_file_t *				/* O - CUPS file or @code NULL@ on error */
@@ -194,8 +210,3 @@ cupsTempFile2(char *filename,		/* I - Pointer to buffer */
   else
     return (file);
 }
-
-
-/*
- * End of "$Id: tempfile.c 12073 2014-07-31 00:58:00Z msweet $".
- */

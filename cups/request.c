@@ -1,16 +1,14 @@
 /*
- * "$Id: request.c 11866 2014-05-09 20:20:16Z msweet $"
- *
  * IPP utilities for CUPS.
  *
- * Copyright 2007-2014 by Apple Inc.
+ * Copyright 2007-2017 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -22,11 +20,11 @@
 #include "cups-private.h"
 #include <fcntl.h>
 #include <sys/stat.h>
-#if defined(WIN32) || defined(__EMX__)
+#if defined(_WIN32) || defined(__EMX__)
 #  include <io.h>
 #else
 #  include <unistd.h>
-#endif /* WIN32 || __EMX__ */
+#endif /* _WIN32 || __EMX__ */
 #ifndef O_BINARY
 #  define O_BINARY 0
 #endif /* O_BINARY */
@@ -53,10 +51,7 @@ cupsDoFileRequest(http_t     *http,	/* I - Connection to server or @code CUPS_HT
   int		infile;			/* Input file */
 
 
-  DEBUG_printf(("cupsDoFileRequest(http=%p, request=%p(%s), resource=\"%s\", "
-                "filename=\"%s\")", http, request,
-		request ? ippOpString(request->request.op.operation_id) : "?",
-		resource, filename));
+  DEBUG_printf(("cupsDoFileRequest(http=%p, request=%p(%s), resource=\"%s\", filename=\"%s\")", (void *)http, (void *)request, request ? ippOpString(request->request.op.operation_id) : "?", resource, filename));
 
   if (filename)
   {
@@ -99,7 +94,7 @@ cupsDoFileRequest(http_t     *http,	/* I - Connection to server or @code CUPS_HT
  * If "outfile" is a valid file descriptor, @code cupsDoIORequest@ copies
  * all of the data after the IPP response message to the file.
  *
- * @since CUPS 1.3/OS X 10.5@
+ * @since CUPS 1.3/macOS 10.5@
  */
 
 ipp_t *					/* O - Response data */
@@ -117,10 +112,7 @@ cupsDoIORequest(http_t     *http,	/* I - Connection to server or @code CUPS_HTTP
   char		buffer[32768];		/* Output buffer */
 
 
-  DEBUG_printf(("cupsDoIORequest(http=%p, request=%p(%s), resource=\"%s\", "
-                "infile=%d, outfile=%d)", http, request,
-		request ? ippOpString(request->request.op.operation_id) : "?",
-		resource, infile, outfile));
+  DEBUG_printf(("cupsDoIORequest(http=%p, request=%p(%s), resource=\"%s\", infile=%d, outfile=%d)", (void *)http, (void *)request, request ? ippOpString(request->request.op.operation_id) : "?", resource, infile, outfile));
 
  /*
   * Range check input...
@@ -139,13 +131,12 @@ cupsDoIORequest(http_t     *http,	/* I - Connection to server or @code CUPS_HTTP
   * Get the default connection as needed...
   */
 
-  if (!http)
-    if ((http = _cupsConnect()) == NULL)
-    {
-      ippDelete(request);
+  if (!http && (http = _cupsConnect()) == NULL)
+  {
+    ippDelete(request);
 
-      return (NULL);
-    }
+    return (NULL);
+  }
 
  /*
   * See if we have a file to send...
@@ -159,43 +150,39 @@ cupsDoIORequest(http_t     *http,	/* I - Connection to server or @code CUPS_HTTP
       * Can't get file information!
       */
 
-      _cupsSetError(errno == EBADF ? IPP_STATUS_ERROR_NOT_FOUND : IPP_STATUS_ERROR_NOT_AUTHORIZED,
-                    NULL, 0);
-
+      _cupsSetError(errno == EBADF ? IPP_STATUS_ERROR_NOT_FOUND : IPP_STATUS_ERROR_NOT_AUTHORIZED, NULL, 0);
       ippDelete(request);
 
       return (NULL);
     }
 
-#ifdef WIN32
+#ifdef _WIN32
     if (fileinfo.st_mode & _S_IFDIR)
 #else
     if (S_ISDIR(fileinfo.st_mode))
-#endif /* WIN32 */
+#endif /* _WIN32 */
     {
      /*
       * Can't send a directory...
       */
 
-      ippDelete(request);
-
       _cupsSetError(IPP_STATUS_ERROR_NOT_POSSIBLE, strerror(EISDIR), 0);
+      ippDelete(request);
 
       return (NULL);
     }
 
-#ifndef WIN32
+#ifndef _WIN32
     if (!S_ISREG(fileinfo.st_mode))
       length = 0;			/* Chunk when piping */
     else
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
     length = ippLength(request) + (size_t)fileinfo.st_size;
   }
   else
     length = ippLength(request);
 
-  DEBUG_printf(("2cupsDoIORequest: Request length=%ld, total length=%ld",
-                (long)ippLength(request), (long)length));
+  DEBUG_printf(("2cupsDoIORequest: Request length=%ld, total length=%ld", (long)ippLength(request), (long)length));
 
  /*
   * Clear any "Local" authentication data since it is probably stale...
@@ -228,9 +215,9 @@ cupsDoIORequest(http_t     *http,	/* I - Connection to server or @code CUPS_HTTP
       * Send the file with the request...
       */
 
-#ifndef WIN32
+#ifndef _WIN32
       if (S_ISREG(fileinfo.st_mode))
-#endif /* WIN32 */
+#endif /* _WIN32 */
       lseek(infile, 0, SEEK_SET);
 
       while ((bytes = read(infile, buffer, sizeof(buffer))) > 0)
@@ -304,10 +291,7 @@ cupsDoRequest(http_t     *http,		/* I - Connection to server or @code CUPS_HTTP_
               ipp_t      *request,	/* I - IPP request */
               const char *resource)	/* I - HTTP resource for POST */
 {
-  DEBUG_printf(("cupsDoRequest(http=%p, request=%p(%s), resource=\"%s\")",
-                http, request,
-		request ? ippOpString(request->request.op.operation_id) : "?",
-		resource));
+  DEBUG_printf(("cupsDoRequest(http=%p, request=%p(%s), resource=\"%s\")", (void *)http, (void *)request, request ? ippOpString(request->request.op.operation_id) : "?", resource));
 
   return (cupsDoIORequest(http, request, resource, -1, -1));
 }
@@ -321,7 +305,7 @@ cupsDoRequest(http_t     *http,		/* I - Connection to server or @code CUPS_HTTP_
  * @link cupsReadResponseData@ after getting a successful response,
  * otherwise call @link httpFlush@ to complete the response processing.
  *
- * @since CUPS 1.4/OS X 10.6@
+ * @since CUPS 1.4/macOS 10.6@
  */
 
 ipp_t *					/* O - Response or @code NULL@ on HTTP error */
@@ -333,7 +317,7 @@ cupsGetResponse(http_t     *http,	/* I - Connection to server or @code CUPS_HTTP
   ipp_t		*response = NULL;	/* IPP response */
 
 
-  DEBUG_printf(("cupsGetResponse(http=%p, resource=\"%s\")", http, resource));
+  DEBUG_printf(("cupsGetResponse(http=%p, resource=\"%s\")", (void *)http, resource));
   DEBUG_printf(("1cupsGetResponse: http->state=%d", http ? http->state : HTTP_STATE_ERROR));
 
  /*
@@ -497,7 +481,7 @@ cupsLastError(void)
  * 'cupsLastErrorString()' - Return the last IPP status-message received on the
  *                           current thread.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 const char *				/* O - status-message text from last request */
@@ -544,7 +528,7 @@ _cupsNextDelay(int current,		/* I  - Current delay value or 0 */
  * files from @code CUPS_GET_PPD@ and @code CUPS_GET_DOCUMENT@ requests,
  * respectively.
  *
- * @since CUPS 1.4/OS X 10.6@
+ * @since CUPS 1.4/macOS 10.6@
  */
 
 ssize_t					/* O - Bytes read, 0 on EOF, -1 on error */
@@ -557,8 +541,7 @@ cupsReadResponseData(
   * Get the default connection as needed...
   */
 
-  DEBUG_printf(("cupsReadResponseData(http=%p, buffer=%p, "
-                "length=" CUPS_LLFMT ")", http, buffer, CUPS_LLCAST length));
+  DEBUG_printf(("cupsReadResponseData(http=%p, buffer=%p, length=" CUPS_LLFMT ")", (void *)http, (void *)buffer, CUPS_LLCAST length));
 
   if (!http)
   {
@@ -595,7 +578,7 @@ cupsReadResponseData(
  * Note: Unlike @link cupsDoFileRequest@, @link cupsDoIORequest@, and
  * @link cupsDoRequest@, the request is NOT freed with @link ippDelete@.
  *
- * @since CUPS 1.4/OS X 10.6@
+ * @since CUPS 1.4/macOS 10.6@
  */
 
 http_status_t				/* O - Initial HTTP status */
@@ -608,12 +591,11 @@ cupsSendRequest(http_t     *http,	/* I - Connection to server or @code CUPS_HTTP
   int			got_status;	/* Did we get the status? */
   ipp_state_t		state;		/* State of IPP processing */
   http_status_t		expect;		/* Expect: header to use */
+  char			date[256];	/* Date: header value */
+  int			digest;		/* Are we using Digest authentication? */
 
 
-  DEBUG_printf(("cupsSendRequest(http=%p, request=%p(%s), resource=\"%s\", "
-                "length=" CUPS_LLFMT ")", http, request,
-		request ? ippOpString(request->request.op.operation_id) : "?",
-		resource, CUPS_LLCAST length));
+  DEBUG_printf(("cupsSendRequest(http=%p, request=%p(%s), resource=\"%s\", length=" CUPS_LLFMT ")", (void *)http, (void *)request, request ? ippOpString(request->request.op.operation_id) : "?", resource, CUPS_LLCAST length));
 
  /*
   * Range check input...
@@ -630,9 +612,8 @@ cupsSendRequest(http_t     *http,	/* I - Connection to server or @code CUPS_HTTP
   * Get the default connection as needed...
   */
 
-  if (!http)
-    if ((http = _cupsConnect()) == NULL)
-      return (HTTP_STATUS_SERVICE_UNAVAILABLE);
+  if (!http && (http = _cupsConnect()) == NULL)
+    return (HTTP_STATUS_SERVICE_UNAVAILABLE);
 
  /*
   * If the prior request was not flushed out, do so now...
@@ -700,7 +681,19 @@ cupsSendRequest(http_t     *http,	/* I - Connection to server or @code CUPS_HTTP
     httpClearFields(http);
     httpSetExpect(http, expect);
     httpSetField(http, HTTP_FIELD_CONTENT_TYPE, "application/ipp");
+    httpSetField(http, HTTP_FIELD_DATE, httpGetDateString2(time(NULL), date, (int)sizeof(date)));
     httpSetLength(http, length);
+
+    digest = http->authstring && !strncmp(http->authstring, "Digest ", 7);
+
+    if (digest)
+    {
+     /*
+      * Update the Digest authentication string...
+      */
+
+      _httpSetDigestAuthString(http, http->nextnonce, "POST", resource);
+    }
 
 #ifdef HAVE_GSSAPI
     if (http->authstring && !strncmp(http->authstring, "Negotiate", 9))
@@ -786,9 +779,9 @@ cupsSendRequest(http_t     *http,	/* I - Connection to server or @code CUPS_HTTP
     * Wait up to 1 second to get the 100-continue response as needed...
     */
 
-    if (!got_status)
+    if (!got_status || (digest && status == HTTP_STATUS_CONTINUE))
     {
-      if (expect == HTTP_STATUS_CONTINUE)
+      if (expect == HTTP_STATUS_CONTINUE || digest)
       {
 	DEBUG_puts("2cupsSendRequest: Waiting for 100-continue...");
 
@@ -904,7 +897,7 @@ cupsSendRequest(http_t     *http,	/* I - Connection to server or @code CUPS_HTTP
  * This function is used after @link cupsSendRequest@ to provide a PPD and
  * after @link cupsStartDocument@ to provide a document file.
  *
- * @since CUPS 1.4/OS X 10.6@
+ * @since CUPS 1.4/macOS 10.6@
  */
 
 http_status_t				/* O - @code HTTP_STATUS_CONTINUE@ if OK or HTTP status on error */
@@ -920,8 +913,7 @@ cupsWriteRequestData(
   * Get the default connection as needed...
   */
 
-  DEBUG_printf(("cupsWriteRequestData(http=%p, buffer=%p, "
-                "length=" CUPS_LLFMT ")", http, buffer, CUPS_LLCAST length));
+  DEBUG_printf(("cupsWriteRequestData(http=%p, buffer=%p, length=" CUPS_LLFMT ")", (void *)http, (void *)buffer, CUPS_LLCAST length));
 
   if (!http)
   {
@@ -1012,7 +1004,11 @@ _cupsConnect(void)
     */
 
     if (strcmp(cg->http->hostname, cg->server) ||
+#ifdef AF_LOCAL
+        (httpAddrFamily(cg->http->hostaddr) != AF_LOCAL && cg->ipp_port != httpAddrPort(cg->http->hostaddr)) ||
+#else
         cg->ipp_port != httpAddrPort(cg->http->hostaddr) ||
+#endif /* AF_LOCAL */
         (cg->http->encryption != cg->encryption &&
 	 cg->http->encryption == HTTP_ENCRYPTION_NEVER))
     {
@@ -1032,13 +1028,13 @@ _cupsConnect(void)
       char	ch;			/* Connection check byte */
       ssize_t	n;			/* Number of bytes */
 
-#ifdef WIN32
+#ifdef _WIN32
       if ((n = recv(cg->http->fd, &ch, 1, MSG_PEEK)) == 0 ||
           (n < 0 && WSAGetLastError() != WSAEWOULDBLOCK))
 #else
       if ((n = recv(cg->http->fd, &ch, 1, MSG_PEEK | MSG_DONTWAIT)) == 0 ||
           (n < 0 && errno != EWOULDBLOCK))
-#endif /* WIN32 */
+#endif /* _WIN32 */
       {
        /*
         * Nope, close the connection...
@@ -1186,8 +1182,3 @@ _cupsSetHTTPError(http_status_t status)	/* I - HTTP status code */
 	break;
   }
 }
-
-
-/*
- * End of "$Id: request.c 11866 2014-05-09 20:20:16Z msweet $".
- */

@@ -1,6 +1,4 @@
 /*
- * "$Id: testarray.c 11558 2014-02-06 18:33:34Z msweet $"
- *
  * Array test program for CUPS.
  *
  * Copyright 2007-2014 by Apple Inc.
@@ -10,7 +8,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -496,7 +494,7 @@ main(void)
  * 'get_seconds()' - Get the current time in seconds...
  */
 
-#ifdef WIN32
+#ifdef _WIN32
 #  include <windows.h>
 
 
@@ -517,7 +515,7 @@ get_seconds(void)
   gettimeofday(&curtime, NULL);
   return (curtime.tv_sec + 0.000001 * curtime.tv_usec);
 }
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
 
 /*
@@ -548,8 +546,3 @@ load_words(const char   *filename,	/* I - File to load */
 
   return (1);
 }
-
-
-/*
- * End of "$Id: testarray.c 11558 2014-02-06 18:33:34Z msweet $".
- */

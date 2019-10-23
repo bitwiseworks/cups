@@ -1,16 +1,14 @@
 /*
- * "$Id: http-private.h 12645 2015-05-20 01:20:52Z msweet $"
- *
  * Private HTTP definitions for CUPS.
  *
- * Copyright 2007-2015 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -32,7 +30,7 @@
 #  endif /* __sun */
 
 #  include <limits.h>
-#  ifdef WIN32
+#  ifdef _WIN32
 #    include <io.h>
 #    include <winsock2.h>
 #    define CUPS_SOCAST (const char *)
@@ -41,7 +39,7 @@
 #    include <fcntl.h>
 #    include <sys/socket.h>
 #    define CUPS_SOCAST
-#  endif /* WIN32 */
+#  endif /* _WIN32 */
 
 #  ifdef HAVE_GSSAPI
 #    ifdef HAVE_GSS_GSSAPI_H
@@ -62,7 +60,7 @@
 
 #  if defined(__KLIBC__) || defined(__APPLE__) && !defined(_SOCKLEN_T)
 /*
- * MacOS X 10.2.x does not define socklen_t, and in fact uses an int instead of
+ * macOS 10.2.x does not define socklen_t, and in fact uses an int instead of
  * unsigned type for length values...
  */
 
@@ -70,7 +68,6 @@ typedef int socklen_t;
 #  endif /* __APPLE__ && !_SOCKLEN_T */
 
 #  include <cups/http.h>
-#  include "md5-private.h"
 #  include "ipp-private.h"
 
 #  ifdef HAVE_GNUTLS
@@ -99,9 +96,28 @@ typedef int socklen_t;
 #      ifdef __cplusplus
 extern "C" {
 #      endif /* __cplusplus */
+#      ifndef _SECURITY_VERSION_GREATER_THAN_57610_
+typedef CF_OPTIONS(uint32_t, SecKeyUsage) {
+    kSecKeyUsageAll              = 0x7FFFFFFF
+};
+#       endif /* !_SECURITY_VERSION_GREATER_THAN_57610_ */
+extern const void * kSecCSRChallengePassword;
+extern const void * kSecSubjectAltName;
+extern const void * kSecCertificateKeyUsage;
+extern const void * kSecCSRBasicContraintsPathLen;
+extern const void * kSecCertificateExtensions;
+extern const void * kSecCertificateExtensionsEncoded;
+extern const void * kSecOidCommonName;
+extern const void * kSecOidCountryName;
+extern const void * kSecOidStateProvinceName;
+extern const void * kSecOidLocalityName;
+extern const void * kSecOidOrganization;
+extern const void * kSecOidOrganizationalUnit;
 extern SecCertificateRef SecCertificateCreateWithBytes(CFAllocatorRef allocator, const UInt8 *bytes, CFIndex length);
 extern bool SecCertificateIsValid(SecCertificateRef certificate, CFAbsoluteTime verifyTime);
 extern CFAbsoluteTime SecCertificateNotValidAfter(SecCertificateRef certificate);
+extern SecCertificateRef SecGenerateSelfSignedCertificate(CFArrayRef subject, CFDictionaryRef parameters, SecKeyRef publicKey, SecKeyRef privateKey);
+extern SecIdentityRef SecIdentityCreate(CFAllocatorRef allocator, SecCertificateRef certificate, SecKeyRef privateKey);
 #      ifdef __cplusplus
 }
 #      endif /* __cplusplus */
@@ -124,7 +140,7 @@ extern CFAbsoluteTime SecCertificateNotValidAfter(SecCertificateRef certificate)
 #    include <sspi.h>
 #  endif /* HAVE_GNUTLS */
 
-#  ifndef WIN32
+#  ifndef _WIN32
 #    include <net/if.h>
 #    include <resolv.h>
 #    ifdef HAVE_GETIFADDRS
@@ -135,11 +151,7 @@ extern CFAbsoluteTime SecCertificateNotValidAfter(SecCertificateRef certificate)
 #        include <sys/sockio.h>
 #      endif /* HAVE_SYS_SOCKIO_H */
 #    endif /* HAVE_GETIFADDRS */
-#  endif /* !WIN32 */
-
-#  ifdef HAVE_LIBZ
-#    include <zlib.h>
-#  endif /* HAVE_LIBZ */
+#  endif /* !_WIN32 */
 
 
 /*
@@ -155,18 +167,24 @@ extern "C" {
  * Constants...
  */
 
+#  define _HTTP_MAX_SBUFFER	65536	/* Size of (de)compression buffer */
+#  define _HTTP_RESOLVE_DEFAULT	0	/* Just resolve with default options */
+#  define _HTTP_RESOLVE_STDERR	1	/* Log resolve progress to stderr */
+#  define _HTTP_RESOLVE_FQDN	2	/* Resolve to a FQDN */
+#  define _HTTP_RESOLVE_FAXOUT	4	/* Resolve FaxOut service? */
 
-#define _HTTP_MAX_SBUFFER	65536	/* Size of (de)compression buffer */
-#define _HTTP_RESOLVE_DEFAULT	0	/* Just resolve with default options */
-#define _HTTP_RESOLVE_STDERR	1	/* Log resolve progress to stderr */
-#define _HTTP_RESOLVE_FQDN	2	/* Resolve to a FQDN */
-#define _HTTP_RESOLVE_FAXOUT	4	/* Resolve FaxOut service? */
+#  define _HTTP_TLS_NONE	0	/* No TLS options */
+#  define _HTTP_TLS_ALLOW_RC4	1	/* Allow RC4 cipher suites */
+#  define _HTTP_TLS_ALLOW_DH	2	/* Allow DH/DHE key negotiation */
+#  define _HTTP_TLS_DENY_CBC	4	/* Deny CBC cipher suites */
+#  define _HTTP_TLS_SET_DEFAULT 128     /* Setting the default TLS options */
 
-#define _HTTP_TLS_NONE		0	/* No TLS options */
-#define _HTTP_TLS_ALLOW_RC4	1	/* Allow RC4 cipher suites */
-#define _HTTP_TLS_ALLOW_SSL3	2	/* Allow SSL 3.0 */
-#define _HTTP_TLS_ALLOW_DH	4	/* Allow DH/DHE key negotiation */
-#define _HTTP_TLS_DENY_TLS10	16	/* Deny TLS 1.0 */
+#  define _HTTP_TLS_SSL3	0	/* Min/max version is SSL/3.0 */
+#  define _HTTP_TLS_1_0		1	/* Min/max version is TLS/1.0 */
+#  define _HTTP_TLS_1_1		2	/* Min/max version is TLS/1.1 */
+#  define _HTTP_TLS_1_2		3	/* Min/max version is TLS/1.2 */
+#  define _HTTP_TLS_1_3		4	/* Min/max version is TLS/1.3 */
+#  define _HTTP_TLS_MAX		5	/* Highest known TLS version */
 
 
 /*
@@ -278,10 +296,10 @@ struct _http_s				/**** HTTP connection structure ****/
   char			buffer[HTTP_MAX_BUFFER];
 					/* Buffer for incoming data */
   int			_auth_type;	/* Authentication in use (deprecated) */
-  _cups_md5_state_t	md5_state;	/* MD5 state */
+  unsigned char		_md5_state[88];	/* MD5 state (deprecated) */
   char			nonce[HTTP_MAX_VALUE];
 					/* Nonce value */
-  int			nonce_count;	/* Nonce count */
+  unsigned		nonce_count;	/* Nonce count */
   http_tls_t		tls;		/* TLS state information */
   http_encryption_t	encryption;	/* Encryption requirements */
 
@@ -342,9 +360,20 @@ struct _http_s				/**** HTTP connection structure ****/
 					/* Default field values */
 #  ifdef HAVE_LIBZ
   _http_coding_t	coding;		/* _HTTP_CODING_xxx */
-  z_stream		stream;		/* (De)compression stream */
-  Bytef			*sbuffer;	/* (De)compression buffer */
+  void			*stream;	/* (De)compression stream */
+  unsigned char		*sbuffer;	/* (De)compression buffer */
 #  endif /* HAVE_LIBZ */
+
+  /**** New in CUPS 2.2.9 ****/
+  char			*authentication_info,
+					/* Authentication-Info header */
+			algorithm[65],	/* Algorithm from WWW-Authenticate */
+			nextnonce[HTTP_MAX_VALUE],
+					/* Next nonce value from Authentication-Info */
+			opaque[HTTP_MAX_VALUE],
+					/* Opaque value from WWW-Authenticate */
+			realm[HTTP_MAX_VALUE];
+					/* Realm from WWW-Authenticate */
 };
 #  endif /* !_HTTP_NO_PRIVATE */
 
@@ -363,7 +392,7 @@ extern const char *_cups_hstrerror(int error);
  * Some OS's don't have getifaddrs() and freeifaddrs()...
  */
 
-#  if !defined(WIN32) && !defined(HAVE_GETIFADDRS)
+#  if !defined(_WIN32) && !defined(HAVE_GETIFADDRS)
 #    ifdef ifa_dstaddr
 #      undef ifa_dstaddr
 #    endif /* ifa_dstaddr */
@@ -398,7 +427,7 @@ extern int	_cups_getifaddrs(struct ifaddrs **addrs);
 #    define getifaddrs _cups_getifaddrs
 extern void	_cups_freeifaddrs(struct ifaddrs *addrs);
 #    define freeifaddrs _cups_freeifaddrs
-#  endif /* !WIN32 && !HAVE_GETIFADDRS */
+#  endif /* !_WIN32 && !HAVE_GETIFADDRS */
 
 
 /*
@@ -418,12 +447,13 @@ extern const char	*_httpResolveURI(const char *uri, char *resolved_uri,
 			                 size_t resolved_size, int options,
 					 int (*cb)(void *context),
 					 void *context);
+extern int		_httpSetDigestAuthString(http_t *http, const char *nonce, const char *method, const char *resource);
 extern const char	*_httpStatus(cups_lang_t *lang, http_status_t status);
 extern void		_httpTLSInitialize(void);
 extern size_t		_httpTLSPending(http_t *http);
 extern int		_httpTLSRead(http_t *http, char *buf, int len);
 extern int		_httpTLSSetCredentials(http_t *http);
-extern void		_httpTLSSetOptions(int options);
+extern void		_httpTLSSetOptions(int options, int min_version, int max_version);
 extern int		_httpTLSStart(http_t *http);
 extern void		_httpTLSStop(http_t *http);
 extern int		_httpTLSWrite(http_t *http, const char *buf, int len);
@@ -440,7 +470,3 @@ extern int		_httpWait(http_t *http, int msec, int usessl);
 #  endif /* __cplusplus */
 
 #endif /* !_CUPS_HTTP_PRIVATE_H_ */
-
-/*
- * End of "$Id: http-private.h 12645 2015-05-20 01:20:52Z msweet $".
- */

@@ -1,16 +1,14 @@
 /*
- * "$Id: sysman.c 12236 2014-11-03 04:08:41Z msweet $"
- *
  * System management functions for the CUPS scheduler.
  *
- * Copyright 2007-2014 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 2006 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 
@@ -20,7 +18,6 @@
 
 #include "cupsd.h"
 #ifdef __APPLE__
-#  include <vproc.h>
 #  include <IOKit/pwr_mgt/IOPMLib.h>
 #endif /* __APPLE__ */
 
@@ -33,10 +30,10 @@
  * and state files to minimize the number of times the disk has to spin
  * up or flash to be written to.
  *
- * Power management support is currently only implemented on OS X, but
+ * Power management support is currently only implemented on macOS, but
  * essentially we use four functions to let the OS know when it is OK to
  * put the system to sleep, typically when we are not in the middle of
- * printing a job.  And on OS X we can also "sleep print" - basically the
+ * printing a job.  And on macOS we can also "sleep print" - basically the
  * system only wakes up long enough to service network requests and process
  * print jobs.
  */
@@ -77,7 +74,7 @@ cupsdCleanDirty(void)
   DirtyFiles     = CUPSD_DIRTY_NONE;
   DirtyCleanTime = 0;
 
-  cupsdSetBusyState();
+  cupsdSetBusyState(0);
 }
 
 
@@ -103,7 +100,7 @@ cupsdMarkDirty(int what)		/* I - What file(s) are dirty? */
   if (!DirtyCleanTime)
     DirtyCleanTime = time(NULL) + DirtyCleanInterval;
 
-  cupsdSetBusyState();
+  cupsdSetBusyState(0);
 }
 
 
@@ -112,7 +109,7 @@ cupsdMarkDirty(int what)		/* I - What file(s) are dirty? */
  */
 
 void
-cupsdSetBusyState(void)
+cupsdSetBusyState(int working)          /* I - Doing significant work? */
 {
   int			i;		/* Looping var */
   cupsd_job_t		*job;		/* Current job */
@@ -131,7 +128,6 @@ cupsdSetBusyState(void)
     "Active clients, printing jobs, and dirty files"
   };
 #ifdef __APPLE__
-  static vproc_transaction_t vtran = 0;	/* Current busy transaction */
   static IOPMAssertionID keep_awake = 0;/* Keep the system awake while printing */
 #endif /* __APPLE__ */
 
@@ -141,7 +137,7 @@ cupsdSetBusyState(void)
   */
 
   newbusy = (DirtyCleanTime ? 1 : 0) |
-	    (cupsArrayCount(ActiveClients) ? 4 : 0);
+	    ((working || cupsArrayCount(ActiveClients) > 0) ? 4 : 0);
 
   for (job = (cupsd_job_t *)cupsArrayFirst(PrintingJobs);
        job;
@@ -170,19 +166,7 @@ cupsdSetBusyState(void)
   */
 
   if (newbusy != busy)
-  {
     busy = newbusy;
-
-#ifdef __APPLE__
-    if (busy && !vtran)
-      vtran = vproc_transaction_begin(NULL);
-    else if (!busy && vtran)
-    {
-      vproc_transaction_end(NULL, vtran);
-      vtran = 0;
-    }
-#endif /* __APPLE__ */
-  }
 
 #ifdef __APPLE__
   if (cupsArrayCount(PrintingJobs) > 0 && !keep_awake)
@@ -356,7 +340,7 @@ cupsdStartSystemMonitor(void)
 
   pthread_mutex_init(&SysEventThreadMutex, NULL);
   pthread_cond_init(&SysEventThreadCond, NULL);
-  pthread_create(&SysEventThread, NULL, (void *(*)())sysEventThreadEntry, NULL);
+  pthread_create(&SysEventThread, NULL, (void *(*)(void *))sysEventThreadEntry, NULL);
 
  /*
   * Monitor for power source changes via dispatch queue...
@@ -1073,8 +1057,3 @@ sysUpdateNames(void)
     cupsdRegisterPrinter(p);
 }
 #endif	/* __APPLE__ */
-
-
-/*
- * End of "$Id: sysman.c 12236 2014-11-03 04:08:41Z msweet $".
- */

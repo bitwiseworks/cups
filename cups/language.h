@@ -1,18 +1,16 @@
 /*
- * "$Id: language.h 10996 2013-05-29 11:51:34Z msweet $"
+ * Multi-language support for CUPS.
  *
- *   Multi-language support for CUPS.
+ * Copyright 2007-2011 by Apple Inc.
+ * Copyright 1997-2006 by Easy Software Products.
  *
- *   Copyright 2007-2011 by Apple Inc.
- *   Copyright 1997-2006 by Easy Software Products.
+ * These coded instructions, statements, and computer programs are the
+ * property of Apple Inc. and are protected by Federal copyright
+ * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+ * which should have been included with this file.  If this file is
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
- *   These coded instructions, statements, and computer programs are the
- *   property of Apple Inc. and are protected by Federal copyright
- *   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
- *   which should have been included with this file.  If this file is
- *   file is missing or damaged, see the license at "http://www.cups.org/".
- *
- *   This file is subject to the Apple OS-Developed Software exception.
+ * This file is subject to the Apple OS-Developed Software exception.
  */
 
 #ifndef _CUPS_LANGUAGE_H_
@@ -34,7 +32,7 @@ extern "C" {
  * Types...
  */
 
-typedef enum cups_encoding_e		/**** Language Encodings ****/
+typedef enum cups_encoding_e		/**** Language Encodings @exclude all@ ****/
 {
   CUPS_AUTO_ENCODING = -1,		/* Auto-detect the encoding @private@ */
   CUPS_US_ASCII,			/* US ASCII */
@@ -110,7 +108,3 @@ extern cups_lang_t	*cupsLangGet(const char *language);
 #  endif /* __cplusplus */
 
 #endif /* !_CUPS_LANGUAGE_H_ */
-
-/*
- * End of "$Id: language.h 10996 2013-05-29 11:51:34Z msweet $".
- */

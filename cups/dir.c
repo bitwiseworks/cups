@@ -1,30 +1,16 @@
 /*
- * "$Id: dir.c 10996 2013-05-29 11:51:34Z msweet $"
+ * Directory routines for CUPS.
  *
- *   Directory routines for CUPS.
+ * This set of APIs abstracts enumeration of directory entries.
  *
- *   This set of APIs abstracts enumeration of directory entries.
+ * Copyright 2007-2017 by Apple Inc.
+ * Copyright 1997-2005 by Easy Software Products, all rights reserved.
  *
- *   Copyright 2007-2012 by Apple Inc.
- *   Copyright 1997-2005 by Easy Software Products, all rights reserved.
- *
- *   These coded instructions, statements, and computer programs are the
- *   property of Apple Inc. and are protected by Federal copyright
- *   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
- *   which should have been included with this file.  If this file is
- *   file is missing or damaged, see the license at "http://www.cups.org/".
- *
- * Contents:
- *
- *   _cups_dir_time() - Convert a FILETIME value to a UNIX time value.
- *   cupsDirClose()   - Close a directory.
- *   cupsDirOpen()    - Open a directory.
- *   cupsDirRead()    - Read the next directory entry.
- *   cupsDirRewind()  - Rewind to the start of the directory.
- *   cupsDirClose()   - Close a directory.
- *   cupsDirOpen()    - Open a directory.
- *   cupsDirRead()    - Read the next directory entry.
- *   cupsDirRewind()  - Rewind to the start of the directory.
+ * These coded instructions, statements, and computer programs are the
+ * property of Apple Inc. and are protected by Federal copyright
+ * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+ * which should have been included with this file.  If this file is
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -40,7 +26,7 @@
  * Windows implementation...
  */
 
-#ifdef WIN32
+#ifdef _WIN32
 #  include <windows.h>
 
 /*
@@ -79,7 +65,7 @@ _cups_dir_time(FILETIME ft)		/* I - File time */
 /*
  * 'cupsDirClose()' - Close a directory.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 void
@@ -110,7 +96,7 @@ cupsDirClose(cups_dir_t *dp)		/* I - Directory pointer */
 /*
  * 'cupsDirOpen()' - Open a directory.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 cups_dir_t *				/* O - Directory pointer or @code NULL@ if the directory could not be opened. */
@@ -153,13 +139,13 @@ cupsDirOpen(const char *directory)	/* I - Directory name */
 /*
  * 'cupsDirRead()' - Read the next directory entry.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 cups_dentry_t *				/* O - Directory entry or @code NULL@ if there are no more */
 cupsDirRead(cups_dir_t *dp)		/* I - Directory pointer */
 {
-  WIN32_FIND_DATA	entry;		/* Directory entry data */
+  WIN32_FIND_DATAA	entry;		/* Directory entry data */
 
 
  /*
@@ -179,11 +165,11 @@ cupsDirRead(cups_dir_t *dp)		/* I - Directory pointer */
     * No, find the first file...
     */
 
-    dp->dir = FindFirstFile(dp->directory, &entry);
+    dp->dir = FindFirstFileA(dp->directory, &entry);
     if (dp->dir == INVALID_HANDLE_VALUE)
       return (NULL);
   }
-  else if (!FindNextFile(dp->dir, &entry))
+  else if (!FindNextFileA(dp->dir, &entry))
     return (NULL);
 
  /*
@@ -213,7 +199,7 @@ cupsDirRead(cups_dir_t *dp)		/* I - Directory pointer */
 /*
  * 'cupsDirRewind()' - Rewind to the start of the directory.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 void
@@ -263,13 +249,13 @@ struct _cups_dir_s			/**** Directory data structure ****/
 /*
  * 'cupsDirClose()' - Close a directory.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 void
 cupsDirClose(cups_dir_t *dp)		/* I - Directory pointer */
 {
-  DEBUG_printf(("cupsDirClose(dp=%p)", dp));
+  DEBUG_printf(("cupsDirClose(dp=%p)", (void *)dp));
 
  /*
   * Range check input...
@@ -290,7 +276,7 @@ cupsDirClose(cups_dir_t *dp)		/* I - Directory pointer */
 /*
  * 'cupsDirOpen()' - Open a directory.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 cups_dir_t *				/* O - Directory pointer or @code NULL@ if the directory could not be opened. */
@@ -344,7 +330,7 @@ cupsDirOpen(const char *directory)	/* I - Directory name */
 /*
  * 'cupsDirRead()' - Read the next directory entry.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 cups_dentry_t *				/* O - Directory entry or @code NULL@ when there are no more */
@@ -352,13 +338,9 @@ cupsDirRead(cups_dir_t *dp)		/* I - Directory pointer */
 {
   struct dirent	*entry;			/* Pointer to entry */
   char		filename[1024];		/* Full filename */
-#  ifdef HAVE_PTHREAD_H
-  char		buffer[sizeof(struct dirent) + 1024];
-					/* Directory entry buffer */
-#  endif /* HAVE_PTHREAD_H */
 
 
-  DEBUG_printf(("2cupsDirRead(dp=%p)", dp));
+  DEBUG_printf(("2cupsDirRead(dp=%p)", (void *)dp));
 
  /*
   * Range check input...
@@ -373,29 +355,8 @@ cupsDirRead(cups_dir_t *dp)		/* I - Directory pointer */
 
   for (;;)
   {
-#  ifdef HAVE_PTHREAD_H
    /*
-    * Read the next entry using the reentrant version of readdir...
-    */
-
-    if (readdir_r(dp->dir, (struct dirent *)buffer, &entry))
-    {
-      DEBUG_printf(("3cupsDirRead: readdir_r() failed - %s\n", strerror(errno)));
-      return (NULL);
-    }
-
-    if (!entry)
-    {
-      DEBUG_puts("3cupsDirRead: readdir_r() returned a NULL pointer!");
-      return (NULL);
-    }
-
-    DEBUG_printf(("4cupsDirRead: readdir_r() returned \"%s\"...",
-                  entry->d_name));
-
-#  else
-   /*
-    * Read the next entry using the original version of readdir...
+    * Read the next entry...
     */
 
     if ((entry = readdir(dp->dir)) == NULL)
@@ -405,8 +366,6 @@ cupsDirRead(cups_dir_t *dp)		/* I - Directory pointer */
     }
 
     DEBUG_printf(("4cupsDirRead: readdir() returned \"%s\"...", entry->d_name));
-
-#  endif /* HAVE_PTHREAD_H */
 
    /*
     * Skip "." and ".."...
@@ -442,13 +401,13 @@ cupsDirRead(cups_dir_t *dp)		/* I - Directory pointer */
 /*
  * 'cupsDirRewind()' - Rewind to the start of the directory.
  *
- * @since CUPS 1.2/OS X 10.5@
+ * @since CUPS 1.2/macOS 10.5@
  */
 
 void
 cupsDirRewind(cups_dir_t *dp)		/* I - Directory pointer */
 {
-  DEBUG_printf(("cupsDirRewind(dp=%p)", dp));
+  DEBUG_printf(("cupsDirRewind(dp=%p)", (void *)dp));
 
  /*
   * Range check input...
@@ -463,10 +422,4 @@ cupsDirRewind(cups_dir_t *dp)		/* I - Directory pointer */
 
   rewinddir(dp->dir);
 }
-
-
-#endif /* WIN32 */
-
-/*
- * End of "$Id: dir.c 10996 2013-05-29 11:51:34Z msweet $".
- */
+#endif /* _WIN32 */

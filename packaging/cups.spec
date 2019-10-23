@@ -1,11 +1,9 @@
 #
-# "$Id: cups.spec.in 12857 2015-08-31 15:00:45Z msweet $"
-#
 # RPM "spec" file for CUPS.
 #
 # Original version by Jason McMullan <jmcc@ontv.com>.
 #
-# Copyright 2007-2015 by Apple Inc.
+# Copyright 2007-2017 by Apple Inc.
 # Copyright 1999-2007 by Easy Software Products, all rights reserved.
 #
 # These coded instructions, statements, and computer programs are the
@@ -28,8 +26,8 @@
 %{!?_with_dbus: %define _dbus --disable-dbus}
 
 %{!?_with_dnssd: %{!?_without_dnssd: %define _with_dnssd --with-dnssd}}
-%{?_with_dnssd: %define _dnssd --enable-dnssd}
-%{!?_with_dnssd: %define _dnssd --disable-dnssd}
+%{?_with_dnssd: %define _dnssd --enable-avahi}
+%{!?_with_dnssd: %define _dnssd --disable-avahi}
 
 %{!?_with_libusb1: %{!?_without_libusb1: %define _with_libusb1 --with-libusb1}}
 %{?_with_libusb1: %define _libusb1 --enable-libusb}
@@ -45,15 +43,15 @@
 
 Summary: CUPS
 Name: cups
-Version: 2.1.3
-Release: 1
+Version: 2.2.12
+Release: 0
 Epoch: 1
 License: GPL
 Group: System Environment/Daemons
-Source: http://www.cups.org/software/2.1.3/cups-2.1.3-source.tar.bz2
+Source: https://github.com/apple/cups/releases/download/v2.2.12/cups-2.2.12-source.tar.gz
 Url: http://www.cups.org
-Packager: Anonymous <anonymous@foo.com>
-Vendor: Apple Inc.
+Packager: Anonymous <anonymous@example.com>
+Vendor: Example Corp
 
 # Package names are as defined for Red Hat (and clone) distributions
 BuildRequires: gnutls-devel, pam-devel
@@ -102,7 +100,7 @@ Requires: %{name} = %{epoch}:%{version} xinetd
 
 %description
 CUPS is the standards-based, open source printing system developed by
-Apple Inc. for OS X and other UNIX®-like operating systems.
+Apple Inc. for macOS® and other UNIX®-like operating systems.
 
 %description devel
 This package provides the CUPS headers and development environment.
@@ -118,7 +116,7 @@ This package provides LPD client support.
 
 %build
 CFLAGS="$RPM_OPT_FLAGS" CXXFLAGS="$RPM_OPT_FLAGS" LDFLAGS="$RPM_OPT_FLAGS" \
-    ./configure %{_dbus} %{_dnssd} %{_libusb1} %{_static}
+    ./configure %{_dbus} %{_dnssd} %{_libusb1} %{_static} %{_systemd}
 # If we got this far, all prerequisite libraries must be here.
 make
 
@@ -130,6 +128,15 @@ make BUILDROOT=$RPM_BUILD_ROOT install
 rm -rf $RPM_BUILD_ROOT/usr/share/cups/banners $RPM_BUILD_ROOT/usr/share/cups/data
 
 %post
+%if %{?_with_systemd:1}%{!?_with_systemd:0}
+/bin/systemctl enable org.cups.cupsd.service
+
+if test $1 -ge 1; then
+	/bin/systemctl stop org.cups.cupsd.service
+	/bin/systemctl start org.cups.cupsd.service
+fi
+
+%else
 /sbin/chkconfig --add cups
 /sbin/chkconfig cups on
 
@@ -138,21 +145,38 @@ if test $1 -gt 1; then
 	/sbin/service cups stop
 	/sbin/service cups start
 fi
+%endif
 
 %post libs
 /sbin/ldconfig
 
 %preun
+%if %{?_with_systemd:1}%{!?_with_systemd:0}
+if test $1 -ge 1; then
+	/bin/systemctl stop org.cups.cupsd.service
+	/bin/systemctl disable org.cups.cupsd.service
+fi
+
+%else
 if test $1 = 0; then
 	/sbin/service cups stop
 	/sbin/chkconfig --del cups
 fi
+%endif
 
 %postun
+%if %{?_with_systemd:1}%{!?_with_systemd:0}
+if test $1 -ge 1; then
+	/bin/systemctl stop org.cups.cupsd.service
+	/bin/systemctl start org.cups.cupsd.service
+fi
+
+%else
 if test $1 -ge 1; then
 	/sbin/service cups stop
 	/sbin/service cups start
 fi
+%endif
 
 %postun libs
 /sbin/ldconfig
@@ -168,7 +192,6 @@ rm -rf $RPM_BUILD_ROOT
 /etc/cups/cups-files.conf.default
 /etc/cups/cupsd.conf.default
 /etc/cups/snmp.conf.default
-%dir /etc/cups/interfaces
 %dir /etc/cups/ppd
 %attr(0700,root,root) %dir /etc/cups/ssl
 
@@ -197,13 +220,13 @@ rm -rf $RPM_BUILD_ROOT
 /usr/bin/cancel
 /usr/bin/cupstestdsc
 /usr/bin/cupstestppd
-/usr/bin/ippfind
 /usr/bin/ipptool
 /usr/bin/lp*
 %dir /usr/lib/cups
 %dir /usr/lib/cups/backend
 %if %{?_with_dnssd:1}%{!?_with_dnssd:0}
 # DNS-SD
+/usr/bin/ippfind
 /usr/lib/cups/backend/dnssd
 %endif
 /usr/lib/cups/backend/http
@@ -252,6 +275,7 @@ rm -rf $RPM_BUILD_ROOT
 %dir /usr/share/doc/cups/help
 /usr/share/doc/cups/help/accounting.html
 /usr/share/doc/cups/help/cgi.html
+/usr/share/doc/cups/help/encryption.html
 /usr/share/doc/cups/help/glossary.html
 /usr/share/doc/cups/help/kerberos.html
 /usr/share/doc/cups/help/license.html
@@ -279,6 +303,8 @@ rm -rf $RPM_BUILD_ROOT
 #/usr/share/doc/cups/fr/*
 %dir /usr/share/doc/cups/ja
 /usr/share/doc/cups/ja/*
+%dir /usr/share/doc/cups/pt_BR
+/usr/share/doc/cups/pt_BR/*
 %dir /usr/share/doc/cups/ru
 /usr/share/doc/cups/ru/*
 
@@ -296,15 +322,22 @@ rm -rf $RPM_BUILD_ROOT
 /usr/share/locale/it/cups_it.po
 %dir /usr/share/locale/ja
 /usr/share/locale/ja/cups_ja.po
+%dir /usr/share/locale/pt_BR
+/usr/share/locale/pt_BR/cups_pt_BR.po
 %dir /usr/share/locale/ru
 /usr/share/locale/ru/cups_ru.po
+%dir /usr/share/locale/zh_CN
+/usr/share/locale/zh_CN/cups_zh_CN.po
 
 %dir /usr/share/man/man1
 /usr/share/man/man1/cancel.1.gz
 /usr/share/man/man1/cups.1.gz
 /usr/share/man/man1/cupstestdsc.1.gz
 /usr/share/man/man1/cupstestppd.1.gz
+%if %{?_with_dnssd:1}%{!?_with_dnssd:0}
+# DNS-SD
 /usr/share/man/man1/ippfind.1.gz
+%endif
 /usr/share/man/man1/ipptool.1.gz
 /usr/share/man/man1/lp.1.gz
 /usr/share/man/man1/lpoptions.1.gz
@@ -375,6 +408,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %dir /usr/share/doc/cups/help
 /usr/share/doc/cups/help/api*.html
+/usr/share/doc/cups/help/cupspm.html
 /usr/share/doc/cups/help/postscript-driver.html
 /usr/share/doc/cups/help/ppd-compiler.html
 /usr/share/doc/cups/help/raster-driver.html
@@ -399,8 +433,3 @@ rm -rf $RPM_BUILD_ROOT
 /usr/lib/cups/daemon/cups-lpd
 %dir /usr/share/man/man8
 /usr/share/man/man8/cups-lpd.8.gz
-
-
-#
-# End of "$Id: cups.spec.in 12857 2015-08-31 15:00:45Z msweet $".
-#

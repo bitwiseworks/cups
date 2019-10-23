@@ -1,16 +1,11 @@
 #!/bin/sh
 #
-# "$Id: waitjobs.sh 1253 2009-02-25 23:37:25Z msweet $"
-#
 # Script to wait for jobs to complete.
 #
-#   Copyright 2008-2009 by Apple Inc.
+# Copyright © 2008-2009 by Apple Inc.
 #
-#   These coded instructions, statements, and computer programs are the
-#   property of Apple Inc. and are protected by Federal copyright
-#   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
-#   which should have been included with this file.  If this file is
-#   file is missing or damaged, see the license at "http://www.cups.org/".
+# Licensed under Apache License v2.0.  See the file "LICENSE" for more
+# information.
 #
 
 #
@@ -39,7 +34,7 @@ echo $ac_n "Waiting for jobs to complete...$ac_c"
 oldjobs=0
 
 while test $timeout -gt 0; do
-	jobs=`../systemv/lpstat 2>/dev/null | wc -l | tr -d ' '`
+	jobs=`$runcups ../systemv/lpstat 2>/dev/null | wc -l | tr -d ' '`
 	if test $jobs = 0; then
 		break
 	fi
@@ -54,7 +49,3 @@ while test $timeout -gt 0; do
 done
 
 echo ""
-
-#
-# End of "$Id: waitjobs.sh 1253 2009-02-25 23:37:25Z msweet $".
-#

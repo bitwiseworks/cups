@@ -1,6 +1,4 @@
 /*
- * "$Id: bcp.c 11558 2014-02-06 18:33:34Z msweet $"
- *
  * TBCP port monitor for CUPS.
  *
  * Copyright 2007-2014 by Apple Inc.
@@ -10,7 +8,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -278,8 +276,3 @@ pswrite(const char *buf,		/* I - Buffer to write */
 
   return ((ssize_t)bytes);
 }
-
-
-/*
- * End of "$Id: bcp.c 11558 2014-02-06 18:33:34Z msweet $".
- */

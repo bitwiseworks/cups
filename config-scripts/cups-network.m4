@@ -1,16 +1,14 @@
 dnl
-dnl "$Id: cups-network.m4 12324 2014-12-09 20:28:39Z msweet $"
-dnl
 dnl Networking stuff for CUPS.
 dnl
-dnl Copyright 2007-2014 by Apple Inc.
+dnl Copyright 2007-2016 by Apple Inc.
 dnl Copyright 1997-2005 by Easy Software Products, all rights reserved.
 dnl
 dnl These coded instructions, statements, and computer programs are the
 dnl property of Apple Inc. and are protected by Federal copyright
 dnl law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 dnl which should have been included with this file.  If this file is
-dnl file is missing or damaged, see the license at "http://www.cups.org/".
+dnl missing or damaged, see the license at "http://www.cups.org/".
 dnl
 
 AC_CHECK_HEADER(resolv.h,AC_DEFINE(HAVE_RESOLV_H),,[
@@ -30,7 +28,7 @@ AC_SEARCH_LIBS(__res_init, resolv bind, AC_DEFINE(HAVE_RES_INIT),
 
 # Tru64 5.1b leaks file descriptors with these functions; disable until
 # we can come up with a test for this...
-if test "$uname" != "OSF1"; then
+if test "$host_os_name" != "osf1"; then
 	AC_SEARCH_LIBS(getaddrinfo, nsl, AC_DEFINE(HAVE_GETADDRINFO))
 	AC_SEARCH_LIBS(getnameinfo, nsl, AC_DEFINE(HAVE_GETNAMEINFO))
 fi
@@ -47,9 +45,9 @@ AC_ARG_WITH(domainsocket, [  --with-domainsocket     set unix domain socket name
 
 if test x$enable_domainsocket != xno -a x$default_domainsocket != xno; then
 	if test "x$default_domainsocket" = x; then
-		case "$uname" in
-			Darwin*)
-				# Darwin and MaxOS X do their own thing...
+		case "$host_os_name" in
+			darwin*)
+				# Darwin and macOS do their own thing...
 				CUPS_DEFAULT_DOMAINSOCKET="$localstatedir/run/cupsd"
 				;;
 			*)
@@ -70,7 +68,3 @@ fi
 
 AC_SUBST(CUPS_DEFAULT_DOMAINSOCKET)
 AC_SUBST(CUPS_LISTEN_DOMAINSOCKET)
-
-dnl
-dnl End of "$Id: cups-network.m4 12324 2014-12-09 20:28:39Z msweet $".
-dnl

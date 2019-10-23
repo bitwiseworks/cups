@@ -1,15 +1,13 @@
 /*
- * "$Id: thread.c 11627 2014-02-20 16:15:09Z msweet $"
- *
  * Threading primitives for CUPS.
  *
- * Copyright 2009-2014 by Apple Inc.
+ * Copyright © 2009-2018 by Apple Inc.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -23,6 +21,59 @@
 
 
 #if defined(HAVE_PTHREAD_H)
+/*
+ * '_cupsCondBroadcast()' - Wake up waiting threads.
+ */
+
+void
+_cupsCondBroadcast(_cups_cond_t *cond)	/* I - Condition */
+{
+  pthread_cond_broadcast(cond);
+}
+
+
+/*
+ * '_cupsCondInit()' - Initialize a condition variable.
+ */
+
+void
+_cupsCondInit(_cups_cond_t *cond)	/* I - Condition */
+{
+  pthread_cond_init(cond, NULL);
+}
+
+
+/*
+ * '_cupsCondWait()' - Wait for a condition with optional timeout.
+ */
+
+void
+_cupsCondWait(_cups_cond_t  *cond,	/* I - Condition */
+              _cups_mutex_t *mutex,	/* I - Mutex */
+	      double        timeout)	/* I - Timeout in seconds (0 or negative for none) */
+{
+  if (timeout > 0.0)
+  {
+    struct timespec abstime;		/* Timeout */
+
+    clock_gettime(CLOCK_REALTIME, &abstime);
+
+    abstime.tv_sec  += (long)timeout;
+    abstime.tv_nsec += (long)(1000000000 * (timeout - (long)timeout));
+
+    while (abstime.tv_nsec >= 1000000000)
+    {
+      abstime.tv_nsec -= 1000000000;
+      abstime.tv_sec ++;
+    };
+
+    pthread_cond_timedwait(cond, mutex, &abstime);
+  }
+  else
+    pthread_cond_wait(cond, mutex);
+}
+
+
 /*
  * '_cupsMutexInit()' - Initialize a mutex.
  */
@@ -101,22 +152,99 @@ _cupsRWUnlock(_cups_rwlock_t *rwlock)	/* I - Reader/writer lock */
 
 
 /*
+ * '_cupsThreadCancel()' - Cancel (kill) a thread.
+ */
+
+void
+_cupsThreadCancel(_cups_thread_t thread)/* I - Thread ID */
+{
+  pthread_cancel(thread);
+}
+
+
+/*
  * '_cupsThreadCreate()' - Create a thread.
  */
 
-int					/* O - 0 on failure, 1 on success */
+_cups_thread_t				/* O - Thread ID */
 _cupsThreadCreate(
     _cups_thread_func_t func,		/* I - Entry point */
     void                *arg)		/* I - Entry point context */
 {
   pthread_t thread;
 
-  return (pthread_create(&thread, NULL, (void *(*)(void *))func, arg) == 0);
+  if (pthread_create(&thread, NULL, (void *(*)(void *))func, arg))
+    return (0);
+  else
+    return (thread);
 }
 
 
-#elif defined(WIN32)
+/*
+ * '_cupsThreadDetach()' - Tell the OS that the thread is running independently.
+ */
+
+void
+_cupsThreadDetach(_cups_thread_t thread)/* I - Thread ID */
+{
+  pthread_detach(thread);
+}
+
+
+/*
+ * '_cupsThreadWait()' - Wait for a thread to exit.
+ */
+
+void *					/* O - Return value */
+_cupsThreadWait(_cups_thread_t thread)	/* I - Thread ID */
+{
+  void	*ret;				/* Return value */
+
+
+  if (pthread_join(thread, &ret))
+    return (NULL);
+  else
+    return (ret);
+}
+
+
+#elif defined(_WIN32)
 #  include <process.h>
+
+
+/*
+ * '_cupsCondBroadcast()' - Wake up waiting threads.
+ */
+
+void
+_cupsCondBroadcast(_cups_cond_t *cond)	/* I - Condition */
+{
+  // TODO: Implement me
+}
+
+
+/*
+ * '_cupsCondInit()' - Initialize a condition variable.
+ */
+
+void
+_cupsCondInit(_cups_cond_t *cond)	/* I - Condition */
+{
+  // TODO: Implement me
+}
+
+
+/*
+ * '_cupsCondWait()' - Wait for a condition with optional timeout.
+ */
+
+void
+_cupsCondWait(_cups_cond_t  *cond,	/* I - Condition */
+              _cups_mutex_t *mutex,	/* I - Mutex */
+	      double        timeout)	/* I - Timeout in seconds (0 or negative for none) */
+{
+  // TODO: Implement me
+}
 
 
 /*
@@ -211,20 +339,91 @@ _cupsRWUnlock(_cups_rwlock_t *rwlock)	/* I - Reader/writer lock */
 
 
 /*
+ * '_cupsThreadCancel()' - Cancel (kill) a thread.
+ */
+
+void
+_cupsThreadCancel(_cups_thread_t thread)/* I - Thread ID */
+{
+  // TODO: Implement me
+}
+
+
+/*
  * '_cupsThreadCreate()' - Create a thread.
  */
 
-int					/* O - 0 on failure, 1 on success */
+_cups_thread_t				/* O - Thread ID */
 _cupsThreadCreate(
     _cups_thread_func_t func,		/* I - Entry point */
     void                *arg)		/* I - Entry point context */
 {
-  return (_beginthreadex(NULL, 0, (LPTHREAD_START_ROUTINE) func, arg, 0, NULL)
-	      != 0);
+  return (_beginthreadex(NULL, 0, (LPTHREAD_START_ROUTINE)func, arg, 0, NULL));
 }
 
 
-#else
+/*
+ * '_cupsThreadDetach()' - Tell the OS that the thread is running independently.
+ */
+
+void
+_cupsThreadDetach(_cups_thread_t thread)/* I - Thread ID */
+{
+  // TODO: Implement me
+  (void)thread;
+}
+
+
+/*
+ * '_cupsThreadWait()' - Wait for a thread to exit.
+ */
+
+void *					/* O - Return value */
+_cupsThreadWait(_cups_thread_t thread)	/* I - Thread ID */
+{
+  // TODO: Implement me
+  (void)thread;
+
+  return (NULL);
+}
+
+
+#else /* No threading */
+/*
+ * '_cupsCondBroadcast()' - Wake up waiting threads.
+ */
+
+void
+_cupsCondBroadcast(_cups_cond_t *cond)	/* I - Condition */
+{
+  // TODO: Implement me
+}
+
+
+/*
+ * '_cupsCondInit()' - Initialize a condition variable.
+ */
+
+void
+_cupsCondInit(_cups_cond_t *cond)	/* I - Condition */
+{
+  // TODO: Implement me
+}
+
+
+/*
+ * '_cupsCondWait()' - Wait for a condition with optional timeout.
+ */
+
+void
+_cupsCondWait(_cups_cond_t  *cond,	/* I - Condition */
+              _cups_mutex_t *mutex,	/* I - Mutex */
+	      double        timeout)	/* I - Timeout in seconds (0 or negative for none) */
+{
+  // TODO: Implement me
+}
+
+
 /*
  * '_cupsMutexInit()' - Initialize a mutex.
  */
@@ -303,25 +502,55 @@ _cupsRWUnlock(_cups_rwlock_t *rwlock)	/* I - Reader/writer lock */
 
 
 /*
+ * '_cupsThreadCancel()' - Cancel (kill) a thread.
+ */
+
+void
+_cupsThreadCancel(_cups_thread_t thread)/* I - Thread ID */
+{
+  (void)thread;
+}
+
+
+/*
  * '_cupsThreadCreate()' - Create a thread.
  */
 
-int					/* O - 0 on failure, 1 on success */
+_cups_thread_t				/* O - Thread ID */
 _cupsThreadCreate(
     _cups_thread_func_t func,		/* I - Entry point */
     void                *arg)		/* I - Entry point context */
 {
-  fputs("DEBUG: CUPS was compiled without threading support, no thread "
-        "created.\n", stderr);
+  fputs("DEBUG: CUPS was compiled without threading support, no thread created.\n", stderr);
 
   (void)func;
   (void)arg;
 
   return (0);
 }
-#endif /* HAVE_PTHREAD_H */
 
 
 /*
- * End of "$Id: thread.c 11627 2014-02-20 16:15:09Z msweet $".
+ * '_cupsThreadDetach()' - Tell the OS that the thread is running independently.
  */
+
+void
+_cupsThreadDetach(_cups_thread_t thread)/* I - Thread ID */
+{
+  (void)thread;
+}
+
+
+/*
+ * '_cupsThreadWait()' - Wait for a thread to exit.
+ */
+
+void *					/* O - Return value */
+_cupsThreadWait(_cups_thread_t thread)	/* I - Thread ID */
+{
+  (void)thread;
+
+  return (NULL);
+}
+
+#endif /* HAVE_PTHREAD_H */

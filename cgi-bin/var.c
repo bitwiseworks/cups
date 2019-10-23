@@ -1,16 +1,14 @@
 /*
- * "$Id: var.c 12621 2015-05-06 21:32:18Z msweet $"
- *
  * CGI form variable and array functions for CUPS.
  *
- * Copyright 2007-2015 by Apple Inc.
- * Copyright 1997-2005 by Easy Software Products.
+ * Copyright © 2007-2019 by Apple Inc.
+ * Copyright © 1997-2005 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -20,7 +18,6 @@
 /*#define DEBUG*/
 #include "cgi-private.h"
 #include <cups/http.h>
-#include <cups/md5-private.h>
 
 
 /*
@@ -36,10 +33,10 @@
 
 typedef struct				/**** Form variable structure ****/
 {
-  const char	*name;			/* Name of variable */
+  char		*name;			/* Name of variable */
   int		nvalues,		/* Number of values */
 		avalues;		/* Number of values allocated */
-  const char	**values;		/* Value(s) of variable */
+  char		**values;		/* Value(s) of variable */
 } _cgi_var_t;
 
 
@@ -142,10 +139,10 @@ cgiClearVariables(void)
 
   for (v = form_vars, i = form_count; i > 0; v ++, i --)
   {
-    _cupsStrFree(v->name);
+    free(v->name);
     for (j = 0; j < v->nvalues; j ++)
       if (v->values[j])
-        _cupsStrFree(v->values[j]);
+        free(v->values[j]);
   }
 
   form_count = 0;
@@ -171,7 +168,7 @@ cgiGetArray(const char *name,		/* I - Name of array variable */
   if (element < 0 || element >= var->nvalues)
     return (NULL);
 
-  return (_cupsStrRetain(var->values[element]));
+  return (strdup(var->values[element]));
 }
 
 
@@ -237,7 +234,7 @@ cgiGetVariable(const char *name)	/* I - Name of variable */
 		  var->values[var->nvalues - 1]));
 #endif /* DEBUG */
 
-  return ((var == NULL) ? NULL : _cupsStrRetain(var->values[var->nvalues - 1]));
+  return ((var == NULL) ? NULL : strdup(var->values[var->nvalues - 1]));
 }
 
 
@@ -385,10 +382,9 @@ cgiSetArray(const char *name,		/* I - Name of variable */
   {
     if (element >= var->avalues)
     {
-      const char **temp;		/* Temporary pointer */
+      char **temp;			/* Temporary pointer */
 
-      temp = (const char **)realloc((void *)(var->values),
-                                    sizeof(char *) * (size_t)(element + 16));
+      temp = (char **)realloc((void *)(var->values), sizeof(char *) * (size_t)(element + 16));
       if (!temp)
         return;
 
@@ -404,9 +400,9 @@ cgiSetArray(const char *name,		/* I - Name of variable */
       var->nvalues = element + 1;
     }
     else if (var->values[element])
-      _cupsStrFree((char *)var->values[element]);
+      free((char *)var->values[element]);
 
-    var->values[element] = _cupsStrAlloc(value);
+    var->values[element] = strdup(value);
   }
 }
 
@@ -463,10 +459,9 @@ cgiSetSize(const char *name,		/* I - Name of variable */
 
   if (size >= var->avalues)
   {
-    const char **temp;			/* Temporary pointer */
+    char **temp;			/* Temporary pointer */
 
-    temp = (const char **)realloc((void *)(var->values),
-				  sizeof(char *) * (size_t)(size + 16));
+    temp = (char **)realloc((void *)(var->values), sizeof(char *) * (size_t)(size + 16));
     if (!temp)
       return;
 
@@ -483,7 +478,7 @@ cgiSetSize(const char *name,		/* I - Name of variable */
   {
     for (i = size; i < var->nvalues; i ++)
       if (var->values[i])
-        _cupsStrFree((void *)(var->values[i]));
+        free((void *)(var->values[i]));
   }
 
   var->nvalues = size;
@@ -518,9 +513,9 @@ cgiSetVariable(const char *name,	/* I - Name of variable */
   {
     for (i = 0; i < var->nvalues; i ++)
       if (var->values[i])
-        _cupsStrFree((char *)var->values[i]);
+        free((char *)var->values[i]);
 
-    var->values[0] = _cupsStrAlloc(value);
+    var->values[0] = strdup(value);
     var->nvalues   = 1;
   }
 }
@@ -566,10 +561,10 @@ cgi_add_variable(const char *name,	/* I - Variable name */
   if ((var->values = calloc((size_t)element + 1, sizeof(char *))) == NULL)
     return;
 
-  var->name            = _cupsStrAlloc(name);
+  var->name            = strdup(name);
   var->nvalues         = element + 1;
   var->avalues         = element + 1;
-  var->values[element] = _cupsStrAlloc(value);
+  var->values[element] = strdup(value);
 
   form_count ++;
 }
@@ -601,7 +596,7 @@ cgi_find_variable(const char *name)	/* I - Name of variable */
   if (form_count < 1 || name == NULL)
     return (NULL);
 
-  key.name = name;
+  key.name = (char *)name;
 
   return ((_cgi_var_t *)bsearch(&key, form_vars, (size_t)form_count, sizeof(_cgi_var_t),
                            (int (*)(const void *, const void *))cgi_compare_variables));
@@ -1206,11 +1201,11 @@ cgi_set_sid(void)
 {
   char			buffer[512],	/* SID data */
 			sid[33];	/* SID string */
-  _cups_md5_state_t	md5;		/* MD5 state */
   unsigned char		sum[16];	/* MD5 sum */
   const char		*remote_addr,	/* REMOTE_ADDR */
 			*server_name,	/* SERVER_NAME */
 			*server_port;	/* SERVER_PORT */
+  struct timeval	curtime;	/* Current time */
 
 
   if ((remote_addr = getenv("REMOTE_ADDR")) == NULL)
@@ -1220,18 +1215,17 @@ cgi_set_sid(void)
   if ((server_port = getenv("SERVER_PORT")) == NULL)
     server_port = "SERVER_PORT";
 
-  CUPS_SRAND(time(NULL));
+  gettimeofday(&curtime, NULL);
+  CUPS_SRAND(curtime.tv_sec + curtime.tv_usec);
   snprintf(buffer, sizeof(buffer), "%s:%s:%s:%02X%02X%02X%02X%02X%02X%02X%02X",
            remote_addr, server_name, server_port,
 	   (unsigned)CUPS_RAND() & 255, (unsigned)CUPS_RAND() & 255,
 	   (unsigned)CUPS_RAND() & 255, (unsigned)CUPS_RAND() & 255,
 	   (unsigned)CUPS_RAND() & 255, (unsigned)CUPS_RAND() & 255,
 	   (unsigned)CUPS_RAND() & 255, (unsigned)CUPS_RAND() & 255);
-  _cupsMD5Init(&md5);
-  _cupsMD5Append(&md5, (unsigned char *)buffer, (int)strlen(buffer));
-  _cupsMD5Finish(&md5, sum);
+  cupsHashData("md5", (unsigned char *)buffer, strlen(buffer), sum, sizeof(sum));
 
-  cgiSetCookie(CUPS_SID, httpMD5String(sum, sid), "/", NULL, 0, 0);
+  cgiSetCookie(CUPS_SID, cupsHashString(sum, sizeof(sum), sid, sizeof(sid)), "/", NULL, 0, 0);
 
   return (cupsGetOption(CUPS_SID, num_cookies, cookies));
 }
@@ -1294,8 +1288,3 @@ cgi_unlink_file(void)
     form_file = NULL;
   }
 }
-
-
-/*
- * End of "$Id: var.c 12621 2015-05-06 21:32:18Z msweet $".
- */

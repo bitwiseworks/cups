@@ -1,16 +1,14 @@
 /*
- * "$Id: process.c 12521 2015-02-17 20:00:17Z msweet $"
- *
  * Process management routines for the CUPS scheduler.
  *
- * Copyright 2007-2015 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -25,13 +23,16 @@
 #ifdef HAVE_POSIX_SPAWN
 #  include <spawn.h>
 extern char **environ;
-#endif /* HAVE_POSIX_SPAWN */
-#ifdef HAVE_POSIX_SPAWN
-#  if !defined(__OpenBSD__) || OpenBSD >= 201505
-#    define USE_POSIX_SPAWN 1
-#  else
+/* Don't use posix_spawn on systems with bugs in their implementations... */
+#  if defined(OpenBSD) && OpenBSD < 201505
 #    define USE_POSIX_SPAWN 0
-#  endif /* !__OpenBSD__ || */
+#  elif defined(__UCLIBC__) && __UCLIBC_MAJOR__ == 1 && __UCLIBC_MINOR__ == 0 && __UCLIBC_SUBLEVEL__ < 27
+#    define USE_POSIX_SPAWN 0
+#  elif defined(__UCLIBC__) && __UCLIBC_MAJOR__ < 1
+#    define USE_POSIX_SPAWN 0
+#  else /* All other platforms */
+#    define USE_POSIX_SPAWN 1
+#  endif /* ... */
 #else
 #  define USE_POSIX_SPAWN 0
 #endif /* HAVE_POSIX_SPAWN */
@@ -101,9 +102,13 @@ cupsdCreateProfile(int job_id,		/* I - Job ID or 0 for none */
 
   if ((fp = cupsTempFile2(profile, sizeof(profile))) == NULL)
   {
+   /*
+    * This should never happen, and is fatal when sandboxing is enabled.
+    */
+
     cupsdLogMessage(CUPSD_LOG_DEBUG2, "cupsdCreateProfile(job_id=%d, allow_networking=%d) = NULL", job_id, allow_networking);
-    cupsdLogMessage(CUPSD_LOG_ERROR, "Unable to create security profile: %s",
-                    strerror(errno));
+    cupsdLogMessage(CUPSD_LOG_EMERG, "Unable to create security profile: %s", strerror(errno));
+    kill(getpid(), SIGTERM);
     return (NULL);
   }
 
@@ -127,6 +132,7 @@ cupsdCreateProfile(int job_id,		/* I - Job ID or 0 for none */
   if (LogLevel >= CUPSD_LOG_DEBUG)
     cupsFilePuts(fp, "(debug deny)\n");
   cupsFilePuts(fp, "(import \"system.sb\")\n");
+  cupsFilePuts(fp, "(import \"com.apple.corefoundation.sb\")\n");
   cupsFilePuts(fp, "(system-network)\n");
   cupsFilePuts(fp, "(allow mach-per-user-lookup)\n");
   cupsFilePuts(fp, "(allow ipc-posix-sem)\n");
@@ -199,10 +205,8 @@ cupsdCreateProfile(int job_id,		/* I - Job ID or 0 for none */
 		 " #\"^%s/\""		/* TempDir/... */
 		 " #\"^%s$\""		/* CacheDir */
 		 " #\"^%s/\""		/* CacheDir/... */
-		 " #\"^%s$\""		/* StateDir */
-		 " #\"^%s/\""		/* StateDir/... */
 		 "))\n",
-		 temp, temp, cache, cache, state, state);
+		 temp, temp, cache, cache);
   /* Read common folders */
   cupsFilePrintf(fp,
                  "(allow file-read-data file-read-metadata\n"
@@ -244,8 +248,10 @@ cupsdCreateProfile(int job_id,		/* I - Job ID or 0 for none */
 		 " #\"^%s/\""		/* ServerBin/... */
 		 " #\"^%s$\""		/* ServerRoot */
 		 " #\"^%s/\""		/* ServerRoot/... */
+		 " #\"^%s$\""		/* StateDir */
+		 " #\"^%s/\""		/* StateDir/... */
 		 "))\n",
-		 request, request, bin, bin, root, root);
+		 request, request, bin, bin, root, root, state, state);
   if (Sandboxing == CUPSD_SANDBOXING_RELAXED)
   {
     /* Limited write access to /Library/Printers/... */
@@ -341,7 +347,7 @@ cupsdCreateProfile(int job_id,		/* I - Job ID or 0 for none */
     /* Only allow SNMP (UDP) and LPD (TCP) off the machine... */
     cupsFilePuts(fp, ")\n");
     cupsFilePuts(fp, "(allow network-outbound\n"
-		     "       (remote udp \"*:161\")"
+		     "       (remote udp \"*:161\")\n"
 		     "       (remote tcp \"*:515\"))\n");
     cupsFilePuts(fp, "(allow network-inbound\n"
 		     "       (local udp \"localhost:*\"))\n");
@@ -516,7 +522,7 @@ cupsdStartProcess(
   if (envp)
   {
    /*
-    * Add special voodoo magic for OS X - this allows OS X programs to access
+    * Add special voodoo magic for macOS - this allows macOS programs to access
     * their bundle resources properly...
     */
 
@@ -880,7 +886,7 @@ cupsd_requote(char       *dst,		/* I - Destination buffer */
     if (ch == '/' && !*src)
       break;				/* Don't add trailing slash */
 
-    if (strchr(".?*()[]^$\\", ch))
+    if (strchr(".?*()[]^$\\\"", ch))
       *dstptr++ = '\\';
 
     *dstptr++ = (char)ch;
@@ -891,8 +897,3 @@ cupsd_requote(char       *dst,		/* I - Destination buffer */
   return (dst);
 }
 #endif /* HAVE_SANDBOX_H */
-
-
-/*
- * End of "$Id: process.c 12521 2015-02-17 20:00:17Z msweet $".
- */

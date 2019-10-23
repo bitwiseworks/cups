@@ -1,16 +1,14 @@
 #
-# "$Id: Makefile 11930 2014-06-16 15:33:00Z msweet $"
-#
 # Documentation makefile for CUPS.
 #
-# Copyright 2007-2014 by Apple Inc.
+# Copyright 2007-2018 by Apple Inc.
 # Copyright 1997-2007 by Easy Software Products.
 #
 # These coded instructions, statements, and computer programs are the
 # property of Apple Inc. and are protected by Federal copyright
 # law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 # which should have been included with this file.  If this file is
-# file is missing or damaged, see the license at "http://www.cups.org/".
+# missing or damaged, see the license at "http://www.cups.org/".
 #
 
 include ../Makedefs
@@ -46,19 +44,13 @@ HELPIMAGES	=	\
 			images/smiley.jpg
 HELPFILES	=	\
 			help/accounting.html \
-			help/api-array.html \
-			help/api-cgi.html \
-			help/api-cups.html \
-			help/api-driver.html \
-			help/api-filedir.html \
+			help/api-admin.html \
 			help/api-filter.html \
-			help/api-httpipp.html \
-			help/api-mime.html \
-			help/api-overview.html \
 			help/api-ppd.html \
-			help/api-ppdc.html \
 			help/api-raster.html \
 			help/cgi.html \
+			help/cupspm.html \
+			help/encryption.html \
 			help/glossary.html \
 			help/kerberos.html \
 			help/license.html \
@@ -114,7 +106,6 @@ HELPFILES	=	\
 			help/security.html \
 			help/sharing.html \
 			help/spec-banner.html \
-			help/spec-cmp.html \
 			help/spec-command.html \
 			help/spec-design.html \
 			help/spec-ipp.html \
@@ -245,18 +236,3 @@ uninstall-languages:
 	done
 
 install-langbundle:
-
-
-#
-# Install the docset bits locally...
-#
-
-docset:
-	cp $(HELPFILES) ../org.cups.docset/Contents/Resources/Documentation/help
-	cp cups-printable.css ../org.cups.docset/Contents/Resources/Documentation
-	cp $(HELPIMAGES) ../org.cups.docset/Contents/Resources/Documentation/images
-
-
-#
-# End of Makefile.
-#

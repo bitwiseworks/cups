@@ -1,6 +1,4 @@
 /*
- * "$Id: rastertohp.c 12945 2015-10-26 19:46:02Z msweet $"
- *
  * Hewlett-Packard Page Control Language filter for CUPS.
  *
  * Copyright 2007-2015 by Apple Inc.
@@ -10,7 +8,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -844,8 +842,3 @@ main(int  argc,				/* I - Number of command-line arguments */
   else
     return (0);
 }
-
-
-/*
- * End of "$Id: rastertohp.c 12945 2015-10-26 19:46:02Z msweet $".
- */

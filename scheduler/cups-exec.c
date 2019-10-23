@@ -1,15 +1,13 @@
 /*
- * "$Id: cups-exec.c 11817 2014-04-15 16:31:11Z msweet $"
- *
  * Sandbox helper for CUPS.
  *
- * Copyright 2007-2014 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * Usage:
  *
@@ -39,7 +37,7 @@
  * Local functions...
  */
 
-static void	usage(void) __attribute__((noreturn));
+static void	usage(void) _CUPS_NORETURN;
 
 
 /*
@@ -199,8 +197,3 @@ usage(void)
   fputs("Usage: cups-exec [-g gid] [-n nice-value] [-u uid] /path/to/profile /path/to/program argv0 argv1 ... argvN\n", stderr);
   exit(1);
 }
-
-
-/*
- * End of "$Id: cups-exec.c 11817 2014-04-15 16:31:11Z msweet $".
- */

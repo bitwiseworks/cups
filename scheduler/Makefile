@@ -1,21 +1,18 @@
 #
-# "$Id: Makefile 12519 2015-02-17 13:10:19Z msweet $"
-#
 # Scheduler Makefile for CUPS.
 #
-# Copyright 2007-2015 by Apple Inc.
+# Copyright 2007-2018 by Apple Inc.
 # Copyright 1997-2007 by Easy Software Products, all rights reserved.
 #
 # These coded instructions, statements, and computer programs are the
 # property of Apple Inc. and are protected by Federal copyright
 # law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 # which should have been included with this file.  If this file is
-# file is missing or damaged, see the license at "http://www.cups.org/".
+# missing or damaged, see the license at "http://www.cups.org/".
 #
 
 include ../Makedefs
 
-DEFFILE   =	cupsmime.def
 CUPSDOBJS =	\
 		auth.o \
 		banners.o \
@@ -64,7 +61,6 @@ OBJS	=	\
 		$(COBJS) \
 		$(CXXOBJS)
 LIBTARGETS =	\
-		$(LIBCUPSMIME) \
 		libcupsmime.a
 
 UNITTARGETS =	\
@@ -114,8 +110,6 @@ unittests:	$(UNITTARGETS)
 clean:
 	$(RM) $(OBJS)
 	$(RM) $(TARGETS) $(UNITTARGETS) convert
-	$(RM) libcupsmime.so libcupsmime.dylib
-	$(RM) $(DEFFILE)
 
 
 #
@@ -124,7 +118,7 @@ clean:
 
 depend:
 	$(CC) -MM $(ALL_CFLAGS) $(COBJS:.o=.c) >Dependencies
-	$(CXX) -MM $(ALL_CXXFLAGS) $(CXXOBJS:.o=.cxx) >>Dependencies
+	$(CXX) -MM $(ALL_CXXFLAGS) $(LD_CXXOBJS:.o=.cxx) >>Dependencies
 
 
 #
@@ -151,8 +145,6 @@ install-data:
 	$(INSTALL_DIR) -m 755 $(SERVERBIN)/driver
 	echo Creating $(SERVERROOT)...
 	$(INSTALL_DIR) -m 755 -g $(CUPS_GROUP) $(SERVERROOT)
-	echo Creating $(SERVERROOT)/interfaces...
-	$(INSTALL_DIR) -m 755 -g $(CUPS_GROUP) $(SERVERROOT)/interfaces
 	echo Creating $(SERVERROOT)/ppd...
 	$(INSTALL_DIR) -m 755 -g $(CUPS_GROUP) $(SERVERROOT)/ppd
 	if test "x`uname`" != xDarwin; then \
@@ -247,39 +239,13 @@ install-exec:
 #
 
 install-headers:
-	echo Installing header files in $(INCLUDEDIR)/cups...
-	$(INSTALL_DIR) -m 755 $(INCLUDEDIR)/cups
-	$(INSTALL_DATA) mime.h $(INCLUDEDIR)/cups
 
 
 #
 # Install libraries...
 #
 
-install-libs: $(INSTALLSTATIC)
-	echo Installing libraries in $(LIBDIR)...
-	$(INSTALL_DIR) -m 755 $(LIBDIR)
-	$(INSTALL_LIB) $(LIBCUPSMIME) $(LIBDIR)
-	$(INSTALL) libcupsmime.a $(LIBDIR)
-	if test $(LIBCUPSMIME) = "libcupsmime.so.1"; then \
-		$(RM) $(LIBDIR)/`basename $(LIBCUPSMIME) .1`; \
-		$(LN) $(LIBCUPSMIME) $(LIBDIR)/`basename $(LIBCUPSMIME) .1`; \
-	fi
-	if test $(LIBCUPSMIME) = "libcupsmime.1.dylib"; then \
-		$(RM) $(LIBDIR)/libcupsmime.dylib; \
-		$(LN) $(LIBCUPSMIME) $(LIBDIR)/libcupsmime.dylib; \
-	fi
-	if test "x$(SYMROOT)" != "x"; then \
-		$(INSTALL_DIR) $(SYMROOT); \
-		cp $(LIBCUPSMIME) $(SYMROOT); \
-		dsymutil $(SYMROOT)/$(LIBCUPSMIME); \
-	fi
-
-installstatic:
-	$(INSTALL_DIR) -m 755 $(LIBDIR)
-	$(INSTALL_LIB) -m 755 libcupsmime.a $(LIBDIR)
-	$(RANLIB) $(LIBDIR)/libcupsmime.a
-	$(CHMOD) 555 $(LIBDIR)/libcupsmime.a
+install-libs:
 
 
 #
@@ -306,14 +272,6 @@ uninstall:
 	-$(RMDIR) $(REQUESTS)
 	-$(RMDIR) $(LOGDIR)
 	-$(RMDIR) $(CACHEDIR)
-	$(RM) $(LIBDIR)/libcupsmime.1.dylib
-	$(RM) $(LIBDIR)/libcupsmime.a
-	$(RM) $(LIBDIR)/libcupsmime.dylib
-	$(RM) $(LIBDIR)/libcupsmime.so
-	$(RM) $(LIBDIR)/libcupsmime.so.1
-	-$(RMDIR) $(LIBDIR)
-	$(RM) $(INCLUDEDIR)/cups/mime.h
-	-$(RMDIR) $(INCLUDEDIR)/cups
 	if test "x$(INITDIR)" != x; then \
 		echo Uninstalling init scripts...; \
 		$(RM) $(BUILDROOT)$(INITDIR)/init.d/cups; \
@@ -354,62 +312,44 @@ uninstall:
 
 
 #
-# Automatic API help files...
-#
-
-apihelp:
-	mxmldoc --section "Programming" \
-		--title "MIME API" \
-		--css ../doc/cups-printable.css \
-		--header api-mime.header --intro api-mime.shtml \
-		mime.h $(LIBOBJS:.o=.c) >../doc/help/api-mime.html
-	mxmldoc --tokens help/api-mime.html api-mime.xml >../doc/help/api-mime.tokens
-	$(RM) api-mime.xml
-
-framedhelp:
-	mxmldoc --framed api-mime \
-		--section "Programming" \
-		--title "MIME API" \
-		--css ../doc/cups-printable.css \
-		--header api-mime.header --intro api-mime.shtml \
-		mime.h $(LIBOBJS:.o=.c)
-
-
-#
 # Make the scheduler executable, "cupsd".
 #
 
-cupsd$(EXEEXT):	$(CUPSDOBJS) $(LIBCUPSMIME) ../cups/$(LIBCUPS)
+cupsd$(EXEEXT):	$(CUPSDOBJS) libcupsmime.a ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ $(CUPSDOBJS) -L. -l$(LIBCUPSMIME) \
+	$(LD_CC) $(LDFLAGS) -o$@ $(CUPSDOBJS) libcupsmime.a \
 		$(LIBZ) $(SSLLIBS) $(LIBSLP) $(LIBLDAP) $(PAMLIBS) \
 		$(LIBPAPER) $(LIBMALLOC) $(SERVERLIBS) $(ONDEMANDLIBS) \
                 $(DNSSDLIBS) $(LIBS) $(LIBGSSAPI) $(LIBWRAP)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 cupsd-static$(EXEEXT):	$(CUPSDOBJS) libcupsmime.a ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ $(CUPSDOBJS) libcupsmime.a \
+	$(LD_CC) $(LDFLAGS) -o $@ $(CUPSDOBJS) libcupsmime.a \
 		$(LIBZ) $(SSLLIBS) $(LIBSLP) $(LIBLDAP) $(PAMLIBS) \
 		../cups/$(LIBCUPSSTATIC) $(COMMONLIBS) $(LIBZ) $(LIBPAPER) \
 		$(LIBMALLOC) $(SERVERLIBS) $(ONDEMANDLIBS) $(DNSSDLIBS) \
                 $(LIBGSSAPI) $(LIBWRAP)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
 # Make the cupsfilter utility.
 #
 
-cupsfilter$(EXEEXT):	cupsfilter.o $(LIBCUPSMIME) ../cups/$(LIBCUPS)
+cupsfilter$(EXEEXT):	cupsfilter.o libcupsmime.a ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ cupsfilter.o -L. -lcupsmime $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ cupsfilter.o libcupsmime.a $(LIBS)
 	$(RM) convert
 	$(LN) cupsfilter convert
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 cupsfilter-static$(EXEEXT):	cupsfilter.o libcupsmime.a ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ cupsfilter.o libcupsmime.a \
+	$(LD_CC) $(LDFLAGS) -o $@ cupsfilter.o libcupsmime.a \
 		../cups/$(LIBCUPSSTATIC) $(COMMONLIBS) $(LIBZ) $(SSLLIBS) \
 		$(DNSSDLIBS) $(LIBGSSAPI)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -418,17 +358,19 @@ cupsfilter-static$(EXEEXT):	cupsfilter.o libcupsmime.a ../cups/$(LIBCUPSSTATIC)
 
 cups-deviced$(EXEEXT):	cups-deviced.o util.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ cups-deviced.o util.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ cups-deviced.o util.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
 # Make the driver daemon, "cups-driverd".
 #
 
-cups-driverd$(EXEEXT):	cups-driverd.o util.o ../cups/$(LIBCUPS) ../ppdc/$(LIBCUPSPPDC)
+cups-driverd$(EXEEXT):	cups-driverd.o util.o ../cups/$(LIBCUPS) ../ppdc/libcupsppdc.a
 	echo Linking $@...
-	$(CXX) $(LDFLAGS) -o $@ cups-driverd.o util.o \
-		-L../ppdc -lcupsppdc $(LIBS)
+	$(LD_CXX) $(LDFLAGS) -o $@ cups-driverd.o util.o \
+		../ppdc/libcupsppdc.a $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -437,7 +379,8 @@ cups-driverd$(EXEEXT):	cups-driverd.o util.o ../cups/$(LIBCUPS) ../ppdc/$(LIBCUP
 
 cups-exec$(EXEEXT):	cups-exec.o
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ cups-exec.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ cups-exec.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -446,51 +389,8 @@ cups-exec$(EXEEXT):	cups-exec.o
 
 cups-lpd$(EXEEXT):	cups-lpd.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ cups-lpd.o $(LIBS)
-
-
-#
-# libcupsmime.so.1
-#
-
-$(LIBCUPSMIME):	$(LIBOBJS) $(DEFFILE)
-	echo Linking $@...
-	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(DEFFILE) $(LIBOBJS) $(LIBS)
-#	$(RM) `basename $@ .1`
-#	$(LN) $@ `basename $@ .1`
-
-$(DEFFILE):
-	echo Creating $@...
-	echo "LIBRARY cupsmim INITINSTANCE TERMINSTANCE" > $@
-	echo "DESCRIPTION \"$(BUILDLEVEL_INFO)@@cupsmime\"" >> $@
-	echo "DATA MULTIPLE" >> $@
-	echo "EXPORTS" >> $@
-	emxexp $(LIBOBJS) >> $@
-
-#
-# libcupsmime.1.dylib
-#
-
-libcupsmime.1.dylib:	$(LIBOBJS) libcupsmime.exp
-	echo Linking $@...
-	$(DSO) $(ARCHFLAGS) $(DSOFLAGS) -o $@ \
-		-install_name $(libdir)/$@ \
-		-current_version 1.0.0 \
-		-compatibility_version 1.0.0 \
-		-exported_symbols_list libcupsmime.exp \
-		$(LIBOBJS) $(LIBS)
-	$(RM) libcupsmime.dylib
-	$(LN) $@ libcupsmime.dylib
-
-
-#
-# libcupsmime.la
-#
-
-libcupsmime.la:    $(LIBOBJS)
-	echo Linking $@...
-	$(CC) $(ARCHFLAGS) $(DSOFLAGS) -o $@ $(LIBOBJS:.o=.lo) -rpath $(LIBDIR) \
-		-version-info 1:0 $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ cups-lpd.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -500,9 +400,8 @@ libcupsmime.la:    $(LIBOBJS)
 libcupsmime.a:	$(LIBOBJS)
 	echo Archiving $@...
 	$(RM) $@
-#	$(AR) $(ARFLAGS) $@ $(LIBOBJS)
-#	$(RANLIB) $@
-	emximp -o $@ $(LIBCUPSMIME)
+	$(AR) $(ARFLAGS) $@ $(LIBOBJS)
+	$(RANLIB) $@
 
 
 #
@@ -511,8 +410,9 @@ libcupsmime.a:	$(LIBOBJS)
 
 testlpd$(EXEEXT):	testlpd.o ../cups/$(LIBCUPSSTATIC) cups-lpd
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ testlpd.o ../cups/$(LIBCUPSSTATIC) \
+	$(LD_CC) $(LDFLAGS) -o $@ testlpd.o ../cups/$(LIBCUPSSTATIC) \
 		$(COMMONLIBS) $(LIBZ) $(SSLLIBS) $(DNSSDLIBS) $(LIBGSSAPI)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -521,9 +421,10 @@ testlpd$(EXEEXT):	testlpd.o ../cups/$(LIBCUPSSTATIC) cups-lpd
 
 testmime$(EXEEXT):	testmime.o libcupsmime.a ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
-	$(CC) $(ARCHFLAGS) $(LDFLAGS) -o $@ testmime.o libcupsmime.a \
+	$(LD_CC) $(ARCHFLAGS) $(LDFLAGS) -o $@ testmime.o libcupsmime.a \
 		../cups/$(LIBCUPSSTATIC) $(COMMONLIBS) $(LIBZ) $(SSLLIBS) \
 		$(DNSSDLIBS) $(LIBGSSAPI)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 	echo Running MIME tests...
 	./testmime
 
@@ -534,8 +435,9 @@ testmime$(EXEEXT):	testmime.o libcupsmime.a ../cups/$(LIBCUPSSTATIC)
 
 testspeed$(EXEEXT):	testspeed.o ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ testspeed.o ../cups/$(LIBCUPSSTATIC) \
+	$(LD_CC) $(LDFLAGS) -o $@ testspeed.o ../cups/$(LIBCUPSSTATIC) \
 		$(SSLLIBS) $(DNSSDLIBS) $(COMMONLIBS) $(LIBZ) $(LIBGSSAPI)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -544,8 +446,9 @@ testspeed$(EXEEXT):	testspeed.o ../cups/$(LIBCUPSSTATIC)
 
 testsub$(EXEEXT):	testsub.o ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ testsub.o ../cups/$(LIBCUPSSTATIC) \
+	$(LD_CC) $(LDFLAGS) -o $@ testsub.o ../cups/$(LIBCUPSSTATIC) \
 		$(SSLLIBS) $(DNSSDLIBS) $(COMMONLIBS) $(LIBZ) $(LIBGSSAPI)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -562,8 +465,3 @@ sloc:
 #
 
 include Dependencies
-
-
-#
-# End of "$Id: Makefile 12519 2015-02-17 13:10:19Z msweet $".
-#

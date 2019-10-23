@@ -1,16 +1,14 @@
 /*
- * "$Id: conf.c 12819 2015-07-31 13:52:00Z msweet $"
- *
  * Configuration routines for the CUPS scheduler.
  *
- * Copyright 2007-2015 by Apple Inc.
- * Copyright 1997-2007 by Easy Software Products, all rights reserved.
+ * Copyright © 2007-2019 by Apple Inc.
+ * Copyright © 1997-2007 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -91,9 +89,9 @@ static const cupsd_var_t	cupsd_vars[] =
 #ifdef HAVE_GSSAPI
   { "GSSServiceName",		&GSSServiceName,	CUPSD_VARTYPE_STRING },
 #endif /* HAVE_GSSAPI */
-#if defined(HAVE_LAUNCHD) || defined(HAVE_SYSTEMD)
+#ifdef HAVE_ONDEMAND
   { "IdleExitTimeout",		&IdleExitTimeout,	CUPSD_VARTYPE_TIME },
-#endif /* HAVE_LAUNCHD || HAVE_SYSTEMD */
+#endif /* HAVE_ONDEMAND */
   { "JobKillDelay",		&JobKillDelay,		CUPSD_VARTYPE_TIME },
   { "JobRetryLimit",		&JobRetryLimit,		CUPSD_VARTYPE_INTEGER },
   { "JobRetryInterval",		&JobRetryInterval,	CUPSD_VARTYPE_TIME },
@@ -140,6 +138,9 @@ static const cupsd_var_t	cupsfiles_vars[] =
   { "AccessLog",		&AccessLog,		CUPSD_VARTYPE_STRING },
   { "CacheDir",			&CacheDir,		CUPSD_VARTYPE_STRING },
   { "ConfigFilePerm",		&ConfigFilePerm,	CUPSD_VARTYPE_PERM },
+#ifdef HAVE_SSL
+  { "CreateSelfSignedCerts",	&CreateSelfSignedCerts,	CUPSD_VARTYPE_BOOLEAN },
+#endif /* HAVE_SSL */
   { "DataDir",			&DataDir,		CUPSD_VARTYPE_STRING },
   { "DocumentRoot",		&DocumentRoot,		CUPSD_VARTYPE_STRING },
   { "ErrorLog",			&ErrorLog,		CUPSD_VARTYPE_STRING },
@@ -189,7 +190,7 @@ static void		mime_error_cb(void *ctx, const char *message);
 static int		parse_aaa(cupsd_location_t *loc, char *line,
 			          char *value, int linenum);
 static int		parse_fatal_errors(const char *s);
-static int		parse_groups(const char *s);
+static int		parse_groups(const char *s, int linenum);
 static int		parse_protocols(const char *s);
 static int		parse_variable(const char *filename, int linenum,
 			               const char *line, const char *value,
@@ -275,20 +276,11 @@ cupsdCheckPermissions(
 			  "Unable to create directory \"%s\" - %s", filename,
 			  strerror(errno));
         else
-#ifdef HAVE_ASL_H
-        {
-	  asl_object_t	m;		/* Log message */
-
-	  m = asl_new(ASL_TYPE_MSG);
-	  asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-	  asl_log(NULL, m, ASL_LEVEL_ERR, "Unable to create directory \"%s\" - %s", filename, strerror(errno));
-	  asl_release(m);
-	}
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
 	  sd_journal_print(LOG_ERR, "Unable to create directory \"%s\" - %s", filename, strerror(errno));
 #else
 	  syslog(LOG_ERR, "Unable to create directory \"%s\" - %s", filename, strerror(errno));
-#endif /* HAVE_ASL_H */
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
         return (-1);
       }
@@ -325,20 +317,11 @@ cupsdCheckPermissions(
     if (create_dir >= 0)
       cupsdLogMessage(CUPSD_LOG_ERROR, "\"%s\" is not a directory.", filename);
     else
-#ifdef HAVE_ASL_H
-    {
-      asl_object_t	m;		/* Log message */
-
-      m = asl_new(ASL_TYPE_MSG);
-      asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-      asl_log(NULL, m, ASL_LEVEL_ERR, "\"%s\" is not a directory.", filename);
-      asl_release(m);
-    }
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
       sd_journal_print(LOG_ERR, "\"%s\" is not a directory.", filename);
 #else
       syslog(LOG_ERR, "\"%s\" is not a directory.", filename);
-#endif /* HAVE_ASL_H */
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
     return (-1);
   }
@@ -367,20 +350,11 @@ cupsdCheckPermissions(
 			"Unable to change ownership of \"%s\" - %s", filename,
 			strerror(errno));
       else
-#ifdef HAVE_ASL_H
-      {
-	asl_object_t	m;		/* Log message */
-
-	m = asl_new(ASL_TYPE_MSG);
-	asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-	asl_log(NULL, m, ASL_LEVEL_ERR, "Unable to change ownership of \"%s\" - %s", filename, strerror(errno));
-	asl_release(m);
-      }
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
 	sd_journal_print(LOG_ERR, "Unable to change ownership of \"%s\" - %s", filename, strerror(errno));
 #else
 	syslog(LOG_ERR, "Unable to change ownership of \"%s\" - %s", filename, strerror(errno));
-#endif /* HAVE_ASL_H */
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
       return (1);
     }
@@ -399,20 +373,11 @@ cupsdCheckPermissions(
 			"Unable to change permissions of \"%s\" - %s", filename,
 			strerror(errno));
       else
-#ifdef HAVE_ASL_H
-      {
-	asl_object_t	m;		/* Log message */
-
-	m = asl_new(ASL_TYPE_MSG);
-	asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-	asl_log(NULL, m, ASL_LEVEL_ERR, "Unable to change permissions of \"%s\" - %s", filename, strerror(errno));
-	asl_release(m);
-      }
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
 	sd_journal_print(LOG_ERR, "Unable to change permissions of \"%s\" - %s", filename, strerror(errno));
 #else
 	syslog(LOG_ERR, "Unable to change permissions of \"%s\" - %s", filename, strerror(errno));
-#endif /* HAVE_ASL_H */
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
       return (1);
     }
@@ -652,7 +617,7 @@ cupsdReadConfiguration(void)
   cupsdSetString(&ServerKeychain, "/Library/Keychains/System.keychain");
 #  endif /* HAVE_GNUTLS */
 
-  _httpTLSSetOptions(0);
+  _httpTLSSetOptions(_HTTP_TLS_NONE, _HTTP_TLS_1_0, _HTTP_TLS_MAX);
 #endif /* HAVE_SSL */
 
   language = cupsLangDefault();
@@ -740,6 +705,7 @@ cupsdReadConfiguration(void)
   FatalErrors              = parse_fatal_errors(CUPS_DEFAULT_FATAL_ERRORS);
   default_auth_type        = CUPSD_AUTH_BASIC;
 #ifdef HAVE_SSL
+  CreateSelfSignedCerts    = TRUE;
   DefaultEncryption        = HTTP_ENCRYPT_REQUIRED;
 #endif /* HAVE_SSL */
   DirtyCleanInterval       = DEFAULT_KEEPALIVE;
@@ -762,14 +728,14 @@ cupsdReadConfiguration(void)
   MaxClientsPerHost        = 0;
   MaxLogSize               = 1024 * 1024;
   MaxRequestSize           = 0;
-  MultipleOperationTimeout = DEFAULT_TIMEOUT;
+  MultipleOperationTimeout = 900;
   NumSystemGroups          = 0;
   ReloadTimeout	           = DEFAULT_KEEPALIVE;
   RootCertDuration         = 300;
   Sandboxing               = CUPSD_SANDBOXING_STRICT;
   StrictConformance        = FALSE;
   SyncOnClose              = FALSE;
-  Timeout                  = DEFAULT_TIMEOUT;
+  Timeout                  = 900;
   WebInterface             = CUPS_DEFAULT_WEBIF;
 
   BrowseLocalProtocols     = parse_protocols(CUPS_DEFAULT_BROWSE_LOCAL_PROTOCOLS);
@@ -811,9 +777,9 @@ cupsdReadConfiguration(void)
   DefaultLeaseDuration       = 86400;
   MaxLeaseDuration           = 0;
 
-#if defined(HAVE_LAUNCHD) || defined(HAVE_SYSTEMD)
+#ifdef HAVE_ONDEMAND
   IdleExitTimeout = 60;
-#endif /* HAVE_LAUNCHD || HAVE_SYSTEMD */
+#endif /* HAVE_ONDEMAND */
 
  /*
   * Setup environment variables...
@@ -836,20 +802,11 @@ cupsdReadConfiguration(void)
       if (TestConfigFile)
         printf("\"%s\" contains errors.\n", CupsFilesFile);
       else
-#ifdef HAVE_ASL_H
-      {
-	asl_object_t	m;		/* Log message */
-
-	m = asl_new(ASL_TYPE_MSG);
-	asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-	asl_log(NULL, m, ASL_LEVEL_ERR, "Unable to read \"%s\" due to errors.", CupsFilesFile);
-	asl_release(m);
-      }
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
 	sd_journal_print(LOG_ERR, "Unable to read \"%s\" due to errors.", CupsFilesFile);
 #else
         syslog(LOG_LPR, "Unable to read \"%s\" due to errors.", CupsFilesFile);
-#endif /* HAVE_ASL_H */
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
       return (0);
     }
@@ -858,19 +815,11 @@ cupsdReadConfiguration(void)
     cupsdLogMessage(CUPSD_LOG_INFO, "No %s, using defaults.", CupsFilesFile);
   else
   {
-#ifdef HAVE_ASL_H
-    asl_object_t	m;		/* Log message */
-
-    m = asl_new(ASL_TYPE_MSG);
-    asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-    asl_log(NULL, m, ASL_LEVEL_ERR, "Unable to open \"%s\" - %s", CupsFilesFile, strerror(errno));
-    asl_release(m);
-
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
     sd_journal_print(LOG_ERR, "Unable to open \"%s\" - %s", CupsFilesFile, strerror(errno));
 #else
     syslog(LOG_LPR, "Unable to open \"%s\" - %s", CupsFilesFile, strerror(errno));
-#endif /* HAVE_ASL_H */
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
     return (0);
   }
@@ -884,18 +833,11 @@ cupsdReadConfiguration(void)
 
   if ((fp = cupsFileOpen(ConfigurationFile, "r")) == NULL)
   {
-#ifdef HAVE_ASL_H
-    asl_object_t	m;		/* Log message */
-
-    m = asl_new(ASL_TYPE_MSG);
-    asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-    asl_log(NULL, m, ASL_LEVEL_ERR, "Unable to open \"%s\" - %s", ConfigurationFile, strerror(errno));
-    asl_release(m);
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
     sd_journal_print(LOG_ERR, "Unable to open \"%s\" - %s", ConfigurationFile, strerror(errno));
 #else
     syslog(LOG_LPR, "Unable to open \"%s\" - %s", ConfigurationFile, strerror(errno));
-#endif /* HAVE_ASL_H */
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
     return (0);
   }
@@ -909,20 +851,11 @@ cupsdReadConfiguration(void)
     if (TestConfigFile)
       printf("\"%s\" contains errors.\n", ConfigurationFile);
     else
-#ifdef HAVE_ASL_H
-    {
-      asl_object_t	m;		/* Log message */
-
-      m = asl_new(ASL_TYPE_MSG);
-      asl_set(m, ASL_KEY_FACILITY, "org.cups.cupsd");
-      asl_log(NULL, m, ASL_LEVEL_ERR, "Unable to read \"%s\" due to errors.", ConfigurationFile);
-      asl_release(m);
-    }
-#elif defined(HAVE_SYSTEMD_SD_JOURNAL_H)
+#ifdef HAVE_SYSTEMD_SD_JOURNAL_H
       sd_journal_print(LOG_ERR, "Unable to read \"%s\" due to errors.", ConfigurationFile);
 #else
       syslog(LOG_LPR, "Unable to read \"%s\" due to errors.", ConfigurationFile);
-#endif /* HAVE_ASL_H */
+#endif /* HAVE_SYSTEMD_SD_JOURNAL_H */
 
     return (0);
   }
@@ -944,6 +877,7 @@ cupsdReadConfiguration(void)
     if (!ServerAlias)
       ServerAlias = cupsArrayNew(NULL, NULL);
 
+    cupsdAddAlias(ServerAlias, ServerName);
     cupsdLogMessage(CUPSD_LOG_DEBUG, "Added auto ServerAlias %s", ServerName);
   }
   else
@@ -1019,7 +953,7 @@ cupsdReadConfiguration(void)
 
   if (NumSystemGroups == 0)
   {
-    if (!parse_groups(CUPS_DEFAULT_SYSTEM_GROUPS))
+    if (!parse_groups(CUPS_DEFAULT_SYSTEM_GROUPS, 0))
     {
      /*
       * Find the group associated with GID 0...
@@ -1067,19 +1001,6 @@ cupsdReadConfiguration(void)
       !strcmp(PageLog, "syslog"))
     openlog("cupsd", LOG_PID | LOG_NOWAIT | LOG_NDELAY, LOG_LPR);
 #endif /* HAVE_VSYSLOG && !HAVE_ASL_H && !HAVE_SYSTEMD_SD_JOURNAL_H */
-
- /*
-  * Make sure each of the log files exists and gets rotated as necessary...
-  */
-
-  if (strcmp(AccessLog, "syslog"))
-    cupsdCheckLogFile(&AccessFile, AccessLog);
-
-  if (strcmp(ErrorLog, "syslog"))
-    cupsdCheckLogFile(&ErrorFile, ErrorLog);
-
-  if (strcmp(PageLog, "syslog"))
-    cupsdCheckLogFile(&PageFile, PageLog);
 
  /*
   * Log the configuration file that was used...
@@ -1178,11 +1099,15 @@ cupsdReadConfiguration(void)
     cupsdSetStringf(&CacheDir, "%s/%s", ServerRoot, CacheDir);
 
 #ifdef HAVE_SSL
-  if (ServerKeychain[0] != '/')
+  if (!_cups_strcasecmp(ServerKeychain, "internal"))
+    cupsdClearString(&ServerKeychain);
+  else if (ServerKeychain[0] != '/')
     cupsdSetStringf(&ServerKeychain, "%s/%s", ServerRoot, ServerKeychain);
 
-  cupsdLogMessage(CUPSD_LOG_DEBUG, "Using keychain \"%s\" for server name \"%s\".", ServerKeychain, ServerName);
-  cupsSetServerCredentials(ServerKeychain, ServerName, 1);
+  cupsdLogMessage(CUPSD_LOG_DEBUG, "Using keychain \"%s\" for server name \"%s\".", ServerKeychain ? ServerKeychain : "internal", ServerName);
+  if (!CreateSelfSignedCerts)
+    cupsdLogMessage(CUPSD_LOG_DEBUG, "Self-signed TLS certificate generation is disabled.");
+  cupsSetServerCredentials(ServerKeychain, ServerName, CreateSelfSignedCerts);
 #endif /* HAVE_SSL */
 
  /*
@@ -1555,13 +1480,25 @@ cupsdReadConfiguration(void)
     }
   }
 
-  cupsdLogMessage(CUPSD_LOG_DEBUG2, "cupsdReadConfiguration: NumPolicies=%d",
-                  cupsArrayCount(Policies));
-  for (i = 0, p = (cupsd_policy_t *)cupsArrayFirst(Policies);
-       p;
-       i ++, p = (cupsd_policy_t *)cupsArrayNext(Policies))
-    cupsdLogMessage(CUPSD_LOG_DEBUG2,
-                    "cupsdReadConfiguration: Policies[%d]=\"%s\"", i, p->name);
+  if (LogLevel >= CUPSD_LOG_DEBUG2)
+  {
+    cupsdLogMessage(CUPSD_LOG_DEBUG2, "cupsdReadConfiguration: NumPolicies=%d",
+		    cupsArrayCount(Policies));
+    for (i = 0, p = (cupsd_policy_t *)cupsArrayFirst(Policies);
+	 p;
+	 i ++, p = (cupsd_policy_t *)cupsArrayNext(Policies))
+    {
+      int		j;		/* Looping var */
+      cupsd_location_t	*loc;		/* Current location */
+
+      cupsdLogMessage(CUPSD_LOG_DEBUG2, "cupsdReadConfiguration: Policies[%d]=\"%s\"", i, p->name);
+
+      for (j = 0, loc = (cupsd_location_t *)cupsArrayFirst(p->ops); loc; j ++, loc = (cupsd_location_t *)cupsArrayNext(p->ops))
+      {
+        cupsdLogMessage(CUPSD_LOG_DEBUG2, "cupsdReadConfiguration:     ops[%d]=%s", j, ippOpString(loc->op));
+      }
+    }
+  }
 
  /*
   * If we are doing a full reload or the server root has changed, flush
@@ -2308,7 +2245,6 @@ parse_aaa(cupsd_location_t *loc,	/* I - Location */
       if (loc->level == CUPSD_AUTH_ANON)
 	loc->level = CUPSD_AUTH_USER;
     }
-#ifdef HAVE_GSSAPI
     else if (!_cups_strcasecmp(value, "negotiate"))
     {
       loc->type = CUPSD_AUTH_NEGOTIATE;
@@ -2316,7 +2252,6 @@ parse_aaa(cupsd_location_t *loc,	/* I - Location */
       if (loc->level == CUPSD_AUTH_ANON)
 	loc->level = CUPSD_AUTH_USER;
     }
-#endif /* HAVE_GSSAPI */
     else
     {
       cupsdLogMessage(CUPSD_LOG_WARN,
@@ -2571,7 +2506,8 @@ parse_fatal_errors(const char *s)	/* I - FatalErrors string */
  */
 
 static int				/* O - 1 on success, 0 on failure */
-parse_groups(const char *s)		/* I - Space-delimited groups */
+parse_groups(const char *s,		/* I - Space-delimited groups */
+             int        linenum)        /* I - Line number in cups-files.conf */
 {
   int		status;			/* Return status */
   char		value[1024],		/* Value string */
@@ -2627,7 +2563,14 @@ parse_groups(const char *s)		/* I - Space-delimited groups */
       NumSystemGroups ++;
     }
     else
+    {
+      if (linenum)
+        cupsdLogMessage(CUPSD_LOG_ERROR, "Unknown SystemGroup \"%s\" on line %d of %s.", valstart, linenum, CupsFilesFile);
+      else
+        cupsdLogMessage(CUPSD_LOG_ERROR, "Unknown default SystemGroup \"%s\".", valstart);
+
       status = 0;
+    }
 
     endgrent();
 
@@ -2952,7 +2895,7 @@ parse_variable(
 	else
 	  snprintf(temp, sizeof(temp), "%s/%s", ServerRoot, value);
 
-	if (access(temp, 0))
+	if (access(temp, 0) && _cups_strcasecmp(value, "internal") && _cups_strcasecmp(line, "ServerKeychain"))
 	{
 	  cupsdLogMessage(CUPSD_LOG_ERROR,
 			  "File or directory for \"%s %s\" on line %d of %s "
@@ -2984,13 +2927,10 @@ read_cupsd_conf(cups_file_t *fp)	/* I - File to read from */
 					/* Line from file */
 			temp[HTTP_MAX_BUFFER],
 					/* Temporary buffer for value */
-			*value,		/* Pointer to value */
-			*valueptr;	/* Pointer into value */
+			*value;		/* Pointer to value */
   int			valuelen;	/* Length of value */
   http_addrlist_t	*addrlist,	/* Address list */
 			*addr;		/* Current address */
-  cups_file_t		*incfile;	/* Include file */
-  char			incname[1024];	/* Include filename */
 
 
  /*
@@ -3005,28 +2945,7 @@ read_cupsd_conf(cups_file_t *fp)	/* I - File to read from */
     * Decode the directive...
     */
 
-    if (!_cups_strcasecmp(line, "Include") && value)
-    {
-     /*
-      * Include filename
-      */
-
-      if (value[0] == '/')
-        strlcpy(incname, value, sizeof(incname));
-      else
-        snprintf(incname, sizeof(incname), "%s/%s", ServerRoot, value);
-
-      if ((incfile = cupsFileOpen(incname, "rb")) == NULL)
-        cupsdLogMessage(CUPSD_LOG_ERROR,
-	                "Unable to include config file \"%s\" - %s",
-	                incname, strerror(errno));
-      else
-      {
-        read_cupsd_conf(incfile);
-	cupsFileClose(incfile);
-      }
-    }
-    else if (!_cups_strcasecmp(line, "<Location") && value)
+    if (!_cups_strcasecmp(line, "<Location") && value)
     {
      /*
       * <Location path>
@@ -3064,10 +2983,12 @@ read_cupsd_conf(cups_file_t *fp)	/* I - File to read from */
     else if (!_cups_strcasecmp(line, "SSLOptions"))
     {
      /*
-      * SSLOptions [AllowRC4] [AllowSSL3] [None]
+      * SSLOptions [AllowRC4] [AllowSSL3] [AllowDH] [DenyCBC] [DenyTLS1.0] [None]
       */
 
-      int	options = 0;		/* SSL/TLS options */
+      int	options = _HTTP_TLS_NONE,/* SSL/TLS options */
+		min_version = _HTTP_TLS_1_0,
+		max_version = _HTTP_TLS_MAX;
 
       if (value)
       {
@@ -3091,18 +3012,40 @@ read_cupsd_conf(cups_file_t *fp)	/* I - File to read from */
 	  * Compare...
 	  */
 
-          if (!_cups_strcasecmp(start, "AllowRC4"))
+	  if (!_cups_strcasecmp(start, "AllowRC4"))
 	    options |= _HTTP_TLS_ALLOW_RC4;
-          else if (!_cups_strcasecmp(start, "AllowSSL3"))
-	    options |= _HTTP_TLS_ALLOW_SSL3;
-          else if (!_cups_strcasecmp(start, "None"))
-	    options = 0;
+	  else if (!_cups_strcasecmp(start, "AllowSSL3"))
+	    min_version = _HTTP_TLS_SSL3;
+	  else if (!_cups_strcasecmp(start, "AllowDH"))
+	    options |= _HTTP_TLS_ALLOW_DH;
+	  else if (!_cups_strcasecmp(start, "DenyCBC"))
+	    options |= _HTTP_TLS_DENY_CBC;
+	  else if (!_cups_strcasecmp(start, "DenyTLS1.0"))
+	    min_version = _HTTP_TLS_1_1;
+	  else if (!_cups_strcasecmp(start, "MaxTLS1.0"))
+	    max_version = _HTTP_TLS_1_0;
+	  else if (!_cups_strcasecmp(start, "MaxTLS1.1"))
+	    max_version = _HTTP_TLS_1_1;
+	  else if (!_cups_strcasecmp(start, "MaxTLS1.2"))
+	    max_version = _HTTP_TLS_1_2;
+	  else if (!_cups_strcasecmp(start, "MaxTLS1.3"))
+	    max_version = _HTTP_TLS_1_3;
+	  else if (!_cups_strcasecmp(start, "MinTLS1.0"))
+	    min_version = _HTTP_TLS_1_0;
+	  else if (!_cups_strcasecmp(start, "MinTLS1.1"))
+	    min_version = _HTTP_TLS_1_1;
+	  else if (!_cups_strcasecmp(start, "MinTLS1.2"))
+	    min_version = _HTTP_TLS_1_2;
+	  else if (!_cups_strcasecmp(start, "MinTLS1.3"))
+	    min_version = _HTTP_TLS_1_3;
+	  else if (!_cups_strcasecmp(start, "None"))
+	    options = _HTTP_TLS_NONE;
 	  else if (_cups_strcasecmp(start, "NoEmptyFragments"))
 	    cupsdLogMessage(CUPSD_LOG_WARN, "Unknown SSL option %s at line %d.", start, linenum);
         }
       }
 
-      _httpTLSSetOptions(options);
+      _httpTLSSetOptions(options, min_version, max_version);
     }
 #endif /* HAVE_SSL */
     else if ((!_cups_strcasecmp(line, "Port") || !_cups_strcasecmp(line, "Listen")
@@ -3150,9 +3093,9 @@ read_cupsd_conf(cups_file_t *fp)	/* I - File to read from */
 
         if (lis)
 	{
-#if defined(HAVE_LAUNCHD) || defined(HAVE_SYSTEMD)
+#ifdef HAVE_ONDEMAND
 	  if (!lis->on_demand)
-#endif /* HAVE_LAUNCHD || HAVE_SYSTEMD */
+#endif /* HAVE_ONDEMAND */
 	  {
 	    httpAddrString(&lis->address, temp, sizeof(temp));
 	    cupsdLogMessage(CUPSD_LOG_WARN,
@@ -3250,10 +3193,8 @@ read_cupsd_conf(cups_file_t *fp)	/* I - File to read from */
 	default_auth_type = CUPSD_AUTH_NONE;
       else if (!_cups_strcasecmp(value, "basic"))
 	default_auth_type = CUPSD_AUTH_BASIC;
-#ifdef HAVE_GSSAPI
       else if (!_cups_strcasecmp(value, "negotiate"))
         default_auth_type = CUPSD_AUTH_NEGOTIATE;
-#endif /* HAVE_GSSAPI */
       else if (!_cups_strcasecmp(value, "auto"))
         default_auth_type = CUPSD_AUTH_AUTO;
       else
@@ -3395,35 +3336,10 @@ read_cupsd_conf(cups_file_t *fp)	/* I - File to read from */
 	cupsdSetStringf(&ServerHeader, CUPS_MINIMAL " (%s %s; %s) IPP/2.1",
 	                plat.sysname, plat.release, plat.machine);
       else if (!_cups_strcasecmp(value, "None"))
-	cupsdClearString(&ServerHeader);
+	cupsdSetString(&ServerHeader, "");
       else
 	cupsdLogMessage(CUPSD_LOG_WARN, "Unknown ServerTokens %s on line %d of %s.",
                         value, linenum, ConfigurationFile);
-    }
-    else if (!_cups_strcasecmp(line, "PassEnv") && value)
-    {
-     /*
-      * PassEnv variable [... variable]
-      */
-
-      for (; *value;)
-      {
-        for (valuelen = 0; value[valuelen]; valuelen ++)
-	  if (_cups_isspace(value[valuelen]) || value[valuelen] == ',')
-	    break;
-
-        if (value[valuelen])
-        {
-	  value[valuelen] = '\0';
-	  valuelen ++;
-	}
-
-        cupsdSetEnv(value, NULL);
-
-        for (value += valuelen; *value; value ++)
-	  if (!_cups_isspace(*value) || *value != ',')
-	    break;
-      }
     }
     else if (!_cups_strcasecmp(line, "ServerAlias") && value)
     {
@@ -3453,30 +3369,6 @@ read_cupsd_conf(cups_file_t *fp)	/* I - File to read from */
 	    break;
       }
     }
-    else if (!_cups_strcasecmp(line, "SetEnv") && value)
-    {
-     /*
-      * SetEnv variable value
-      */
-
-      for (valueptr = value; *valueptr && !isspace(*valueptr & 255); valueptr ++);
-
-      if (*valueptr)
-      {
-       /*
-        * Found a value...
-	*/
-
-        while (isspace(*valueptr & 255))
-	  *valueptr++ = '\0';
-
-        cupsdSetEnv(value, valueptr);
-      }
-      else
-        cupsdLogMessage(CUPSD_LOG_ERROR,
-	                "Missing value for SetEnv directive on line %d of %s.",
-	                linenum, ConfigurationFile);
-    }
     else if (!_cups_strcasecmp(line, "AccessLog") ||
              !_cups_strcasecmp(line, "CacheDir") ||
              !_cups_strcasecmp(line, "ConfigFilePerm") ||
@@ -3490,6 +3382,7 @@ read_cupsd_conf(cups_file_t *fp)	/* I - File to read from */
              !_cups_strcasecmp(line, "LogFilePerm") ||
              !_cups_strcasecmp(line, "LPDConfigFile") ||
              !_cups_strcasecmp(line, "PageLog") ||
+             !_cups_strcasecmp(line, "PassEnv") ||
              !_cups_strcasecmp(line, "Printcap") ||
              !_cups_strcasecmp(line, "PrintcapFormat") ||
              !_cups_strcasecmp(line, "RemoteRoot") ||
@@ -3499,6 +3392,7 @@ read_cupsd_conf(cups_file_t *fp)	/* I - File to read from */
              !_cups_strcasecmp(line, "ServerKey") ||
              !_cups_strcasecmp(line, "ServerKeychain") ||
              !_cups_strcasecmp(line, "ServerRoot") ||
+             !_cups_strcasecmp(line, "SetEnv") ||
              !_cups_strcasecmp(line, "SMBConfigFile") ||
              !_cups_strcasecmp(line, "StateDir") ||
              !_cups_strcasecmp(line, "SystemGroup") ||
@@ -3528,10 +3422,49 @@ read_cupsd_conf(cups_file_t *fp)	/* I - File to read from */
 static int				/* O - 1 on success, 0 on failure */
 read_cups_files_conf(cups_file_t *fp)	/* I - File to read from */
 {
-  int		linenum;		/* Current line number */
+  int		i,			/* Looping var */
+		linenum;		/* Current line number */
   char		line[HTTP_MAX_BUFFER],	/* Line from file */
 		*value;			/* Value from line */
   struct group	*group;			/* Group */
+  static const char * const prohibited_env[] =
+  {					/* Prohibited environment variables */
+    "APPLE_LANGUAGE",
+    "AUTH_DOMAIN",
+    "AUTH_INFO_REQUIRED",
+    "AUTH_NEGOTIATE",
+    "AUTH_PASSWORD",
+    "AUTH_UID",
+    "AUTH_USERNAME",
+    "CHARSET",
+    "CLASS",
+    "CLASSIFICATION",
+    "CONTENT_TYPE",
+    "CUPS_CACHEDIR",
+    "CUPS_DATADIR",
+    "CUPS_DOCROOT",
+    "CUPS_FILETYPE",
+    "CUPS_FONTPATH",
+    "CUPS_MAX_MESSAGE",
+    "CUPS_REQUESTROOT",
+    "CUPS_SERVERBIN",
+    "CUPS_SERVERROOT",
+    "CUPS_STATEDIR",
+    "DEVICE_URI",
+    "FINAL_CONTENT_TYPE",
+    "HOME",
+    "LANG",
+    "PPD",
+    "PRINTER",
+    "PRINTER_INFO",
+    "PRINTER_LOCATION",
+    "PRINTER_STATE_REASONS",
+    "RIP_CACHE",
+    "SERVER_ADMIN",
+    "SOFTWARE",
+    "TMPDIR",
+    "USER"
+  };
 
 
  /*
@@ -3567,6 +3500,47 @@ read_cups_files_conf(cups_file_t *fp)	/* I - File to read from */
 	  if (FatalErrors & CUPSD_FATAL_CONFIG)
 	    return (0);
 	}
+      }
+    }
+    else if (!_cups_strcasecmp(line, "PassEnv") && value)
+    {
+     /*
+      * PassEnv variable [... variable]
+      */
+
+      int valuelen;			/* Length of variable name */
+
+      for (; *value;)
+      {
+        for (valuelen = 0; value[valuelen]; valuelen ++)
+	  if (_cups_isspace(value[valuelen]) || value[valuelen] == ',')
+	    break;
+
+        if (value[valuelen])
+        {
+	  value[valuelen] = '\0';
+	  valuelen ++;
+	}
+
+        for (i = 0; i < (int)(sizeof(prohibited_env) / sizeof(prohibited_env[0])); i ++)
+        {
+          if (!strcmp(value, prohibited_env[i]))
+          {
+	    cupsdLogMessage(CUPSD_LOG_ERROR, "Environment variable \"%s\" cannot be passed through on line %d of %s.", value, linenum, CupsFilesFile);
+
+	    if (FatalErrors & CUPSD_FATAL_CONFIG)
+	      return (0);
+	    else
+	      break;
+          }
+	}
+
+        if (i >= (int)(sizeof(prohibited_env) / sizeof(prohibited_env[0])))
+          cupsdSetEnv(value, NULL);
+
+        for (value += valuelen; *value; value ++)
+	  if (!_cups_isspace(*value) || *value != ',')
+	    break;
       }
     }
     else if (!_cups_strcasecmp(line, "PrintcapFormat") && value)
@@ -3614,17 +3588,54 @@ read_cups_files_conf(cups_file_t *fp)	/* I - File to read from */
           return (0);
       }
     }
+    else if (!_cups_strcasecmp(line, "SetEnv") && value)
+    {
+     /*
+      * SetEnv variable value
+      */
+
+      char *valueptr;			/* Pointer to environment variable value */
+
+      for (valueptr = value; *valueptr && !isspace(*valueptr & 255); valueptr ++);
+
+      if (*valueptr)
+      {
+       /*
+        * Found a value...
+	*/
+
+        while (isspace(*valueptr & 255))
+	  *valueptr++ = '\0';
+
+        for (i = 0; i < (int)(sizeof(prohibited_env) / sizeof(prohibited_env[0])); i ++)
+        {
+          if (!strcmp(value, prohibited_env[i]))
+          {
+	    cupsdLogMessage(CUPSD_LOG_ERROR, "Environment variable \"%s\" cannot be set  on line %d of %s.", value, linenum, CupsFilesFile);
+
+	    if (FatalErrors & CUPSD_FATAL_CONFIG)
+	      return (0);
+	    else
+	      break;
+          }
+	}
+
+        if (i >= (int)(sizeof(prohibited_env) / sizeof(prohibited_env[0])))
+	  cupsdSetEnv(value, valueptr);
+      }
+      else
+        cupsdLogMessage(CUPSD_LOG_ERROR,
+	                "Missing value for SetEnv directive on line %d of %s.",
+	                linenum, ConfigurationFile);
+    }
     else if (!_cups_strcasecmp(line, "SystemGroup") && value)
     {
      /*
       * SystemGroup (admin) group(s)...
       */
 
-      if (!parse_groups(value))
+      if (!parse_groups(value, linenum))
       {
-	cupsdLogMessage(CUPSD_LOG_ERROR,
-	                "Unknown SystemGroup \"%s\" on line %d of %s.", value,
-	                linenum, CupsFilesFile);
         if (FatalErrors & CUPSD_FATAL_CONFIG)
           return (0);
       }
@@ -3902,11 +3913,9 @@ read_policy(cups_file_t *fp,		/* I - Configuration file */
         if (num_ops < (int)(sizeof(ops) / sizeof(ops[0])))
 	{
 	  if (!_cups_strcasecmp(value, "All"))
-	    ops[num_ops] = IPP_ANY_OPERATION;
+	    ops[num_ops ++] = IPP_ANY_OPERATION;
 	  else if ((ops[num_ops] = ippOpValue(value)) == IPP_BAD_OPERATION)
-	    cupsdLogMessage(CUPSD_LOG_ERROR,
-	                    "Bad IPP operation name \"%s\" on line %d of %s.",
-	                    value, linenum, ConfigurationFile);
+	    cupsdLogMessage(CUPSD_LOG_ERROR, "Bad IPP operation name \"%s\" on line %d of %s.", value, linenum, ConfigurationFile);
           else
 	    num_ops ++;
 	}
@@ -4243,8 +4252,3 @@ set_policy_defaults(cupsd_policy_t *pol)/* I - Policy */
     cupsdAddString(&(pol->sub_attrs), "notify-user-data");
   }
 }
-
-
-/*
- * End of "$Id: conf.c 12819 2015-07-31 13:52:00Z msweet $".
- */

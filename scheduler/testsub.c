@@ -1,16 +1,14 @@
 /*
- * "$Id: testsub.c 11889 2014-05-22 13:54:15Z msweet $"
- *
  * Scheduler notification tester for CUPS.
  *
- * Copyright 2007-2014 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 2006-2007 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -37,7 +35,7 @@ static int	terminate = 0;
 
 static void	print_attributes(ipp_t *ipp, int indent);
 static void	sigterm_handler(int sig);
-static void	usage(void) __attribute__((noreturn));
+static void	usage(void) _CUPS_NORETURN;
 
 
 /*
@@ -501,9 +499,3 @@ usage(void)
   puts("Usage: testsub [-E] [-e event ... -e eventN] [-h hostname] URI");
   exit(0);
 }
-
-
-
-/*
- * End of "$Id: testsub.c 11889 2014-05-22 13:54:15Z msweet $".
- */

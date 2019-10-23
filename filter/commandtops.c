@@ -1,6 +1,4 @@
 /*
- * "$Id: commandtops.c 11558 2014-02-06 18:33:34Z msweet $"
- *
  * PostScript command filter for CUPS.
  *
  * Copyright 2008-2014 by Apple Inc.
@@ -9,7 +7,7 @@
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -518,8 +516,3 @@ report_levels(ppd_file_t *ppd,		/* I - PPD file */
 
   end_ps(ppd);
 }
-
-
-/*
- * End of "$Id: commandtops.c 11558 2014-02-06 18:33:34Z msweet $".
- */

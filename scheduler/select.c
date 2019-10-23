@@ -1,16 +1,14 @@
 /*
- * "$Id: select.c 11594 2014-02-14 20:09:01Z msweet $"
- *
  * Select abstraction functions for the CUPS scheduler.
  *
- * Copyright 2007-2014 by Apple Inc.
+ * Copyright 2007-2016 by Apple Inc.
  * Copyright 2006-2007 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -44,7 +42,7 @@
  *     FreeBSD         YES     YES     NO      YES     NO
  *     HP-UX           YES     YES     NO      NO      NO
  *     Linux           YES     YES     YES     NO      NO
- *     MacOS X         YES     YES     NO      YES     NO
+ *     macOS           YES     YES     NO      YES     NO
  *     NetBSD          YES     YES     NO      YES     NO
  *     OpenBSD         YES     YES     NO      YES     NO
  *     Solaris         YES     YES     NO      NO      YES
@@ -990,8 +988,3 @@ find_fd(int fd)				/* I - File descriptor */
 
   return (fdptr);
 }
-
-
-/*
- * End of "$Id: select.c 11594 2014-02-14 20:09:01Z msweet $".
- */

@@ -1,16 +1,14 @@
 /*
- * "$Id: rastertolabel.c 13022 2015-12-16 18:35:26Z msweet $"
- *
  * Label printer filter for CUPS.
  *
- * Copyright 2007-2015 by Apple Inc.
+ * Copyright 2007-2019 by Apple Inc.
  * Copyright 2001-2007 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -307,7 +305,7 @@ StartPage(ppd_file_t         *ppd,	/* I - PPD file */
 	       header->HWResolution[1], header->cupsHeight,
 	       header->NumCopies);
 	printf("PAGE-WIDTH %u\r\n", header->cupsWidth);
-	printf("PAGE-HEIGHT %u\r\n", header->cupsWidth);
+	printf("PAGE-HEIGHT %u\r\n", header->cupsHeight);
         break;
 
     case INTELLITECH_PCL :
@@ -376,7 +374,7 @@ StartPage(ppd_file_t         *ppd,	/* I - PPD file */
 
           if (header->cupsCompression != ~0U)
 	  				/* inPrintDensity */
-	    printf("\033&d%uA", 30 * header->cupsCompression / 100 - 15);
+	    printf("\033&d%dA", 30 * header->cupsCompression / 100 - 15);
 
 	  if ((choice = ppdFindMarkedChoice(ppd, "inPrintMode")) != NULL)
 	  {
@@ -440,7 +438,7 @@ StartPage(ppd_file_t         *ppd,	/* I - PPD file */
  */
 
 void
-EndPage(ppd_file_t *ppd,		/* I - PPD file */
+EndPage(ppd_file_t          *ppd,	/* I - PPD file */
         cups_page_header2_t *header)	/* I - Page header */
 {
   int		val;			/* Option value */
@@ -496,6 +494,19 @@ EndPage(ppd_file_t *ppd,		/* I - PPD file */
 	*/
 
         puts("^XA");
+
+       /*
+        * Rotate 180 degrees so that the top of the label/page is at the
+	* leading edge...
+	*/
+
+	puts("^POI");
+
+       /*
+        * Set print width...
+	*/
+
+        printf("^PW%u\n", header->cupsWidth);
 
        /*
         * Set print rate...
@@ -607,6 +618,13 @@ EndPage(ppd_file_t *ppd,		/* I - PPD file */
         * End the label and eject...
 	*/
 
+	puts("^XZ");
+
+       /*
+        * Delete the label image...
+        */
+
+	puts("^XA");
         puts("^IDR:CUPS.GRF^FS");
 	puts("^XZ");
 
@@ -1278,8 +1296,3 @@ main(int  argc,				/* I - Number of command-line arguments */
   else
     return (0);
 }
-
-
-/*
- * End of "$Id: rastertolabel.c 13022 2015-12-16 18:35:26Z msweet $".
- */

@@ -1,20 +1,18 @@
 /*
- * "$Id: cupstestppd.c 12583 2015-04-03 00:33:05Z msweet $"
+ * PPD test program for CUPS.
  *
- *   PPD test program for CUPS.
+ * Copyright 2007-2018 by Apple Inc.
+ * Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
- *   Copyright 2007-2015 by Apple Inc.
- *   Copyright 1997-2007 by Easy Software Products, all rights reserved.
+ * These coded instructions, statements, and computer programs are the
+ * property of Apple Inc. and are protected by Federal copyright
+ * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+ * which should have been included with this file.  If this file is
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
- *   These coded instructions, statements, and computer programs are the
- *   property of Apple Inc. and are protected by Federal copyright
- *   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
- *   which should have been included with this file.  If this file is
- *   file is missing or damaged, see the license at "http://www.cups.org/".
+ * PostScript is a trademark of Adobe Systems, Inc.
  *
- *   PostScript is a trademark of Adobe Systems, Inc.
- *
- *   This file is subject to the Apple OS-Developed Software exception.
+ * This file is subject to the Apple OS-Developed Software exception.
  */
 
 /*
@@ -26,9 +24,9 @@
 #include <cups/ppd-private.h>
 #include <cups/raster.h>
 #include <math.h>
-#ifdef WIN32
+#ifdef _WIN32
 #  define X_OK 0
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
 
 /*
@@ -109,7 +107,7 @@ static int	check_translations(ppd_file_t *ppd, int errors, int verbose,
 		                   int warn);
 static void	show_conflicts(ppd_file_t *ppd, const char *prefix);
 static int	test_raster(ppd_file_t *ppd, int verbose);
-static void	usage(void) __attribute__((noreturn));
+static void	usage(void) _CUPS_NORETURN;
 static int	valid_path(const char *keyword, const char *path, int errors,
 		           int verbose, int warn);
 static int	valid_utf8(const char *s);
@@ -925,7 +923,7 @@ main(int  argc,				/* I - Number of command-line args */
 	int	junkint;			/* Temp integer */
 
 
-        if (sscanf(attr->value, "(%[^)])%d", junkstr, &junkint) != 2)
+        if (sscanf(attr->value, "(%254[^)\n])%d", junkstr, &junkint) != 2)
 	{
 	  if (verbose >= 0)
 	  {
@@ -3124,7 +3122,7 @@ check_sizes(ppd_file_t *ppd,		/* I - PPD file */
   const char	*prefix;		/* WARN/FAIL prefix */
   ppd_option_t	*page_size,		/* PageSize option */
 		*page_region;		/* PageRegion option */
-  _pwg_media_t	*pwg_media;		/* PWG media */
+  pwg_media_t	*pwg_media;		/* PWG media */
   char		buf[PPD_MAX_NAME];	/* PapeSize name that is supposed to be */
   const char	*ptr;			/* Pointer into string */
   int		width_2540ths,		/* PageSize width in 2540ths */
@@ -4033,8 +4031,3 @@ valid_utf8(const char *s)		/* I - String to check */
 
   return (1);
 }
-
-
-/*
- * End of "$Id: cupstestppd.c 12583 2015-04-03 00:33:05Z msweet $".
- */

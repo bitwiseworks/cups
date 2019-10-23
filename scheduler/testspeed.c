@@ -1,16 +1,14 @@
 /*
- * "$Id: testspeed.c 11558 2014-02-06 18:33:34Z msweet $"
- *
  * Scheduler speed test for CUPS.
  *
- * Copyright 2007-2014 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 1997-2005 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -33,7 +31,7 @@
 static int	do_test(const char *server, int port,
 		        http_encryption_t encryption, int requests,
 			const char *opstring, int verbose);
-static void	usage(void) __attribute__((noreturn));
+static void	usage(void) _CUPS_NORETURN;
 
 
 /*
@@ -372,9 +370,3 @@ usage(void)
        "[-E] hostname[:port]");
   exit(0);
 }
-
-
-
-/*
- * End of "$Id: testspeed.c 11558 2014-02-06 18:33:34Z msweet $".
- */

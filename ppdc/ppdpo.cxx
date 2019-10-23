@@ -1,6 +1,4 @@
 //
-// "$Id: ppdpo.cxx 12633 2015-05-15 19:16:58Z msweet $"
-//
 // PPD file message catalog program for the CUPS PPD Compiler.
 //
 // Copyright 2007-2015 by Apple Inc.
@@ -10,7 +8,7 @@
 // property of Apple Inc. and are protected by Federal copyright
 // law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 // which should have been included with this file.  If this file is
-// file is missing or damaged, see the license at "http://www.cups.org/".
+// missing or damaged, see the license at "http://www.cups.org/".
 //
 
 //
@@ -255,8 +253,3 @@ usage(void)
 
   exit(1);
 }
-
-
-//
-// End of "$Id: ppdpo.cxx 12633 2015-05-15 19:16:58Z msweet $".
-//

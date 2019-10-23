@@ -1,16 +1,14 @@
 /*
- * "$Id: search.c 11558 2014-02-06 18:33:34Z msweet $"
- *
  * Search routines for CUPS.
  *
- * Copyright 2007-2014 by Apple Inc.
+ * Copyright 2007-2018 by Apple Inc.
  * Copyright 1997-2006 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -367,9 +365,5 @@ void
 cgiFreeSearch(void *search)		/* I - Search context */
 {
   regfree((regex_t *)search);
+  free(search);
 }
-
-
-/*
- * End of "$Id: search.c 11558 2014-02-06 18:33:34Z msweet $".
- */

@@ -1,16 +1,14 @@
 #
-# "$Id: Makefile 12414 2015-01-21 00:02:04Z msweet $"
+# IPP test makefile for CUPS.
 #
-#   IPP test makefile for CUPS.
+# Copyright 2007-2018 by Apple Inc.
+# Copyright 1997-2006 by Easy Software Products, all rights reserved.
 #
-#   Copyright 2007-2014 by Apple Inc.
-#   Copyright 1997-2006 by Easy Software Products, all rights reserved.
-#
-#   These coded instructions, statements, and computer programs are the
-#   property of Apple Inc. and are protected by Federal copyright
-#   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
-#   which should have been included with this file.  If this file is
-#   file is missing or damaged, see the license at "http://www.cups.org/".
+# These coded instructions, statements, and computer programs are the
+# property of Apple Inc. and are protected by Federal copyright
+# law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+# which should have been included with this file.  If this file is
+# missing or damaged, see the license at "http://www.cups.org/".
 #
 
 include ../Makedefs
@@ -54,16 +52,13 @@ TESTFILES	=	\
 			validate-job.test
 OBJS		=	\
 			ippfind.o \
-			ippinfra.o \
-			ippproxy.o \
 			ippserver.o \
-			ipptool.o \
-			xmltotest.o
+			ipptool.o
 TARGETS		=	\
 			$(IPPFIND_BIN) \
 			ippserver$(EXEEXT) \
 			ipptool$(EXEEXT) \
-			ipptool-static$(EXEEXT)
+			$(LOCALTARGET)
 
 
 #
@@ -92,7 +87,8 @@ unittests:
 #
 
 clean:
-	$(RM) $(TARGETS) $(OBJS) ippfind-static ippinfra ippinfra-shared ippproxy ippproxy-shared ippserver-shared
+	$(RM) $(TARGETS) $(OBJS)
+	$(RM) ippfind-static ippserver ippserver-shared ipptool-static
 
 
 #
@@ -175,54 +171,24 @@ uninstall:
 
 
 #
+# Local programs (not built when cross-compiling...)
+#
+
+local:	ippserver$(EXEEXT) ippserver-shared$(EXEEXT) ipptool-static$(EXEEXT)
+
+
+#
 # ippfind
 #
 
 ippfind$(EXEEXT):	ippfind.o ../cups/$(LIBCUPS) ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ ippfind.o $(LIBS)
-ippfind-static$(EXEEXT):ippfind.o ../cups/$(LIBCUPS) ../cups/$(LIBCUPSSTATIC)
-	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ ippfind.o  ../cups/$(LIBCUPSSTATIC) \
+	$(LD_CC) $(LDFLAGS) -o $@ ippfind.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
+	echo Linking $@-static...
+	$(LD_CC) $(LDFLAGS) -o $@-static ippfind.o  ../cups/$(LIBCUPSSTATIC) \
 		$(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) $(COMMONLIBS) $(LIBZ)
-
-
-#
-# ippinfra
-#
-
-ippinfra$(EXEEXT):	ippinfra.o ../cups/$(LIBCUPSSTATIC)
-	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ ippinfra.o  ../cups/$(LIBCUPSSTATIC) \
-		$(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) $(COMMONLIBS) $(LIBZ)
-
-
-#
-# ippinfra-shared
-#
-
-ippinfra-shared$(EXEEXT):	ippinfra.o ../cups/$(LIBCUPS)
-	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ ippinfra.o $(LIBS)
-
-
-#
-# ippproxy
-#
-
-ippproxy$(EXEEXT):	ippproxy.o ../cups/$(LIBCUPSSTATIC)
-	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ ippproxy.o  ../cups/$(LIBCUPSSTATIC) \
-		$(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) $(COMMONLIBS) $(LIBZ)
-
-
-#
-# ippproxy-shared
-#
-
-ippproxy-shared$(EXEEXT):	ippproxy.o ../cups/$(LIBCUPS)
-	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ ippproxy.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@-static
 
 
 #
@@ -231,8 +197,9 @@ ippproxy-shared$(EXEEXT):	ippproxy.o ../cups/$(LIBCUPS)
 
 ippserver$(EXEEXT):	ippserver.o ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ ippserver.o  ../cups/$(LIBCUPSSTATIC) \
+	$(LD_CC) $(LDFLAGS) -o $@ ippserver.o  ../cups/$(LIBCUPSSTATIC) \
 		$(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) $(COMMONLIBS) $(LIBZ)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -241,7 +208,8 @@ ippserver$(EXEEXT):	ippserver.o ../cups/$(LIBCUPSSTATIC)
 
 ippserver-shared$(EXEEXT):	ippserver.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ ippserver.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ ippserver.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -250,7 +218,8 @@ ippserver-shared$(EXEEXT):	ippserver.o ../cups/$(LIBCUPS)
 
 ipptool$(EXEEXT):	ipptool.o ../cups/$(LIBCUPS)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ ipptool.o $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ ipptool.o $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -259,19 +228,9 @@ ipptool$(EXEEXT):	ipptool.o ../cups/$(LIBCUPS)
 
 ipptool-static$(EXEEXT):	ipptool.o ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ ipptool.o  ../cups/$(LIBCUPSSTATIC) \
+	$(LD_CC) $(LDFLAGS) -o $@ ipptool.o  ../cups/$(LIBCUPSSTATIC) \
 		$(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) $(COMMONLIBS) $(LIBZ)
-
-
-#
-# xmltotest
-#
-
-xmltotest$(EXEEXT): xmltotest.o ../cups/$(LIBUPSSTATIC)
-	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ xmltotest.o  ../cups/$(LIBCUPSSTATIC) \
-		$(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) $(COMMONLIBS) $(LIBZ) \
-		$(LIBMXML)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -279,8 +238,3 @@ xmltotest$(EXEEXT): xmltotest.o ../cups/$(LIBUPSSTATIC)
 #
 
 include Dependencies
-
-
-#
-# End of "$Id: Makefile 12414 2015-01-21 00:02:04Z msweet $".
-#

@@ -1,16 +1,14 @@
 //
-// "$Id: ppdc-driver.cxx 11558 2014-02-06 18:33:34Z msweet $"
-//
 // PPD file compiler definitions for the CUPS PPD Compiler.
 //
-// Copyright 2007-2014 by Apple Inc.
+// Copyright 2007-2018 by Apple Inc.
 // Copyright 2002-2006 by Easy Software Products.
 //
 // These coded instructions, statements, and computer programs are the
 // property of Apple Inc. and are protected by Federal copyright
 // law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 // which should have been included with this file.  If this file is
-// file is missing or damaged, see the license at "http://www.cups.org/".
+// missing or damaged, see the license at "http://www.cups.org/".
 //
 
 //
@@ -400,7 +398,7 @@ ppdcDriver::write_ppd_file(
   // If we don't have a message catalog, use an empty (English) one...
   if (!catalog)
   {
-    catalog    = new ppdcCatalog("en");
+    catalog    = new ppdcCatalog(NULL);
     delete_cat = true;
   }
   else
@@ -1109,7 +1107,10 @@ ppdcDriver::write_ppd_file(
 	  cupsFilePrintf(fp, "*End%s", lf);
       }
 
-      cupsFilePrintf(fp, "*CloseUI: *%s%s", o->name->value, lf);
+      if (o->section == PPDC_SECTION_JCL)
+	cupsFilePrintf(fp, "*JCLCloseUI: *%s%s", o->name->value, lf);
+      else
+	cupsFilePrintf(fp, "*CloseUI: *%s%s", o->name->value, lf);
 
       snprintf(custom, sizeof(custom), "Custom%s", o->name->value);
       if ((a = find_attr(custom, "True")) != NULL)
@@ -1323,8 +1324,3 @@ ppdcDriver::write_ppd_file(
 
   return (0);
 }
-
-
-//
-// End of "$Id: ppdc-driver.cxx 11558 2014-02-06 18:33:34Z msweet $".
-//

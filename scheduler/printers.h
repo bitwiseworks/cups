@@ -1,16 +1,14 @@
 /*
- * "$Id: printers.h 12666 2015-05-25 19:38:09Z msweet $"
- *
  * Printer definitions for the CUPS scheduler.
  *
- * Copyright 2007-2013 by Apple Inc.
+ * Copyright 2007-2017 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 #ifdef HAVE_DNSSD
@@ -59,6 +57,7 @@ typedef struct cupsd_job_s cupsd_job_t;
 
 struct cupsd_printer_s
 {
+  _cups_rwlock_t lock;			/* Concurrency lock for background updates */
   char		*uri,			/* Printer URI */
 		*uuid,			/* Printer UUID */
 		*hostname,		/* Host printer resides on */
@@ -73,6 +72,7 @@ struct cupsd_printer_s
 		*error_policy;		/* Error policy */
   cupsd_policy_t *op_policy_ptr;	/* Pointer to operation policy */
   int		shared;			/* Shared? */
+  int		temporary;		/* Temporary queue? */
   int		accepting;		/* Accepting jobs? */
   int		holding_new_jobs;	/* Holding new jobs for printing? */
   int		in_implicit_class;	/* In an implicit class? */
@@ -156,6 +156,7 @@ extern cupsd_printer_t	*cupsdAddPrinter(const char *name);
 extern void		cupsdCreateCommonData(void);
 extern void		cupsdDeleteAllPrinters(void);
 extern int		cupsdDeletePrinter(cupsd_printer_t *p, int update);
+extern void             cupsdDeleteTemporaryPrinters(int force);
 extern cupsd_printer_t	*cupsdFindDest(const char *name);
 extern cupsd_printer_t	*cupsdFindPrinter(const char *name);
 extern cupsd_quota_t	*cupsdFindQuota(cupsd_printer_t *p,
@@ -191,8 +192,3 @@ extern const char	*cupsdValidateDest(const char *uri,
 			        	   cups_ptype_t *dtype,
 					   cupsd_printer_t **printer);
 extern void		cupsdWritePrintcap(void);
-
-
-/*
- * End of "$Id: printers.h 12666 2015-05-25 19:38:09Z msweet $".
- */

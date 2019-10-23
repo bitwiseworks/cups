@@ -1,16 +1,14 @@
 /*
- * "$Id: job.c 13047 2016-01-13 19:16:12Z msweet $"
- *
  * Job management routines for the CUPS scheduler.
  *
- * Copyright 2007-2015 by Apple Inc.
+ * Copyright 2007-2019 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -228,6 +226,7 @@ cupsdCheckJobs(void)
 			*pclass;	/* Printer class destination */
   ipp_attribute_t	*attr;		/* Job attribute */
   time_t		curtime;	/* Current time */
+  const char		*reasons;	/* job-state-reasons value */
 
 
   curtime = time(NULL);
@@ -307,10 +306,12 @@ cupsdCheckJobs(void)
 
         if (cupsdTimeoutJob(job))
 	  continue;
-      }
 
-      cupsdSetJobState(job, IPP_JOB_PENDING, CUPSD_JOB_DEFAULT,
-                       "Job submission timed out.");
+	cupsdSetJobState(job, IPP_JOB_PENDING, CUPSD_JOB_DEFAULT, "Job submission timed out.");
+	cupsdLogJob(job, CUPSD_LOG_ERROR, "Job submission timed out.");
+      }
+      else
+	cupsdSetJobState(job, IPP_JOB_PENDING, CUPSD_JOB_DEFAULT, "Job hold expired.");
     }
 
    /*
@@ -320,6 +321,25 @@ cupsdCheckJobs(void)
     if (job->pending_cost > 0 &&
 	((FilterLevel + job->pending_cost) < FilterLimit || FilterLevel == 0))
       cupsdContinueJob(job);
+
+   /*
+    * Skip jobs that where held-on-create
+    */
+
+    reasons = ippGetString(job->reasons, 0, NULL);
+    if (reasons && !strcmp(reasons, "job-held-on-create"))
+    {
+     /*
+      * Check whether the printer is still holding new jobs...
+      */
+
+      printer = cupsdFindDest(job->dest);
+
+      if (printer->holding_new_jobs)
+        continue;
+
+      ippSetString(job->attrs, &job->reasons, 0, "none");
+    }
 
    /*
     * Start pending jobs if the destination is available...
@@ -358,7 +378,7 @@ cupsdCheckJobs(void)
 	                 "Job aborted because the destination printer/class "
 			 "has gone away.");
       }
-      else if (printer && !printer->holding_new_jobs)
+      else if (printer)
       {
        /*
         * See if the printer is available or remote and not printing a job;
@@ -368,16 +388,14 @@ cupsdCheckJobs(void)
         if (pclass)
 	{
 	 /*
-	  * Add/update a job-actual-printer-uri attribute for this job
+	  * Add/update a job-printer-uri-actual attribute for this job
 	  * so that we know which printer actually printed the job...
 	  */
 
-          if ((attr = ippFindAttribute(job->attrs, "job-actual-printer-uri",
-	                               IPP_TAG_URI)) != NULL)
+          if ((attr = ippFindAttribute(job->attrs, "job-printer-uri-actual", IPP_TAG_URI)) != NULL)
             ippSetString(job->attrs, &attr, 0, printer->uri);
 	  else
-	    ippAddString(job->attrs, IPP_TAG_JOB, IPP_TAG_URI,
-	                 "job-actual-printer-uri", NULL, printer->uri);
+	    ippAddString(job->attrs, IPP_TAG_JOB, IPP_TAG_URI, "job-printer-uri-actual", NULL, printer->uri);
 
           job->dirty = 1;
           cupsdMarkDirty(CUPSD_DIRTY_JOBS);
@@ -420,10 +438,20 @@ cupsdCleanJobs(void)
   curtime          = time(NULL);
   JobHistoryUpdate = 0;
 
+  cupsdLogMessage(CUPSD_LOG_DEBUG2, "cupsdCleanJobs: curtime=%d", (int)curtime);
+
   for (job = (cupsd_job_t *)cupsArrayFirst(Jobs);
        job;
        job = (cupsd_job_t *)cupsArrayNext(Jobs))
   {
+    cupsdLogMessage(CUPSD_LOG_DEBUG2, "cupsdCleanJobs: Job %d, state=%d, printer=%p, history_time=%d, file_time=%d", job->id, (int)job->state_value, (void *)job->printer, (int)job->history_time, (int)job->file_time);
+
+    if ((job->history_time && job->history_time < JobHistoryUpdate) || !JobHistoryUpdate)
+      JobHistoryUpdate = job->history_time;
+
+    if ((job->file_time && job->file_time < JobHistoryUpdate) || !JobHistoryUpdate)
+      JobHistoryUpdate = job->file_time;
+
     if (job->state_value >= IPP_JOB_CANCELED && !job->printer)
     {
      /*
@@ -442,17 +470,6 @@ cupsdCleanJobs(void)
         remove_job_files(job);
 
         cupsdMarkDirty(CUPSD_DIRTY_JOBS);
-
-        if (job->history_time < JobHistoryUpdate || !JobHistoryUpdate)
-	  JobHistoryUpdate = job->history_time;
-      }
-      else
-      {
-        if (job->history_time < JobHistoryUpdate || !JobHistoryUpdate)
-	  JobHistoryUpdate = job->history_time;
-
-	if (job->file_time < JobHistoryUpdate || !JobHistoryUpdate)
-	  JobHistoryUpdate = job->file_time;
       }
     }
   }
@@ -731,8 +748,8 @@ cupsdContinueJob(cupsd_job_t *job)	/* I - Job */
   * Add decompression/raw filter as needed...
   */
 
-  if (job->compressions[job->current_file] &&
-      (!job->printer->remote || job->num_files == 1))
+  if ((job->compressions[job->current_file] && (!job->printer->remote || job->num_files == 1)) ||
+      (!job->printer->remote && job->printer->raw && job->num_files > 1))
   {
    /*
     * Add gziptoany filter to the front of the list...
@@ -1711,7 +1728,7 @@ cupsdLoadJob(cupsd_job_t *job)		/* I - Job */
     job->completed_time = attr->values[0].integer;
 
     if (JobHistory < INT_MAX)
-      job->history_time = attr->values[0].integer + JobHistory;
+      job->history_time = job->completed_time + JobHistory;
     else
       job->history_time = INT_MAX;
 
@@ -1722,9 +1739,11 @@ cupsdLoadJob(cupsd_job_t *job)		/* I - Job */
       JobHistoryUpdate = job->history_time;
 
     if (JobFiles < INT_MAX)
-      job->file_time = attr->values[0].integer + JobFiles;
+      job->file_time = job->completed_time + JobFiles;
     else
       job->file_time = INT_MAX;
+
+    cupsdLogJob(job, CUPSD_LOG_DEBUG2, "cupsdLoadJob: job->file_time=%ld, time-at-completed=%ld, JobFiles=%d", (long)job->file_time, (long)attr->values[0].integer, JobFiles);
 
     if (job->file_time < JobHistoryUpdate || !JobHistoryUpdate)
       JobHistoryUpdate = job->file_time;
@@ -1830,6 +1849,8 @@ cupsdLoadJob(cupsd_job_t *job)		/* I - Job */
 
   if (!job->impressions)
     job->impressions = ippAddInteger(job->attrs, IPP_TAG_JOB, IPP_TAG_INTEGER, "job-impressions-completed", 0);
+  if (!job->sheets)
+    job->sheets = ippAddInteger(job->attrs, IPP_TAG_JOB, IPP_TAG_INTEGER, "job-media-sheets-completed", 0);
 
   if (!job->priority)
   {
@@ -2194,6 +2215,15 @@ cupsdSaveAllJobs(void)
        job;
        job = (cupsd_job_t *)cupsArrayNext(Jobs))
   {
+    if (job->printer && job->printer->temporary)
+    {
+     /*
+      * Don't save jobs on temporary printers...
+      */
+
+      continue;
+    }
+
     cupsFilePrintf(fp, "<Job %d>\n", job->id);
     cupsFilePrintf(fp, "State %d\n", job->state_value);
     cupsFilePrintf(fp, "Created %ld\n", (long)job->creation_time);
@@ -2232,6 +2262,16 @@ cupsdSaveJob(cupsd_job_t *job)		/* I - Job */
 
   cupsdLogMessage(CUPSD_LOG_DEBUG2, "cupsdSaveJob(job=%p(%d)): job->attrs=%p",
                   job, job->id, job->attrs);
+
+  if (job->printer && job->printer->temporary)
+  {
+   /*
+    * Don't save jobs on temporary printers...
+    */
+
+    job->dirty = 0;
+    return;
+  }
 
   snprintf(filename, sizeof(filename), "%s/c%05d", RequestRoot, job->id);
 
@@ -2729,7 +2769,7 @@ cupsdSetJobState(
   * Update the server "busy" state...
   */
 
-  cupsdSetBusyState();
+  cupsdSetBusyState(0);
 }
 
 
@@ -2788,7 +2828,8 @@ cupsdUnloadCompletedJobs(void)
       if (job->dirty)
         cupsdSaveJob(job);
 
-      unload_job(job);
+      if (!job->dirty)
+        unload_job(job);
     }
 }
 
@@ -2820,8 +2861,10 @@ cupsdUpdateJobs(void)
       * Update history/file expiration times...
       */
 
+      job->completed_time = attr->values[0].integer;
+
       if (JobHistory < INT_MAX)
-	job->history_time = attr->values[0].integer + JobHistory;
+	job->history_time = job->completed_time + JobHistory;
       else
 	job->history_time = INT_MAX;
 
@@ -2835,16 +2878,18 @@ cupsdUpdateJobs(void)
 	JobHistoryUpdate = job->history_time;
 
       if (JobFiles < INT_MAX)
-	job->file_time = attr->values[0].integer + JobFiles;
+	job->file_time = job->completed_time + JobFiles;
       else
 	job->file_time = INT_MAX;
+
+      cupsdLogJob(job, CUPSD_LOG_DEBUG2, "cupsdUpdateJobs: job->file_time=%ld, time-at-completed=%ld, JobFiles=%d", (long)job->file_time, (long)attr->values[0].integer, JobFiles);
 
       if (job->file_time < JobHistoryUpdate || !JobHistoryUpdate)
 	JobHistoryUpdate = job->file_time;
     }
   }
 
-  cupsdLogMessage(CUPSD_LOG_DEBUG2, "cupsdUpdateAllJobs: JobHistoryUpdate=%ld",
+  cupsdLogMessage(CUPSD_LOG_DEBUG2, "cupsdUpdateJobs: JobHistoryUpdate=%ld",
                   (long)JobHistoryUpdate);
 }
 
@@ -3113,6 +3158,13 @@ finalize_job(cupsd_job_t *job,		/* I - Job */
   job->status_buffer = NULL;
 
  /*
+  * Log the final impression (page) count...
+  */
+
+  snprintf(buffer, sizeof(buffer), "total %d", ippGetInteger(job->impressions, 0));
+  cupsdLogPage(job, buffer);
+
+ /*
   * Process the exit status...
   */
 
@@ -3169,7 +3221,7 @@ finalize_job(cupsd_job_t *job,		/* I - Job */
 
    /*
     * Convert the status to an exit code.  Due to the way the W* macros are
-    * implemented on MacOS X (bug?), we have to store the exit status in a
+    * implemented on macOS (bug?), we have to store the exit status in a
     * variable first and then convert...
     */
 
@@ -3288,8 +3340,14 @@ finalize_job(cupsd_job_t *job,		/* I - Job */
 	           job_state == IPP_JOB_COMPLETED)
 	  {
 	    job_state = IPP_JOB_ABORTED;
-	    message   = "Job aborted due to backend errors; please consult "
-	                "the error_log file for details.";
+
+	    if (ErrorLog)
+	    {
+	      snprintf(buffer, sizeof(buffer), "Job aborted due to backend errors; please consult the %s file for details.", ErrorLog);
+	      message = buffer;
+            }
+            else
+	      message = "Job aborted due to backend errors.";
 
 	    ippSetString(job->attrs, &job->reasons, 0, "aborted-by-system");
 	  }
@@ -3297,8 +3355,14 @@ finalize_job(cupsd_job_t *job,		/* I - Job */
           {
             job_state     = IPP_JOB_PENDING;
 	    printer_state = IPP_PRINTER_STOPPED;
-	    message       = "Printer stopped due to backend errors; please "
-			    "consult the error_log file for details.";
+
+	    if (ErrorLog)
+	    {
+	      snprintf(buffer, sizeof(buffer), "Printer stopped due to backend errors; please consult the %s file for details.", ErrorLog);
+	      message = buffer;
+            }
+            else
+	      message = "Printer stopped due to backend errors.";
 
 	    ippSetString(job->attrs, &job->reasons, 0, "none");
 	  }
@@ -3336,15 +3400,20 @@ finalize_job(cupsd_job_t *job,		/* I - Job */
 
 	      ippSetString(job->attrs, &job->reasons, 0,
 			   "job-hold-until-specified");
-	      message = "Job held indefinitely due to backend errors; please "
-			"consult the error_log file for details.";
+
+	      if (ErrorLog)
+	      {
+		snprintf(buffer, sizeof(buffer), "Job held indefinitely due to backend errors; please consult the %s file for details.", ErrorLog);
+		message = buffer;
+	      }
+	      else
+		message = "Job held indefinitely due to backend errors.";
             }
             else if (!strcmp(reason, "account-info-needed"))
             {
 	      cupsdSetJobHoldUntil(job, "indefinite", 0);
 
-	      message = "Job held indefinitely - account information is "
-	                "required.";
+	      message = "Job held indefinitely - account information is required.";
             }
             else if (!strcmp(reason, "account-closed"))
             {
@@ -3356,8 +3425,7 @@ finalize_job(cupsd_job_t *job,		/* I - Job */
             {
 	      cupsdSetJobHoldUntil(job, "indefinite", 0);
 
-	      message = "Job held indefinitely - account limit has been "
-	                "reached.";
+	      message = "Job held indefinitely - account limit has been reached.";
 	    }
             else
             {
@@ -3375,16 +3443,27 @@ finalize_job(cupsd_job_t *job,		/* I - Job */
 	  * Stop the printer...
 	  */
 
+          if (job_state == IPP_JSTATE_CANCELED || job_state == IPP_JSTATE_ABORTED)
+          {
+            cupsdLogJob(job, CUPSD_LOG_INFO, "Ignored STOP from backend since the job is %s.", job_state == IPP_JSTATE_CANCELED ? "canceled" : "aborted");
+            break;
+	  }
+
 	  printer_state = IPP_PRINTER_STOPPED;
-	  message       = "Printer stopped due to backend errors; please "
-			  "consult the error_log file for details.";
+
+	  if (ErrorLog)
+	  {
+	    snprintf(buffer, sizeof(buffer), "Printer stopped due to backend errors; please consult the %s file for details.", ErrorLog);
+	    message = buffer;
+	  }
+	  else
+	    message = "Printer stopped due to backend errors.";
 
 	  if (job_state == IPP_JOB_COMPLETED)
 	  {
 	    job_state = IPP_JOB_PENDING;
 
-	    ippSetString(job->attrs, &job->reasons, 0,
-	                 "resources-are-not-ready");
+	    ippSetString(job->attrs, &job->reasons, 0, "resources-are-not-ready");
 	  }
           break;
 
@@ -3474,8 +3553,14 @@ finalize_job(cupsd_job_t *job,		/* I - Job */
     if (job_state == IPP_JOB_COMPLETED)
     {
       job_state = IPP_JOB_STOPPED;
-      message   = "Job stopped due to filter errors; please consult the "
-		  "error_log file for details.";
+
+      if (ErrorLog)
+      {
+	snprintf(buffer, sizeof(buffer), "Job stopped due to filter errors; please consult the %s file for details.", ErrorLog);
+	message = buffer;
+      }
+      else
+	message = "Job stopped due to filter errors.";
 
       if (WIFSIGNALED(job->status))
 	ippSetString(job->attrs, &job->reasons, 0, "cups-filter-crashed");
@@ -3506,6 +3591,13 @@ finalize_job(cupsd_job_t *job,		/* I - Job */
   }
 
   cupsArrayRemove(PrintingJobs, job);
+
+ /*
+  * Clear informational messages...
+  */
+
+  if (job->status_level > CUPSD_LOG_ERROR)
+    job->printer->state_message[0] = '\0';
 
  /*
   * Apply any PPD updates...
@@ -3575,12 +3667,9 @@ get_options(cupsd_job_t *job,		/* I - Job */
   pwgppds     = NULL;
 
   if (pc &&
-      !ippFindAttribute(job->attrs,
-                        "com.apple.print.DocumentTicket.PMSpoolFormat",
-			IPP_TAG_ZERO) &&
+      !ippFindAttribute(job->attrs, "com.apple.print.DocumentTicket.PMSpoolFormat", IPP_TAG_ZERO) &&
       !ippFindAttribute(job->attrs, "APPrinterPreset", IPP_TAG_ZERO) &&
-      (ippFindAttribute(job->attrs, "print-color-mode", IPP_TAG_ZERO) ||
-       ippFindAttribute(job->attrs, "print-quality", IPP_TAG_ZERO)))
+      (ippFindAttribute(job->attrs, "print-color-mode", IPP_TAG_ZERO) || ippFindAttribute(job->attrs, "print-quality", IPP_TAG_ZERO) || ippFindAttribute(job->attrs, "cupsPrintQuality", IPP_TAG_ZERO)))
   {
    /*
     * Map print-color-mode and print-quality to a preset...
@@ -3593,13 +3682,36 @@ get_options(cupsd_job_t *job,		/* I - Job */
     else
       print_color_mode = _PWG_PRINT_COLOR_MODE_COLOR;
 
-    if ((attr = ippFindAttribute(job->attrs, "print-quality",
-				 IPP_TAG_ENUM)) != NULL &&
-	attr->values[0].integer >= IPP_QUALITY_DRAFT &&
-	attr->values[0].integer <= IPP_QUALITY_HIGH)
-      print_quality = attr->values[0].integer - IPP_QUALITY_DRAFT;
+    if ((attr = ippFindAttribute(job->attrs, "print-quality", IPP_TAG_ENUM)) != NULL)
+    {
+      ipp_quality_t pq = (ipp_quality_t)ippGetInteger(attr, 0);
+
+      if (pq >= IPP_QUALITY_DRAFT && pq <= IPP_QUALITY_HIGH)
+        print_quality = attr->values[0].integer - IPP_QUALITY_DRAFT;
+      else
+        print_quality = _PWG_PRINT_QUALITY_NORMAL;
+    }
+    else if ((attr = ippFindAttribute(job->attrs, "cupsPrintQuality", IPP_TAG_NAME)) != NULL)
+    {
+      const char *pq = ippGetString(attr, 0, NULL);
+
+      if (!_cups_strcasecmp(pq, "draft"))
+        print_quality = _PWG_PRINT_QUALITY_DRAFT;
+      else if (!_cups_strcasecmp(pq, "high"))
+        print_quality = _PWG_PRINT_QUALITY_HIGH;
+      else
+        print_quality = _PWG_PRINT_QUALITY_NORMAL;
+
+      if (!ippFindAttribute(job->attrs, "print-quality", IPP_TAG_ENUM))
+      {
+        cupsdLogJob(job, CUPSD_LOG_DEBUG2, "Mapping cupsPrintQuality=%s to print-quality=%d", pq, print_quality + IPP_QUALITY_DRAFT);
+        num_pwgppds = cupsAddIntegerOption("print-quality", print_quality + IPP_QUALITY_DRAFT, num_pwgppds, &pwgppds);
+      }
+    }
     else
+    {
       print_quality = _PWG_PRINT_QUALITY_NORMAL;
+    }
 
     if (pc->num_presets[print_color_mode][print_quality] == 0)
     {
@@ -3632,14 +3744,30 @@ get_options(cupsd_job_t *job,		/* I - Job */
 	   i --, preset ++)
       {
         if (!ippFindAttribute(job->attrs, preset->name, IPP_TAG_ZERO))
-	  num_pwgppds = cupsAddOption(preset->name, preset->value, num_pwgppds,
-	                              &pwgppds);
+        {
+          cupsdLogJob(job, CUPSD_LOG_DEBUG2, "Adding preset option %s=%s", preset->name, preset->value);
+
+	  num_pwgppds = cupsAddOption(preset->name, preset->value, num_pwgppds, &pwgppds);
+        }
       }
     }
   }
 
   if (pc)
   {
+    if ((attr = ippFindAttribute(job->attrs, "print-quality", IPP_TAG_ENUM)) != NULL)
+    {
+      int pq = ippGetInteger(attr, 0);
+      static const char * const pqs[] = { "Draft", "Normal", "High" };
+
+      if (pq >= IPP_QUALITY_DRAFT && pq <= IPP_QUALITY_HIGH)
+      {
+        cupsdLogJob(job, CUPSD_LOG_DEBUG2, "Mapping print-quality=%d to cupsPrintQuality=%s", pq, pqs[pq - IPP_QUALITY_DRAFT]);
+
+        num_pwgppds = cupsAddOption("cupsPrintQuality", pqs[pq - IPP_QUALITY_DRAFT], num_pwgppds, &pwgppds);
+      }
+    }
+
     if (!ippFindAttribute(job->attrs, "InputSlot", IPP_TAG_ZERO) &&
 	!ippFindAttribute(job->attrs, "HPPaperSource", IPP_TAG_ZERO))
     {
@@ -3649,16 +3777,26 @@ get_options(cupsd_job_t *job,		/* I - Job */
     }
     if (!ippFindAttribute(job->attrs, "MediaType", IPP_TAG_ZERO) &&
 	(ppd = _ppdCacheGetMediaType(pc, job->attrs, NULL)) != NULL)
+    {
+      cupsdLogJob(job, CUPSD_LOG_DEBUG2, "Mapping media to MediaType=%s", ppd);
+
       num_pwgppds = cupsAddOption("MediaType", ppd, num_pwgppds, &pwgppds);
+    }
 
     if (!ippFindAttribute(job->attrs, "PageRegion", IPP_TAG_ZERO) &&
 	!ippFindAttribute(job->attrs, "PageSize", IPP_TAG_ZERO) &&
 	(ppd = _ppdCacheGetPageSize(pc, job->attrs, NULL, &exact)) != NULL)
     {
+      cupsdLogJob(job, CUPSD_LOG_DEBUG2, "Mapping media to Pagesize=%s", ppd);
+
       num_pwgppds = cupsAddOption("PageSize", ppd, num_pwgppds, &pwgppds);
 
       if (!ippFindAttribute(job->attrs, "media", IPP_TAG_ZERO))
+      {
+        cupsdLogJob(job, CUPSD_LOG_DEBUG2, "Adding media=%s", ppd);
+
         num_pwgppds = cupsAddOption("media", ppd, num_pwgppds, &pwgppds);
+      }
     }
 
     if (!ippFindAttribute(job->attrs, "OutputBin", IPP_TAG_ZERO) &&
@@ -3672,6 +3810,8 @@ get_options(cupsd_job_t *job,		/* I - Job */
       * Map output-bin to OutputBin option...
       */
 
+      cupsdLogJob(job, CUPSD_LOG_DEBUG2, "Mapping output-bin to OutputBin=%s", ppd);
+
       num_pwgppds = cupsAddOption("OutputBin", ppd, num_pwgppds, &pwgppds);
     }
 
@@ -3684,23 +3824,33 @@ get_options(cupsd_job_t *job,		/* I - Job */
       */
 
       if (!strcmp(attr->values[0].string.text, "one-sided"))
-        num_pwgppds = cupsAddOption(pc->sides_option, pc->sides_1sided,
-				    num_pwgppds, &pwgppds);
+      {
+        cupsdLogJob(job, CUPSD_LOG_DEBUG2, "Mapping sizes to Duplex=%s", pc->sides_1sided);
+
+        num_pwgppds = cupsAddOption(pc->sides_option, pc->sides_1sided, num_pwgppds, &pwgppds);
+      }
       else if (!strcmp(attr->values[0].string.text, "two-sided-long-edge"))
-        num_pwgppds = cupsAddOption(pc->sides_option, pc->sides_2sided_long,
-				    num_pwgppds, &pwgppds);
+      {
+        cupsdLogJob(job, CUPSD_LOG_DEBUG2, "Mapping sizes to Duplex=%s", pc->sides_2sided_long);
+
+        num_pwgppds = cupsAddOption(pc->sides_option, pc->sides_2sided_long, num_pwgppds, &pwgppds);
+      }
       else if (!strcmp(attr->values[0].string.text, "two-sided-short-edge"))
-        num_pwgppds = cupsAddOption(pc->sides_option, pc->sides_2sided_short,
-				    num_pwgppds, &pwgppds);
+      {
+        cupsdLogJob(job, CUPSD_LOG_DEBUG2, "Mapping sizes to Duplex=%s", pc->sides_2sided_short);
+
+        num_pwgppds = cupsAddOption(pc->sides_option, pc->sides_2sided_short, num_pwgppds, &pwgppds);
+      }
     }
 
    /*
     * Map finishings values...
     */
 
-    num_pwgppds = _ppdCacheGetFinishingOptions(pc, job->attrs,
-                                               IPP_FINISHINGS_NONE, num_pwgppds,
-                                               &pwgppds);
+    num_pwgppds = _ppdCacheGetFinishingOptions(pc, job->attrs, IPP_FINISHINGS_NONE, num_pwgppds, &pwgppds);
+
+    for (i = num_pwgppds, pwgppd = pwgppds; i > 0; i --, pwgppd ++)
+      cupsdLogJob(job, CUPSD_LOG_DEBUG2, "After mapping finishings %s=%s", pwgppd->name, pwgppd->value);
   }
 
  /*
@@ -3872,6 +4022,45 @@ get_options(cupsd_job_t *job,		/* I - Job */
 	      break;
 
           case IPP_TAG_STRING :
+              {
+                int length = attr->values[i].unknown.length;
+
+		for (valptr = attr->values[i].unknown.data; length > 0; length --)
+		{
+		  if ((*valptr & 255) < 0x20 || *valptr == 0x7f)
+		    break;
+		}
+
+		if (length > 0)
+		{
+		 /*
+		  * Encode this string as hex characters...
+		  */
+
+                  *optptr++ = '<';
+
+		  for (valptr = attr->values[i].unknown.data, length = attr->values[i].unknown.length; length > 0; length --)
+		  {
+		    snprintf(optptr, optlength - (size_t)(optptr - options) - 1, "%02X", *valptr & 255);
+		    optptr += 2;
+		  }
+
+                  *optptr++ = '>';
+		}
+		else
+		{
+		  for (valptr = attr->values[i].unknown.data, length = attr->values[i].unknown.length; length > 0; length --)
+		  {
+		    if (strchr(" \t\n\\\'\"", *valptr))
+		      *optptr++ = '\\';
+		    *optptr++ = *valptr++;
+		  }
+		}
+	      }
+
+	      *optptr = '\0';
+	      break;
+
 	  case IPP_TAG_TEXT :
 	  case IPP_TAG_NAME :
 	  case IPP_TAG_KEYWORD :
@@ -4017,6 +4206,16 @@ ipp_length(ipp_t *ipp)			/* I - IPP request */
 	  break;
 
       case IPP_TAG_STRING :
+         /*
+	  * Octet strings can contain characters that need quoting.  We need
+	  * at least 2 * len + 2 characters to cover the quotes and any
+	  * backslashes in the string.
+	  */
+
+          for (i = 0; i < attr->num_values; i ++)
+	    bytes += 2 * (size_t)attr->values[i].unknown.length + 2;
+	  break;
+
       case IPP_TAG_TEXT :
       case IPP_TAG_NAME :
       case IPP_TAG_KEYWORD :
@@ -4115,7 +4314,15 @@ load_job_cache(const char *filename)	/* I - job.cache filename */
 	{
 	  cupsdLogMessage(CUPSD_LOG_ERROR, "[Job %d] Files have gone away.",
 			  jobid);
-	  continue;
+
+         /*
+          * job.cache file is out-of-date compared to spool directory; load
+          * that instead...
+          */
+
+	  cupsFileClose(fp);
+          load_request_root();
+          return;
 	}
       }
 
@@ -4541,7 +4748,7 @@ set_time(cupsd_job_t *job,		/* I - Job to update */
     job->completed_time = curtime;
 
     if (JobHistory < INT_MAX && attr)
-      job->history_time = attr->values[0].integer + JobHistory;
+      job->history_time = job->completed_time + JobHistory;
     else
       job->history_time = INT_MAX;
 
@@ -4549,7 +4756,7 @@ set_time(cupsd_job_t *job,		/* I - Job to update */
       JobHistoryUpdate = job->history_time;
 
     if (JobFiles < INT_MAX && attr)
-      job->file_time = attr->values[0].integer + JobFiles;
+      job->file_time = job->completed_time + JobFiles;
     else
       job->file_time = INT_MAX;
 
@@ -4658,6 +4865,18 @@ start_job(cupsd_job_t     *job,		/* I - Job ID */
   job->status   = 0;
   job->profile  = cupsdCreateProfile(job->id, 0);
   job->bprofile = cupsdCreateProfile(job->id, 1);
+
+#ifdef HAVE_SANDBOX_H
+  if ((!job->profile || !job->bprofile) && UseSandboxing && Sandboxing != CUPSD_SANDBOXING_OFF)
+  {
+   /*
+    * Failure to create the sandbox profile means something really bad has
+    * happened and we need to shutdown immediately.
+    */
+
+    return;
+  }
+#endif /* HAVE_SANDBOX_H */
 
  /*
   * Create the status pipes and buffer...
@@ -4847,7 +5066,6 @@ void
 update_job(cupsd_job_t *job)		/* I - Job to check */
 {
   int		i;			/* Looping var */
-  int		copies;			/* Number of copies printed */
   char		message[CUPSD_SB_BUFFER_SIZE],
 					/* Message text */
 		*ptr;			/* Pointer update... */
@@ -4885,6 +5103,10 @@ update_job(cupsd_job_t *job)		/* I - Job to check */
 
     if (loglevel == CUPSD_LOG_PAGE)
     {
+      int	impressions = ippGetInteger(job->impressions, 0);
+				/* Number of impressions printed */
+      int	delta;		/* Number of impressions added */
+
      /*
       * Page message; send the message to the page_log file and update the
       * job sheet count...
@@ -4892,51 +5114,57 @@ update_job(cupsd_job_t *job)		/* I - Job to check */
 
       cupsdLogJob(job, CUPSD_LOG_DEBUG, "PAGE: %s", message);
 
+      if (!_cups_strncasecmp(message, "total ", 6))
+      {
+       /*
+	* Got a total count of pages from a backend or filter...
+	*/
+
+	int total = atoi(message + 6);	/* Total impressions */
+
+	if (total > impressions)
+	{
+	  delta       = total - impressions;
+	  impressions = total;
+	}
+	else
+	  delta = 0;
+      }
+      else
+      {
+       /*
+        * Add the number of copies to the impression count...
+        */
+
+	int copies;			/* Number of copies */
+
+	if (!sscanf(message, "%*d%d", &copies) || copies <= 0)
+	  copies = 1;
+
+        delta = copies;
+	impressions += copies;
+      }
+
       if (job->impressions)
-      {
-        if (!_cups_strncasecmp(message, "total ", 6))
-	{
-	 /*
-	  * Got a total count of pages from a backend or filter...
-	  */
-
-	  copies = atoi(message + 6);
-	  copies -= ippGetInteger(job->impressions, 0); /* Just track the delta */
-	}
-	else if (!sscanf(message, "%*d%d", &copies))
-	  copies = 1;
-
-        ippSetInteger(job->attrs, &job->impressions, 0, ippGetInteger(job->impressions, 0) + copies);
-        job->dirty = 1;
-	cupsdMarkDirty(CUPSD_DIRTY_JOBS);
-      }
+        ippSetInteger(job->attrs, &job->impressions, 0, impressions);
 
       if (job->sheets)
       {
-        if (!_cups_strncasecmp(message, "total ", 6))
-	{
-	 /*
-	  * Got a total count of pages from a backend or filter...
-	  */
+	const char *sides = ippGetString(ippFindAttribute(job->attrs, "sides", IPP_TAG_KEYWORD), 0, NULL);
 
-	  copies = atoi(message + 6);
-	  copies -= ippGetInteger(job->sheets, 0); /* Just track the delta */
-	}
-	else if (!sscanf(message, "%*d%d", &copies))
-	  copies = 1;
+        if (sides && strcmp(sides, "one-sided"))
+          ippSetInteger(job->attrs, &job->sheets, 0, impressions / 2);
+	else
+          ippSetInteger(job->attrs, &job->sheets, 0, impressions);
 
-        ippSetInteger(job->attrs, &job->sheets, 0, ippGetInteger(job->sheets, 0) + copies);
-        job->dirty = 1;
-	cupsdMarkDirty(CUPSD_DIRTY_JOBS);
-
-	if (job->printer->page_limit)
-	  cupsdUpdateQuota(job->printer, job->username, copies, 0);
-      }
-
-      cupsdLogPage(job, message);
-
-      if (job->sheets)
 	cupsdAddEvent(CUPSD_EVENT_JOB_PROGRESS, job->printer, job, "Printed %d page(s).", ippGetInteger(job->sheets, 0));
+      }
+
+      job->dirty = 1;
+      cupsdMarkDirty(CUPSD_DIRTY_JOBS);
+
+      if (job->printer->page_limit)
+	cupsdUpdateQuota(job->printer, job->username, delta, 0);
     }
     else if (loglevel == CUPSD_LOG_JOBSTATE)
     {
@@ -4984,8 +5212,10 @@ update_job(cupsd_job_t *job)		/* I - Job to check */
 
             if (cancel_after)
 	      job->cancel_time = time(NULL) + ippGetInteger(cancel_after, 0);
-	    else
+	    else if (MaxJobTime > 0)
 	      job->cancel_time = time(NULL) + MaxJobTime;
+	    else
+	      job->cancel_time = 0;
 	  }
         }
       }
@@ -5147,7 +5377,7 @@ update_job(cupsd_job_t *job)		/* I - Job to check */
         ptr = message;
 
       if (*ptr)
-        cupsdLogJob(job, loglevel, "%s", ptr);
+        cupsdLogJob(job, loglevel == CUPSD_LOG_INFO ? CUPSD_LOG_DEBUG : loglevel, "%s", ptr);
 
       if (loglevel < CUPSD_LOG_DEBUG &&
           strcmp(job->printer->state_message, ptr))
@@ -5349,8 +5579,3 @@ update_job_attrs(cupsd_job_t *job,	/* I - Job to update */
   job->dirty = 1;
   cupsdMarkDirty(CUPSD_DIRTY_JOBS);
 }
-
-
-/*
- * End of "$Id: job.c 13047 2016-01-13 19:16:12Z msweet $".
- */

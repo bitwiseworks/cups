@@ -1,15 +1,13 @@
 /*
- * "$Id: ippserver.c 12947 2015-10-28 15:23:33Z msweet $"
- *
  * Sample IPP Everywhere server for CUPS.
  *
- * Copyright 2010-2015 by Apple Inc.
+ * Copyright 2010-2018 by Apple Inc.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -39,7 +37,7 @@
 #include <limits.h>
 #include <sys/stat.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 #  include <fcntl.h>
 #  include <io.h>
 #  include <process.h>
@@ -53,7 +51,7 @@ extern char **environ;
 #  include <sys/fcntl.h>
 #  include <sys/wait.h>
 #  include <poll.h>
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
 #ifdef HAVE_DNSSD
 #  include <dns_sd.h>
@@ -416,8 +414,7 @@ static void		html_escape(_ipp_client_t *client, const char *s,
 static void		html_footer(_ipp_client_t *client);
 static void		html_header(_ipp_client_t *client, const char *title);
 static void		html_printf(_ipp_client_t *client, const char *format,
-			            ...) __attribute__((__format__(__printf__,
-			                                           2, 3)));
+			            ...) _CUPS_FORMAT(2, 3);
 static void		ipp_cancel_job(_ipp_client_t *client);
 static void		ipp_close_job(_ipp_client_t *client);
 static void		ipp_create_job(_ipp_client_t *client);
@@ -442,14 +439,12 @@ static int		register_printer(_ipp_printer_t *printer, const char *location, cons
 static int		respond_http(_ipp_client_t *client, http_status_t code,
 				     const char *content_coding,
 				     const char *type, size_t length);
-static void		respond_ipp(_ipp_client_t *client, ipp_status_t status,
-			            const char *message, ...)
-			__attribute__ ((__format__ (__printf__, 3, 4)));
+static void		respond_ipp(_ipp_client_t *client, ipp_status_t status, const char *message, ...) _CUPS_FORMAT(3, 4);
 static void		respond_unsupported(_ipp_client_t *client,
 			                    ipp_attribute_t *attr);
 static void		run_printer(_ipp_printer_t *printer);
 static char		*time_string(time_t tv, char *buffer, size_t bufsize);
-static void		usage(int status) __attribute__((noreturn));
+static void		usage(int status) _CUPS_NORETURN;
 static int		valid_doc_attributes(_ipp_client_t *client);
 static int		valid_job_attributes(_ipp_client_t *client);
 
@@ -657,7 +652,7 @@ main(int  argc,				/* I - Number of command-line args */
 
   if (!port)
   {
-#ifdef WIN32
+#ifdef _WIN32
    /*
     * Windows is almost always used as a single user system, so use a default
     * port number of 8631.
@@ -671,7 +666,7 @@ main(int  argc,				/* I - Number of command-line args */
     */
 
     port = 8000 + ((int)getuid() % 1000);
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
     fprintf(stderr, "Listening on port %d.\n", port);
   }
@@ -680,10 +675,10 @@ main(int  argc,				/* I - Number of command-line args */
   {
     const char *tmpdir;			/* Temporary directory */
 
-#ifdef WIN32
+#ifdef _WIN32
     if ((tmpdir = getenv("TEMP")) == NULL)
       tmpdir = "C:/TEMP";
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) && !TARGET_OS_IOS
     if ((tmpdir = getenv("TMPDIR")) == NULL)
       tmpdir = "/private/tmp";
 #elif defined(__OS2__)
@@ -692,7 +687,7 @@ main(int  argc,				/* I - Number of command-line args */
 #else
     if ((tmpdir = getenv("TMPDIR")) == NULL)
       tmpdir = "/tmp";
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
     snprintf(directory, sizeof(directory), "%s/ippserver.%d", tmpdir, (int)getpid());
 
@@ -1027,7 +1022,7 @@ create_job(_ipp_client_t *client)	/* I - Client */
     * Only accept a single job at a time...
     */
 
-    _cupsRWLockWrite(&(client->printer->rwlock));
+    _cupsRWUnlock(&(client->printer->rwlock));
     return (NULL);
   }
 
@@ -1288,9 +1283,9 @@ create_printer(const char *servername,	/* I - Server hostname (NULL for default)
 {
   int			i, j;		/* Looping vars */
   _ipp_printer_t	*printer;	/* Printer */
-#ifndef WIN32
+#ifndef _WIN32
   char			path[1024];	/* Full path to command */
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
   char			uri[1024],	/* Printer URI */
 #ifdef HAVE_SSL
 			securi[1024],	/* Secure printer URI */
@@ -1492,7 +1487,7 @@ create_printer(const char *servername,	/* I - Server hostname (NULL for default)
   };
 
 
-#ifndef WIN32
+#ifndef _WIN32
  /*
   * If a command was specified, make sure it exists and is executable...
   */
@@ -1518,7 +1513,7 @@ create_printer(const char *servername,	/* I - Server hostname (NULL for default)
       command = path;
     }
   }
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
 
  /*
   * Allocate memory for the printer...
@@ -2491,9 +2486,9 @@ filter_cb(_ipp_filter_t   *filter,	/* I - Filter parameters */
   * Filter attributes as needed...
   */
 
-#ifndef WIN32 /* Avoid MS compiler bug */
+#ifndef _WIN32 /* Avoid MS compiler bug */
   (void)dst;
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
 
   ipp_tag_t group = ippGetGroupTag(attr);
   const char *name = ippGetName(attr);
@@ -3773,6 +3768,7 @@ ipp_print_job(_ipp_client_t *client)	/* I - Client */
 			buffer[4096];	/* Copy buffer */
   ssize_t		bytes;		/* Bytes read */
   cups_array_t		*ra;		/* Attributes to send in response */
+  _cups_thread_t        t;              /* Thread */
 
 
  /*
@@ -3883,7 +3879,13 @@ ipp_print_job(_ipp_client_t *client)	/* I - Client */
   * Process the job...
   */
 
-  if (!_cupsThreadCreate((_cups_thread_func_t)process_job, job))
+  t = _cupsThreadCreate((_cups_thread_func_t)process_job, job);
+
+  if (t)
+  {
+    _cupsThreadDetach(t);
+  }
+  else
   {
     job->state = IPP_JSTATE_ABORTED;
     respond_ipp(client, IPP_STATUS_ERROR_INTERNAL, "Unable to process job.");
@@ -4190,17 +4192,7 @@ ipp_print_uri(_ipp_client_t *client)	/* I - Client */
   * Process the job...
   */
 
-#if 0
-  if (!_cupsThreadCreate((_cups_thread_func_t)process_job, job))
-  {
-    job->state = IPP_JSTATE_ABORTED;
-    respond_ipp(client, IPP_STATUS_ERROR_INTERNAL, "Unable to process job.");
-    return;
-  }
-
-#else
   process_job(job);
-#endif /* 0 */
 
  /*
   * Return the job info...
@@ -4392,17 +4384,7 @@ ipp_send_document(_ipp_client_t *client)/* I - Client */
   * Process the job...
   */
 
-#if 0
-  if (!_cupsThreadCreate((_cups_thread_func_t)process_job, job))
-  {
-    job->state = IPP_JSTATE_ABORTED;
-    respond_ipp(client, IPP_STATUS_ERROR_INTERNAL, "Unable to process job.");
-    return;
-  }
-
-#else
   process_job(job);
-#endif /* 0 */
 
  /*
   * Return the job info...
@@ -4761,17 +4743,7 @@ ipp_send_uri(_ipp_client_t *client)	/* I - Client */
   * Process the job...
   */
 
-#if 0
-  if (!_cupsThreadCreate((_cups_thread_func_t)process_job, job))
-  {
-    job->state = IPP_JSTATE_ABORTED;
-    respond_ipp(client, IPP_STATUS_ERROR_INTERNAL, "Unable to process job.");
-    return;
-  }
-
-#else
   process_job(job);
-#endif /* 0 */
 
  /*
   * Return the job info...
@@ -5017,7 +4989,6 @@ load_attributes(const char *filename,	/* I - File to load */
 		break;
 
 	      ippSetCollection(attrs, &attrptr, ippGetCount(attrptr), col);
-	      lastcol = attrptr;
 	    }
 	    while (!strcmp(token, "{"));
 	    break;
@@ -6066,13 +6037,13 @@ process_job(_ipp_job_t *job)		/* I - Job */
     ipp_attribute_t *attr;		/* Job attribute */
     char	val[1280],		/* IPP_NAME=value */
 		*valptr;		/* Pointer into string */
-#ifndef WIN32
+#ifndef _WIN32
     int		mypipe[2];		/* Pipe for stderr */
     char	line[2048],		/* Line from stderr */
 		*ptr,			/* Pointer into line */
 		*endptr;		/* End of line */
     ssize_t	bytes;			/* Bytes read */
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
 
     fprintf(stderr, "Running command \"%s %s\".\n", job->printer->command,
             job->filename);
@@ -6130,7 +6101,7 @@ process_job(_ipp_job_t *job)		/* I - Job */
     * Now run the program...
     */
 
-#ifdef WIN32
+#ifdef _WIN32
     status = _spawnvpe(_P_WAIT, job->printer->command, myargv, myenvp);
 
 #else
@@ -6240,20 +6211,20 @@ process_job(_ipp_job_t *job)		/* I - Job */
       while (wait(&status) < 0);
 #  endif /* HAVE_WAITPID */
     }
-#endif /* WIN32 */
+#endif /* _WIN32 */
 
     if (status)
     {
-#ifndef WIN32
+#ifndef _WIN32
       if (WIFEXITED(status))
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
 	fprintf(stderr, "Command \"%s\" exited with status %d.\n",
 		job->printer->command, WEXITSTATUS(status));
-#ifndef WIN32
+#ifndef _WIN32
       else
 	fprintf(stderr, "Command \"%s\" terminated with signal %d.\n",
 		job->printer->command, WTERMSIG(status));
-#endif /* !WIN32 */
+#endif /* !_WIN32 */
       job->state = IPP_JSTATE_ABORTED;
     }
     else if (status < 0)
@@ -6839,7 +6810,13 @@ run_printer(_ipp_printer_t *printer)	/* I - Printer */
     {
       if ((client = create_client(printer, printer->ipv4)) != NULL)
       {
-	if (!_cupsThreadCreate((_cups_thread_func_t)process_client, client))
+        _cups_thread_t t = _cupsThreadCreate((_cups_thread_func_t)process_client, client);
+
+        if (t)
+        {
+          _cupsThreadDetach(t);
+        }
+        else
 	{
 	  perror("Unable to create client thread");
 	  delete_client(client);
@@ -6851,7 +6828,13 @@ run_printer(_ipp_printer_t *printer)	/* I - Printer */
     {
       if ((client = create_client(printer, printer->ipv6)) != NULL)
       {
-	if (!_cupsThreadCreate((_cups_thread_func_t)process_client, client))
+        _cups_thread_t t = _cupsThreadCreate((_cups_thread_func_t)process_client, client);
+
+        if (t)
+        {
+          _cupsThreadDetach(t);
+        }
+        else
 	{
 	  perror("Unable to create client thread");
 	  delete_client(client);
@@ -7025,7 +7008,7 @@ valid_doc_attributes(
     attr = ippAddString(client->request, IPP_TAG_OPERATION, IPP_TAG_MIMETYPE, "document-format", NULL, format);
   }
 
-  if (!strcmp(format, "application/octet-stream") && (ippGetOperation(client->request) == IPP_OP_PRINT_JOB || ippGetOperation(client->request) == IPP_OP_SEND_DOCUMENT))
+  if (format && !strcmp(format, "application/octet-stream") && (ippGetOperation(client->request) == IPP_OP_PRINT_JOB || ippGetOperation(client->request) == IPP_OP_SEND_DOCUMENT))
   {
    /*
     * Auto-type the file using the first 8 bytes of the file...
@@ -7396,8 +7379,3 @@ valid_job_attributes(
 
   return (valid);
 }
-
-
-/*
- * End of "$Id: ippserver.c 12947 2015-10-28 15:23:33Z msweet $".
- */

@@ -1,18 +1,16 @@
 #
-# "$Id: Makefile 11859 2014-05-08 22:42:44Z msweet $"
+# Backend makefile for CUPS.
 #
-#   Backend makefile for CUPS.
+# Copyright 2007-2017 by Apple Inc.
+# Copyright 1997-2007 by Easy Software Products, all rights reserved.
 #
-#   Copyright 2007-2014 by Apple Inc.
-#   Copyright 1997-2007 by Easy Software Products, all rights reserved.
+# These coded instructions, statements, and computer programs are the
+# property of Apple Inc. and are protected by Federal copyright
+# law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+# which should have been included with this file.  If this file is
+# missing or damaged, see the license at "http://www.cups.org/".
 #
-#   These coded instructions, statements, and computer programs are the
-#   property of Apple Inc. and are protected by Federal copyright
-#   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
-#   which should have been included with this file.  If this file is
-#   file is missing or damaged, see the license at "http://www.cups.org/".
-#
-#   This file is subject to the Apple OS-Developed Software exception.
+# This file is subject to the Apple OS-Developed Software exception.
 #
 
 include ../Makedefs
@@ -26,7 +24,7 @@ include ../Makedefs
 # UBACKENDS and ULBACKENDS are installed mode 0755 so cupsd will run them as
 # an unprivileged user...
 #
-# See http://www.cups.org/documentation.php/api-filter.html for more info...
+# See http://www.cups.org/doc/api-filter.html for more info...
 RBACKENDS =	\
 		ipp$(EXEEXT) \
 		lpd$(EXEEXT) \
@@ -88,7 +86,7 @@ unittests:	$(UNITTESTS)
 #
 
 clean:
-	$(RM) $(OBJS) $(TARGETS) $(UNITTESTS) $(LIBOBJS) http https ipps mdns
+	$(RM) $(OBJS) $(TARGETS) $(UNITTESTS) $(LIBOBJS) http https ipps mdns socket-static
 
 
 #
@@ -209,7 +207,7 @@ uninstall:
 
 test1284$(EXEEXT):	test1284.o ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ test1284.o ../cups/$(LIBCUPSSTATIC) \
+	$(LD_CC) $(LDFLAGS) -o $@ test1284.o ../cups/$(LIBCUPSSTATIC) \
 		$(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) $(COMMONLIBS) $(LIBZ)
 
 
@@ -219,7 +217,7 @@ test1284$(EXEEXT):	test1284.o ../cups/$(LIBCUPSSTATIC)
 
 testbackend$(EXEEXT):	testbackend.o ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ testbackend.o ../cups/$(LIBCUPSSTATIC) \
+	$(LD_CC) $(LDFLAGS) -o $@ testbackend.o ../cups/$(LIBCUPSSTATIC) \
 		$(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) $(COMMONLIBS) $(LIBZ)
 
 
@@ -229,7 +227,7 @@ testbackend$(EXEEXT):	testbackend.o ../cups/$(LIBCUPSSTATIC)
 
 testsupplies$(EXEEXT):	testsupplies.o libbackend.a ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ testsupplies.o libbackend.a \
+	$(LD_CC) $(LDFLAGS) -o $@ testsupplies.o libbackend.a \
 		../cups/$(LIBCUPSSTATIC) $(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) \
 		$(COMMONLIBS) $(LIBZ)
 
@@ -251,7 +249,8 @@ libbackend.a:	$(LIBOBJS)
 
 dnssd$(EXEEXT):	dnssd.o ../cups/$(LIBCUPS) libbackend.a
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ dnssd.o libbackend.a $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ dnssd.o libbackend.a $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 	if test `uname` = Darwin; then \
 		$(RM) mdns; \
 		$(LN) dnssd mdns; \
@@ -264,7 +263,8 @@ dnssd$(EXEEXT):	dnssd.o ../cups/$(LIBCUPS) libbackend.a
 
 ipp$(EXEEXT):	ipp.o ../cups/$(LIBCUPS) libbackend.a
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ ipp.o libbackend.a $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ ipp.o libbackend.a $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 	$(RM) http
 	$(LN) ipp$(EXEEXT) http
 
@@ -275,7 +275,8 @@ ipp$(EXEEXT):	ipp.o ../cups/$(LIBCUPS) libbackend.a
 
 lpd$(EXEEXT):	lpd.o ../cups/$(LIBCUPS) libbackend.a
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ lpd.o libbackend.a $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ lpd.o libbackend.a $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -284,7 +285,8 @@ lpd$(EXEEXT):	lpd.o ../cups/$(LIBCUPS) libbackend.a
 
 snmp$(EXEEXT):	snmp.o ../cups/$(LIBCUPS) libbackend.a
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ snmp.o libbackend.a $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ snmp.o libbackend.a $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -293,7 +295,8 @@ snmp$(EXEEXT):	snmp.o ../cups/$(LIBCUPS) libbackend.a
 
 socket$(EXEEXT):	socket.o ../cups/$(LIBCUPS) libbackend.a
 	echo Linking $@...
-	$(CC) $(LDFLAGS) -o $@ socket.o libbackend.a $(LIBS)
+	$(LD_CC) $(LDFLAGS) -o $@ socket.o libbackend.a $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
 #
@@ -302,8 +305,9 @@ socket$(EXEEXT):	socket.o ../cups/$(LIBCUPS) libbackend.a
 
 usb$(EXEEXT):	usb.o ../cups/$(LIBCUPS) libbackend.a
 	echo Linking $@...
-	$(CC) $(ARCHFLAGS) $(LDFLAGS) -o $@ usb.o libbackend.a $(LIBUSB) \
+	$(LD_CC) $(ARCHFLAGS) $(LDFLAGS) -o $@ usb.o libbackend.a $(LIBUSB) \
 		$(BACKLIBS) $(LIBS)
+	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 usb.o:	usb.c usb-darwin.c usb-libusb.c usb-unix.c
 
 
@@ -312,8 +316,3 @@ usb.o:	usb.c usb-darwin.c usb-libusb.c usb-unix.c
 #
 
 include Dependencies
-
-
-#
-# End of "$Id: Makefile 11859 2014-05-08 22:42:44Z msweet $".
-#

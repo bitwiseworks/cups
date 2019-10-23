@@ -1,20 +1,27 @@
 #
-# "$Id: Makedefs.in 12519 2015-02-17 13:10:19Z msweet $"
-#
 # Common makefile definitions for CUPS.
 #
-# Copyright 2007-2014 by Apple Inc.
+# Copyright 2007-2019 by Apple Inc.
 # Copyright 1997-2007 by Easy Software Products, all rights reserved.
 #
 # These coded instructions, statements, and computer programs are the
 # property of Apple Inc. and are protected by Federal copyright
 # law.  Distribution and use rights are outlined in the file "LICENSE.txt"
 # which should have been included with this file.  If this file is
-# file is missing or damaged, see the license at "http://www.cups.org/".
+# missing or damaged, see the license at "http://www.cups.org/".
+#
+
 #
 VENDOR ?=community
 BUILD_INFO=\#\#1\#\# $(shell date +'%d %b %Y %H:%M:%S')     $(shell uname -n)
 BUILDLEVEL_INFO=@\#$(VENDOR):@CUPS_VERSION@\#@$(BUILD_INFO)::::0::
+
+#
+# CUPS version...
+#
+
+CUPS_VERSION    =       @CUPS_VERSION@
+
 
 #
 # Programs...
@@ -22,16 +29,19 @@ BUILDLEVEL_INFO=@\#$(VENDOR):@CUPS_VERSION@\#@$(BUILD_INFO)::::0::
 
 AR		=	@AR@
 AWK		=	@AWK@
-CC		=	@LIBTOOL@ @CC@
+CC		=	@LIBTOOL_CC@ @CC@
 CHMOD		=	@CHMOD@
-CXX		=	@LIBTOOL@ @CXX@
+CXX		=	@LIBTOOL_CXX@ @CXX@
 DSO		=	@DSO@
 DSOXX		=	@DSOXX@
-GZIP		=	@GZIP@
+GZIPPROG	=	@GZIPPROG@
 INSTALL		=	@INSTALL@
 LD		=	@LD@
+LD_CC		=	@LD_CC@
+LD_CXX		=	@LD_CXX@
 LIBTOOL		=	@LIBTOOL@
 LN		=	@LN@ -sf
+MKDIR           =       @MKDIR@ -p
 MV		=	@MV@
 RANLIB		=	@RANLIB@
 RM		=	@RM@ -f
@@ -44,14 +54,14 @@ EXEEXT		=	@EXEEXT@
 # Installation programs...
 #
 
-INSTALL_BIN	=	$(LIBTOOL) $(INSTALL) -c -m 755 @INSTALL_STRIP@
+INSTALL_BIN	=	@LIBTOOL_INSTALL@ $(INSTALL) -c -m @CUPS_EXE_FILE_PERM@ @INSTALL_STRIP@
 INSTALL_COMPDATA =	$(INSTALL) -c -m 444 @INSTALL_GZIP@
 INSTALL_CONFIG	=	$(INSTALL) -c -m @CUPS_CONFIG_FILE_PERM@
 INSTALL_DATA	=	$(INSTALL) -c -m 444
 INSTALL_DIR	=	$(INSTALL) -d
-INSTALL_LIB	=	$(LIBTOOL) $(INSTALL) -c -m 755 @INSTALL_STRIP@
+INSTALL_LIB	=	@LIBTOOL_INSTALL@ $(INSTALL) -c -m @CUPS_EXE_FILE_PERM@ @INSTALL_STRIP@
 INSTALL_MAN	=	$(INSTALL) -c -m 444
-INSTALL_SCRIPT	=	$(INSTALL) -c -m 555
+INSTALL_SCRIPT	=	$(INSTALL) -c -m @CUPS_EXE_FILE_PERM@
 
 #
 # Default user, group, and system groups for the scheduler...
@@ -79,14 +89,19 @@ INSTALL_LANGUAGES =	@INSTALL_LANGUAGES@
 UNINSTALL_LANGUAGES =	@UNINSTALL_LANGUAGES@
 
 #
+# Cross-compilation support: "local" target is used for any tools that are
+# built and run locally.
+#
+
+LOCALTARGET     =       @LOCALTARGET@
+
+
+#
 # Libraries...
 #
 
 LIBCUPS		=	@LIBCUPS@
-LIBCUPSCGI	=	@LIBCUPSCGI@
 LIBCUPSIMAGE	=	@LIBCUPSIMAGE@
-LIBCUPSMIME	=	@LIBCUPSMIME@
-LIBCUPSPPDC	=	@LIBCUPSPPDC@
 LIBCUPSSTATIC	=	@LIBCUPSSTATIC@
 LIBGSSAPI	=	@LIBGSSAPI@
 LIBMALLOC	=	@LIBMALLOC@
@@ -113,6 +128,13 @@ IPPALIASES	=	@IPPALIASES@
 #
 
 INSTALLXPC	=	@INSTALLXPC@
+
+#
+# Code signing...
+#
+
+CODE_SIGN	=	@CODE_SIGN@
+CODE_SIGN_IDENTITY = -
 
 #
 # Program options...
@@ -147,7 +169,7 @@ IPPFIND_MAN	=	@IPPFIND_MAN@
 LDFLAGS		=	-L../cgi-bin -L../cups -L../filter -L../ppdc \
 			-L../scheduler @LDARCHFLAGS@ \
 			@LDFLAGS@ @RELROFLAGS@ @PIEFLAGS@ $(OPTIM)
-LINKCUPS	=	@LINKCUPS@ $(LIBGSSAPI) $(DNSSDLIBS) $(LIBZ)
+LINKCUPS	=	@LINKCUPS@ $(LIBGSSAPI) $(DNSSDLIBS) $(SSLLIBS) $(LIBZ)
 LINKCUPSIMAGE	=	@LINKCUPSIMAGE@
 LIBS		=	$(LINKCUPS) $(COMMONLIBS) $(LIBZ)
 ONDEMANDFLAGS	=	@ONDEMANDFLAGS@
@@ -265,8 +287,3 @@ USBQUIRKS	=	@USBQUIRKS@
 	echo -n Compressing $<...
 	$(RM) $@
 	gzip -v9 <$< >$@
-
-
-#
-# End of "$Id: Makedefs.in 12519 2015-02-17 13:10:19Z msweet $"
-#

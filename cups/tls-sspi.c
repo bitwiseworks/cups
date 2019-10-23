@@ -1,16 +1,14 @@
 /*
- * "$Id: tls-sspi.c 12647 2015-05-20 18:37:52Z msweet $"
- *
  * TLS support for CUPS on Windows using the Security Support Provider
  * Interface (SSPI).
  *
- * Copyright 2010-2015 by Apple Inc.
+ * Copyright 2010-2018 by Apple Inc.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  *
  * This file is subject to the Apple OS-Developed Software exception.
  */
@@ -54,7 +52,9 @@
  * Local globals...
  */
 
-static int		tls_options = -1;/* Options for TLS connections */
+static int		tls_options = -1,/* Options for TLS connections */
+			tls_min_version = _HTTP_TLS_1_0,
+			tls_max_version = _HTTP_TLS_MAX;
 
 
 /*
@@ -136,7 +136,7 @@ cupsSetServerCredentials(
  * 'httpCopyCredentials()' - Copy the credentials associated with the peer in
  *                           an encrypted connection.
  *
- * @since CUPS 1.5/OS X 10.7@
+ * @since CUPS 1.5/macOS 10.7@
  */
 
 int					/* O - Status of call (0 = success) */
@@ -353,7 +353,6 @@ httpCredentialsString(
     SYSTEMTIME		systime;	/* System time */
     struct tm		tm;		/* UNIX date/time */
     time_t		expiration;	/* Expiration date of cert */
-    _cups_md5_state_t	md5_state;	/* MD5 state */
     unsigned char	md5_digest[16];	/* MD5 result */
 
     FileTimeToSystemTime(&(cert->pCertInfo->NotAfter), &systime);
@@ -380,9 +379,7 @@ httpCredentialsString(
     else
       strlcpy(cert_name, "unknown", sizeof(cert_name));
 
-    _cupsMD5Init(&md5_state);
-    _cupsMD5Append(&md5_state, first->data, (int)first->datalen);
-    _cupsMD5Finish(&md5_state, md5_digest);
+    cupsHashData("md5", first->data, first->datalen, md5_digest, sizeof(md5_digest));
 
     snprintf(buffer, bufsize, "%s / %s / %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X", cert_name, httpGetDateString(expiration), md5_digest[0], md5_digest[1], md5_digest[2], md5_digest[3], md5_digest[4], md5_digest[5], md5_digest[6], md5_digest[7], md5_digest[8], md5_digest[9], md5_digest[10], md5_digest[11], md5_digest[12], md5_digest[13], md5_digest[14], md5_digest[15]);
 
@@ -913,9 +910,16 @@ _httpTLSRead(http_t *http,		/* I - HTTP connection */
  */
 
 void
-_httpTLSSetOptions(int options)		/* I - Options */
+_httpTLSSetOptions(int options,		/* I - Options */
+                   int min_version,	/* I - Minimum TLS version */
+                   int max_version)	/* I - Maximum TLS version */
 {
-  tls_options = options;
+  if (!(options & _HTTP_TLS_SET_DEFAULT) || tls_options < 0)
+  {
+    tls_options     = options;
+    tls_min_version = min_version;
+    tls_max_version = max_version;
+  }
 }
 
 
@@ -1763,41 +1767,45 @@ http_sspi_find_credentials(
 #ifdef SP_PROT_TLS1_2_SERVER
   if (http->mode == _HTTP_MODE_SERVER)
   {
-    if (tls_options & _HTTP_TLS_DENY_TLS10)
-      SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1_2_SERVER | SP_PROT_TLS1_1_SERVER;
-    else if (tls_options & _HTTP_TLS_ALLOW_SSL3)
+    if (tls_min_version == _HTTP_TLS_SSL3)
       SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1_2_SERVER | SP_PROT_TLS1_1_SERVER | SP_PROT_TLS1_0_SERVER | SP_PROT_SSL3_SERVER;
-    else
+    else if (tls_min_version == _HTTP_TLS_1_0)
       SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1_2_SERVER | SP_PROT_TLS1_1_SERVER | SP_PROT_TLS1_0_SERVER;
+    else if (tls_min_version == _HTTP_TLS_1_1)
+      SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1_2_SERVER | SP_PROT_TLS1_1_SERVER;
+    else
+      SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1_2_SERVER;
   }
   else
   {
-    if (tls_options & _HTTP_TLS_DENY_TLS10)
-      SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1_2_CLIENT | SP_PROT_TLS1_1_CLIENT;
-    else if (tls_options & _HTTP_TLS_ALLOW_SSL3)
+    if (tls_min_version == _HTTP_TLS_SSL3)
       SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1_2_CLIENT | SP_PROT_TLS1_1_CLIENT | SP_PROT_TLS1_0_CLIENT | SP_PROT_SSL3_CLIENT;
-    else
+    else if (tls_min_version == _HTTP_TLS_1_0)
       SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1_2_CLIENT | SP_PROT_TLS1_1_CLIENT | SP_PROT_TLS1_0_CLIENT;
+    else if (tls_min_version == _HTTP_TLS_1_1)
+      SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1_2_CLIENT | SP_PROT_TLS1_1_CLIENT;
+    else
+      SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1_2_CLIENT;
   }
 
 #else
   if (http->mode == _HTTP_MODE_SERVER)
   {
-    if (tls_options & _HTTP_TLS_ALLOW_SSL3)
+    if (tls_min_version == _HTTP_TLS_SSL3)
       SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1_SERVER | SP_PROT_SSL3_SERVER;
     else
       SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1_SERVER;
   }
   else
   {
-    if (tls_options & _HTTP_TLS_ALLOW_SSL3)
+    if (tls_min_version == _HTTP_TLS_SSL3)
       SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1_CLIENT | SP_PROT_SSL3_CLIENT;
     else
       SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1_CLIENT;
   }
 #endif /* SP_PROT_TLS1_2_SERVER */
 
-  /* TODO: Support _HTTP_TLS_ALLOW_RC4 and _HTTP_TLS_ALLOW_DH options; right now we'll rely on Windows registry to enable/disable RC4/DH... */
+  /* TODO: Support _HTTP_TLS_ALLOW_RC4, _HTTP_TLS_ALLOW_DH, and _HTTP_TLS_DENY_CBC options; right now we'll rely on Windows registry to enable/disable RC4/DH/CBC... */
 
  /*
   * Create an SSPI credential.
@@ -2424,8 +2432,3 @@ http_sspi_verify(
 
   return (status);
 }
-
-
-/*
- * End of "$Id: tls-sspi.c 12647 2015-05-20 18:37:52Z msweet $".
- */

@@ -1,16 +1,14 @@
 /*
- * "$Id: config.h 12998 2015-12-02 15:09:04Z msweet $"
- *
  * Configuration file for CUPS on Windows.
  *
- * Copyright 2007-2014 by Apple Inc.
- * Copyright 1997-2007 by Easy Software Products.
+ * Copyright © 2007-2018 by Apple Inc.
+ * Copyright © 1997-2007 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
  * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  * which should have been included with this file.  If this file is
- * file is missing or damaged, see the license at "http://www.cups.org/".
+ * missing or damaged, see the license at "http://www.cups.org/".
  */
 
 #ifndef _CUPS_CONFIG_H_
@@ -54,12 +52,12 @@
 
 
 /*
- * Map the POSIX strcasecmp() and strncasecmp() functions to the Win32 stricmp()
- * and strnicmp() functions...
+ * Map the POSIX strcasecmp() and strncasecmp() functions to the Win32
+ * _stricmp() and _strnicmp() functions...
  */
 
-#define strcasecmp	stricmp
-#define strncasecmp	strnicmp
+#define strcasecmp	_stricmp
+#define strncasecmp	_strnicmp
 
 
 /*
@@ -96,8 +94,8 @@ typedef unsigned long useconds_t;
  * Version of software...
  */
 
-#define CUPS_SVERSION "CUPS v2.1.2"
-#define CUPS_MINIMAL "CUPS/2.1.2"
+#define CUPS_SVERSION "CUPS v2.2.12"
+#define CUPS_MINIMAL "CUPS/2.2.12"
 
 
 /*
@@ -108,13 +106,14 @@ typedef unsigned long useconds_t;
 #define CUPS_DEFAULT_GROUP	""
 #define CUPS_DEFAULT_SYSTEM_GROUPS ""
 #define CUPS_DEFAULT_PRINTOPERATOR_AUTH ""
+#define CUPS_DEFAULT_SYSTEM_AUTHKEY ""
 
 
 /*
  * Default file permissions...
  */
 
-#define CUPS_DEFAULT_CONFIG_FILE_PERM 0640
+#define CUPS_DEFAULT_CONFIG_FILE_PERM 0644
 #define CUPS_DEFAULT_LOG_FILE_PERM 0644
 
 
@@ -123,7 +122,7 @@ typedef unsigned long useconds_t;
  */
 
 #define CUPS_DEFAULT_LOG_LEVEL "warn"
-#define CUPS_DEFAULT_ACCESS_LOG_LEVEL "actions"
+#define CUPS_DEFAULT_ACCESS_LOG_LEVEL "none"
 
 
 /*
@@ -138,7 +137,7 @@ typedef unsigned long useconds_t;
  */
 
 #define CUPS_DEFAULT_BROWSING 1
-#define CUPS_DEFAULT_BROWSE_LOCAL_PROTOCOLS ""
+#define CUPS_DEFAULT_BROWSE_LOCAL_PROTOCOLS "dnssd"
 #define CUPS_DEFAULT_DEFAULT_SHARED 1
 
 
@@ -182,7 +181,7 @@ typedef unsigned long useconds_t;
  * Default WebInterface value...
  */
 
-#undef CUPS_DEFAULT_WEBIF
+#define CUPS_DEFAULT_WEBIF 0
 
 
 /*
@@ -318,6 +317,13 @@ typedef unsigned long useconds_t;
 
 
 /*
+ * Do we have the systemd journal functions?
+ */
+
+/* #undef HAVE_SYSTEMD_SD_JOURNAL_H */
+
+
+/*
  * Do we have the (v)snprintf() functions?
  */
 
@@ -369,8 +375,15 @@ typedef unsigned long useconds_t;
 
 /* #undef HAVE_CDSASSL */
 /* #undef HAVE_GNUTLS */
-#define HAVE_SSPISSL
-#define HAVE_SSL
+#define HAVE_SSPISSL 1
+#define HAVE_SSL 1
+
+
+/*
+ * Do we have the gnutls_fips140_set_mode function?
+ */
+
+/* #undef HAVE_GNUTLS_FIPS140_SET_MODE */
 
 
 /*
@@ -421,6 +434,13 @@ typedef unsigned long useconds_t;
  */
 
 /* #undef HAVE_SECKEYCHAINOPEN */
+
+
+/*
+ * Do we have (a working) SSLSetEnabledCiphers function?
+ */
+
+#define HAVE_SSLSETENABLEDCIPHERS 1
 
 
 /*
@@ -536,6 +556,13 @@ typedef unsigned long useconds_t;
 
 
 /*
+ * Do we have on-demand support (launchd/systemd/upstart)?
+ */
+
+/* #undef HAVE_ONDEMAND */
+
+
+/*
  * Do we have launchd support?
  */
 
@@ -551,6 +578,13 @@ typedef unsigned long useconds_t;
 
 
 /*
+ * Do we have upstart support?
+ */
+
+/* #undef HAVE_UPSTART */
+
+
+/*
  * Various scripting languages...
  */
 
@@ -562,23 +596,6 @@ typedef unsigned long useconds_t;
 #define CUPS_PHP	""
 /* #undef HAVE_PYTHON */
 #define CUPS_PYTHON	""
-
-
-/*
- * Location of the poppler/Xpdf pdftops program...
- */
-
-/* #undef HAVE_PDFTOPS */
-/* #undef HAVE_PDFTOPS_WITH_ORIGPAGESIZES */
-#define CUPS_PDFTOPS ""
-
-
-/*
- * Location of the Ghostscript gs program...
- */
-
-/* #undef HAVE_GHOSTSCRIPT */
-#define CUPS_GHOSTSCRIPT ""
 
 
 /*
@@ -605,7 +622,14 @@ typedef unsigned long useconds_t;
 
 
 /*
- * Do we have OS X 10.4's mbr_XXX functions?
+ * Do we have the getgrouplist() function?
+ */
+
+#undef HAVE_GETGROUPLIST
+
+
+/*
+ * Do we have macOS 10.4's mbr_XXX functions?
  */
 
 /* #undef HAVE_MEMBERSHIP_H */
@@ -704,7 +728,7 @@ typedef unsigned long useconds_t;
 
 #ifdef HAVE_ARC4RANDOM
 #  define CUPS_RAND() arc4random()
-#  define CUPS_SRAND(v) arc4random_stir()
+#  define CUPS_SRAND(v)
 #elif defined(HAVE_RANDOM)
 #  define CUPS_RAND() random()
 #  define CUPS_SRAND(v) srandom(v)
@@ -715,13 +739,6 @@ typedef unsigned long useconds_t;
 #  define CUPS_RAND() rand()
 #  define CUPS_SRAND(v) srand(v)
 #endif /* HAVE_ARC4RANDOM */
-
-
-/*
- * Do we have vproc_transaction_begin/end?
- */
-
-/* #undef HAVE_VPROC_TRANSACTION_BEGIN */
 
 
 /*
@@ -758,7 +775,7 @@ typedef unsigned long useconds_t;
 
 
 /*
- * Location of OS X localization bundle, if any.
+ * Location of macOS localization bundle, if any.
  */
 
 /* #undef CUPS_BUNDLEDIR */
@@ -797,7 +814,3 @@ static __inline int _cups_abs(int i) { return (i < 0 ? -i : i); }
 #endif /* !HAVE_ABS && !abs */
 
 #endif /* !_CUPS_CONFIG_H_ */
-
-/*
- * End of "$Id: config.h 12998 2015-12-02 15:09:04Z msweet $".
- */
