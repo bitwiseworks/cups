@@ -12,8 +12,8 @@ dnl missing or damaged, see the license at "http://www.cups.org/".
 dnl
 
 dnl Default languages...
-case "$uname" in
-	OS/2*)
+case "$host_os_name" in
+	os2*)
                 LANGUAGES="`ls -1 locale/cups_*.po 2>/dev/null | sed -e '1,$s/locale\/cups_//' -e '1,$s/\.po//' | tr '\n\r' ' '`"
 		;;
 	*)

@@ -43,7 +43,7 @@ if test x$enable_shared != xno; then
 			DSOXX="\$(CXX)"
 			DSOFLAGS="$DSOFLAGS -dynamiclib -single_module -lc"
 			;;
-		OS/2*)
+		os2*)
 			LIBCUPS="cups.dll"
 			LIBCUPSCGI="cupscgi.dll"
 			LIBCUPSDRIVER="cupsdr.dll"
@@ -139,7 +139,7 @@ if test "$DSO" != ":"; then
 				EXPORT_LDFLAGS="-Wl,-rpath,$libdir"
 			fi
 			;;
-                OS/2*)
+                os2*)
 			IMGLIBS="$DSOLIBS"
 			;;
 	esac

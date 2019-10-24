@@ -106,8 +106,8 @@ if test -n "$GCC"; then
 
 	# Generate position-independent code as needed...
 	if test $PICFLAG = 1; then
-	case "$uname" in
-		OS/2*)
+	case "$host_os_name" in
+		os2*)
 			OPTIM="$OPTIM"
 			;;
 		*)
@@ -123,8 +123,8 @@ if test -n "$GCC"; then
 	OLDCFLAGS="$CFLAGS"
 	CFLAGS="$CFLAGS -fstack-protector"
 	AC_TRY_LINK(,,
-		[case "$uname" in
-		OS/2*)
+		[case "$host_os_name" in
+		os2*)
 			OPTIM="$OPTIM"
 			;;
 		*)
