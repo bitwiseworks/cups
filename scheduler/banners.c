@@ -100,6 +100,8 @@ cupsdLoadBanners(const char *d)		/* I - Directory to search */
     if ((ext = strrchr(dent->filename, '.')) != NULL)
       if (!strcmp(ext, ".bck") ||
           !strcmp(ext, ".bak") ||
+          !strcmp(ext, ".rpmnew") ||
+          !strcmp(ext, ".rpmsave") ||
 	  !strcmp(ext, ".sav"))
 	continue;
 
