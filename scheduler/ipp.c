@@ -4506,7 +4506,7 @@ copy_model(cupsd_client_t *con,		/* I - Client connection */
   close(temppipe[1]);
 
  /*
-  * Wait up to 30 seconds for the PPD file to be copied...
+  * Wait up to 70 seconds for the PPD file to be copied...
   */
 
   total = 0;
@@ -4526,7 +4526,7 @@ copy_model(cupsd_client_t *con,		/* I - Client connection */
     FD_SET(temppipe[0], &input);
     FD_SET(CGIPipes[0], &input);
 
-    timeout.tv_sec  = 30;
+    timeout.tv_sec  = 70;
     timeout.tv_usec = 0;
 
     if ((i = select(maxfd, &input, NULL, NULL, &timeout)) < 0)
