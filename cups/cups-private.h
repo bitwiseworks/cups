@@ -36,6 +36,7 @@
 
 #ifdef __OS2__ // needed for os2_ioctl
 #include <sys/filio.h>
+#include <libcx/net.h>
 #ifdef HAVE_POLL
 #undef HAVE_POLL
 #endif
