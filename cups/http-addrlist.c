@@ -637,7 +637,11 @@ httpAddrGetList(const char *hostname,	/* I - Hostname, IP address, or NULL for p
       */
 
       for (current = results; current; current = current->ai_next)
+#  ifdef AF_INET6
         if (current->ai_family == AF_INET || current->ai_family == AF_INET6)
+#  else
+        if (current->ai_family == AF_INET)
+#  endif
 	{
 	 /*
           * Copy the address over...
@@ -652,10 +656,12 @@ httpAddrGetList(const char *hostname,	/* I - Hostname, IP address, or NULL for p
 	    return (NULL);
 	  }
 
+#  ifdef AF_INET6
           if (current->ai_family == AF_INET6)
 	    memcpy(&(temp->addr.ipv6), current->ai_addr,
 	           sizeof(temp->addr.ipv6));
 	  else
+#  endif
 	    memcpy(&(temp->addr.ipv4), current->ai_addr,
 	           sizeof(temp->addr.ipv4));
 
