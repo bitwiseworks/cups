@@ -97,7 +97,7 @@ unittests:	$(UNITTARGETS)
 clean:
 	$(RM) $(OBJS) core
 	$(RM) *.bak *.bck core.*
-	$(RM) $(TARGETS) $(UNITTARGETS) genstrings
+	$(RM) $(TARGETS) $(UNITTARGETS) genstrings$(EXEEXT)
 	$(RM) -r ppd ppd2
 	$(RM) sample-import.drv sample.c test.drv
 
@@ -175,14 +175,14 @@ uninstall:
 # Local programs (not built when cross-compiling...)
 #
 
-local:	genstrings
+local:	genstrings$(EXEEXT)
 
 
 #
 # genstrings - generate GNU gettext strings.
 #
 
-genstrings$(EXEEXT):		genstrings.o libcupsppdc_s.a ../cups/$(LIBCUPSSTATIC) \
+genstrings$(EXEEXT):	genstrings.o libcupsppdc.a ../cups/$(LIBCUPSSTATIC) \
 			sample.drv ../data/media.defs
 	echo Linking $@...
 	$(LD_CXX) $(ARCHFLAGS) $(LDFLAGS) -o $@ genstrings.o \
