@@ -56,7 +56,14 @@ _cupsCondWait(_cups_cond_t  *cond,	/* I - Condition */
   {
     struct timespec abstime;		/* Timeout */
 
+#ifndef __OS2__
     clock_gettime(CLOCK_REALTIME, &abstime);
+#else
+    struct timeval tv;
+    gettimeofday (&tv, NULL);
+    abstime.tv_sec = tv.tv_sec;
+    abstime.tv_nsec = tv.tv_usec * 1000;
+#endif
 
     abstime.tv_sec  += (long)timeout;
     abstime.tv_nsec += (long)(1000000000 * (timeout - (long)timeout));
