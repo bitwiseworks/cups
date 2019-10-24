@@ -51,7 +51,7 @@ case "$host_os_name" in
 		MAN8EXT=1m
 		MAN8DIR=1m
 		;;
-	linux* | gnu* | darwin* | os2*)
+	linux* | gnu* | darwin*)
 		# Linux, GNU Hurd, and macOS
 		MAN1EXT=1.gz
 		MAN5EXT=5.gz

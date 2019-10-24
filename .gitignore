@@ -63,6 +63,10 @@ systemv/cupsreject
 systemv/reject
 
 // ignore new generated man files
+man/*1
+man/*5
+man/*7
+man/*8
 man/*1.gz
 man/*5.gz
 man/*7.gz
