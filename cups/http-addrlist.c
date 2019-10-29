@@ -243,6 +243,13 @@ httpAddrConnect2(
 
 #ifndef _WIN32
       fcntl(fds[nfds], F_SETFL, flags);
+#ifdef __OS2__ //on os/2 fcntl sometimes fails to set nonblocking/blocking
+      if (!(flags & O_NONBLOCK))
+      {
+        char dontblock = 0;
+        os2_ioctl(fds[nfds], FIONBIO, &dontblock, sizeof(dontblock));
+      }
+#endif
 #endif /* !_WIN32 */
 
 #ifndef HAVE_POLL
@@ -328,7 +335,12 @@ httpAddrConnect2(
 	DEBUG_printf(("pfds[%d].revents=%x\n", i, pfds[i].revents));
 	if (pfds[i].revents && !(pfds[i].revents & (POLLERR | POLLHUP)))
 #  else
+#ifdef __OS2__
+	len   = sizeof(peer);
+	if (!getpeername(fds[i], (struct sockaddr *)&peer, &len))
+#else
 	if (FD_ISSET(fds[i], &input_set) && !FD_ISSET(fds[i], &error_set))
+#endif
 #  endif /* HAVE_POLL */
 	{
 	  *sock    = fds[i];
