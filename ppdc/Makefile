@@ -233,7 +233,7 @@ ppdi$(EXEEXT):		ppdi.o libcupsppdc.a ../cups/$(LIBCUPS)
 	$(CODE_SIGN) -s "$(CODE_SIGN_IDENTITY)" $@
 
 
-ppdi-static$(EXEEXT):	ppdc-static ppdi.o libcupsppdc.a  ../cups/$(LIBCUPSSTATIC)
+ppdi-static$(EXEEXT):	ppdc-static$(EXEEXT) ppdi.o libcupsppdc.a  ../cups/$(LIBCUPSSTATIC)
 	echo Linking $@...
 	$(LD_CXX) $(ARCHFLAGS) $(LDFLAGS) -o $@ ppdi.o libcupsppdc.a \
 		../cups/$(LIBCUPSSTATIC) $(LIBGSSAPI) $(SSLLIBS) $(DNSSDLIBS) \

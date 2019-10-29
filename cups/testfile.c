@@ -174,6 +174,9 @@ main(int  argc,				/* I - Number of command-line arguments */
 #ifdef _WIN32
     if (cupsFileFind("notepad.exe", "C:/WINDOWS", 1, filename, sizeof(filename)) &&
 	cupsFileFind("notepad.exe", "C:/WINDOWS;C:/WINDOWS/SYSTEM32", 1, filename, sizeof(filename)))
+#elif __OS2__
+    if (cupsFileFind("cat.exe", "/@unixroot/usr/bin", 1, filename, sizeof(filename)) &&
+	cupsFileFind("cat.exe", "/@unixroot/bin:/@unixroot/usr/bin", 1, filename, sizeof(filename)))
 #else
     if (cupsFileFind("cat", "/bin", 1, filename, sizeof(filename)) &&
 	cupsFileFind("cat", "/bin:/usr/bin", 1, filename, sizeof(filename)))

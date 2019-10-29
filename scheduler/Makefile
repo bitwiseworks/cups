@@ -408,7 +408,7 @@ libcupsmime.a:	$(LIBOBJS)
 # Make the test program, "testlpd".
 #
 
-testlpd$(EXEEXT):	testlpd.o ../cups/$(LIBCUPSSTATIC) cups-lpd
+testlpd$(EXEEXT):	testlpd.o ../cups/$(LIBCUPSSTATIC) cups-lpd$(EXEEXT)
 	echo Linking $@...
 	$(LD_CC) $(LDFLAGS) -o $@ testlpd.o ../cups/$(LIBCUPSSTATIC) \
 		$(COMMONLIBS) $(LIBZ) $(SSLLIBS) $(DNSSDLIBS) $(LIBGSSAPI)

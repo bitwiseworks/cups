@@ -116,3 +116,12 @@ doc/help/man-lp.html
 
 // my local build file
 build.txt
+
+// testsuite
+cgi-bin/testhi.index
+cups/locale/
+cups/test.pwg
+filter/test.raster
+ppdc/ppd/
+ppdc/ppd2/
+ppdc/sample-import.drv
