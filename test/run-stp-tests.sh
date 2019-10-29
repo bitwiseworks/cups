@@ -19,7 +19,7 @@ argcount=$#
 # Don't allow "make check" or "make test" to be run by root...
 #
 
-if test "x`id -u`" = x0; then
+if test "x`id -u`" = x0 -a `uname` != OS/2; then
 	echo Please run this as a normal user. Not supported when run as root.
 	exit 1
 fi
@@ -192,7 +192,11 @@ if test -z "$BASE"; then
 	if test -d /private/tmp; then
 		BASE=/private/tmp/cups-$user
 	else
+		if test `uname` = OS/2; then
+			BASE=/@unixroot/var/tmp/cups-$user
+		else
 		BASE=/tmp/cups-$user
+		fi
 	fi
 fi
 export BASE
