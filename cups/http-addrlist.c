@@ -83,11 +83,11 @@ httpAddrConnect2(
   struct timeval	timeout;	/* Timeout */
 #  endif /* HAVE_POLL */
 #endif /* O_NONBLOCK */
-#ifdef DEBUG
-#  ifndef _WIN32
+#ifndef _WIN32
   socklen_t		len;		/* Length of value */
   http_addr_t		peer;		/* Peer address */
-#  endif /* !_WIN32 */
+#endif /* !_WIN32 */
+#ifdef DEBUG
   char			temp[256];	/* Temporary address string */
 #endif /* DEBUG */
 
@@ -331,34 +331,37 @@ httpAddrConnect2(
 
       for (i = 0; i < nfds; i ++)
       {
+		int error = 0;
 #  ifdef HAVE_POLL
 	DEBUG_printf(("pfds[%d].revents=%x\n", i, pfds[i].revents));
-	if (pfds[i].revents && !(pfds[i].revents & (POLLERR | POLLHUP)))
+	if (pfds[i].revents && !(error = pfds[i].revents & (POLLERR | POLLHUP)))
 #  else
-#ifdef __OS2__
-	len   = sizeof(peer);
-	if (!getpeername(fds[i], (struct sockaddr *)&peer, &len))
-#else
-	if (FD_ISSET(fds[i], &input_set) && !FD_ISSET(fds[i], &error_set))
-#endif
+	DEBUG_printf(("fd_isset(%d)={%d,%d,%d}", fds[i], FD_ISSET(fds[i], &input_set), FD_ISSET(fds[i], &output_set), FD_ISSET(fds[i], &error_set)));
+	if (FD_ISSET(fds[i], &output_set) && !(error = FD_ISSET(fds[i], &error_set)))
 #  endif /* HAVE_POLL */
 	{
-	  *sock    = fds[i];
-	  connaddr = addrs[i];
-
-#  ifdef DEBUG
+	  int err = -1;
+	  socklen_t errlen = sizeof(err);
+	  if (!(error = getsockopt(fds[i], SOL_SOCKET, SO_ERROR, &err, &errlen)))
+	  {
+		DEBUG_printf(("1httpAddrConnect2: getsockopt() returned SO_ERROR value %d", err));
+		error = err != 0;
+		errno = err;
+	  }
+	}
+	if (!error)
+	{
 	  len   = sizeof(peer);
-	  if (!getpeername(fds[i], (struct sockaddr *)&peer, &len))
+	  if (!(error = getpeername(fds[i], (struct sockaddr *)&peer, &len)))
+	  {
 	    DEBUG_printf(("1httpAddrConnect2: Connected to %s:%d...", httpAddrString(&peer, temp, sizeof(temp)), httpAddrPort(&peer)));
-#  endif /* DEBUG */
+		*sock    = fds[i];
+		connaddr = addrs[i];
 
           break;
+	  }
 	}
-#  ifdef HAVE_POLL
-	else if (pfds[i].revents & (POLLERR | POLLHUP))
-#  else
-	else if (FD_ISSET(fds[i], &error_set))
-#  endif /* HAVE_POLL */
+	if (error)
         {
          /*
           * Error on socket, remove from the "pool"...
