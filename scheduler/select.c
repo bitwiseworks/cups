@@ -623,8 +623,8 @@ cupsdDoSelect(long timeout)		/* I - Timeout in seconds */
    * the socket isn't ready */
   if (nfds == -1)
   {
-    cupsdLogMessage(CUPSD_LOG_WARN, "cupsdDoSelect: select() returned %d... pause and retry select()",
-                  nfds);
+    cupsdLogMessage(CUPSD_LOG_WARN, "cupsdDoSelect: select() returned %i (%s)... pause and retry select()",
+                  errno, strerror(errno));
     usleep(500000);
     if (timeout >= 0 && timeout < 86400)
     {
@@ -641,8 +641,8 @@ cupsdDoSelect(long timeout)		/* I - Timeout in seconds */
   if (nfds == -1)
   {
 
-    cupsdLogMessage(CUPSD_LOG_WARN, "cupsdDoSelect: select() returned %d (2nd failure)... pause and setting socket to non-blocking mode",
-                  nfds);
+    cupsdLogMessage(CUPSD_LOG_WARN, "cupsdDoSelect: select() returned %i (%s) (2nd failure)... pause and setting socket to non-blocking mode",
+                  errno, strerror(errno));
     /* fcntl O_NONBLOCK doesn't always succeed on OS/2 - force the socket to be non-blocking */
     char dontblock =1;
     os2_ioctl(maxfd, FIONBIO, &dontblock,sizeof(dontblock));
@@ -662,8 +662,8 @@ cupsdDoSelect(long timeout)		/* I - Timeout in seconds */
 
   if (nfds == -1)
   {
-    cupsdLogMessage(CUPSD_LOG_WARN, "cupsdDoSelect: select() returned %d (3rd failure)... pause and retry select()",
-                  nfds);
+    cupsdLogMessage(CUPSD_LOG_WARN, "cupsdDoSelect: select() returned %i (%s) (3rd failure)... pause and retry select()",
+                  errno, strerror(errno));
     usleep(500000);
     if (timeout >= 0 && timeout < 86400)
     {
