@@ -58,7 +58,7 @@
 #    include <Security/Authorization.h>
 #  endif /* HAVE_AUTHORIZATION_H */
 
-#  if defined(__KLIBC__) || defined(__APPLE__) && !defined(_SOCKLEN_T)
+#  if defined(__APPLE__) && !defined(_SOCKLEN_T)
 /*
  * macOS 10.2.x does not define socklen_t, and in fact uses an int instead of
  * unsigned type for length values...
