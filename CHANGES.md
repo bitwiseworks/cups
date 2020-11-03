@@ -1,5 +1,24 @@
-CHANGES - 2.2.12 - 2019-08-15
+CHANGES - 2.2.13 - 2019-12-13
 =============================
+
+
+Changes in CUPS v2.2.13
+-----------------------
+
+- CVE-2019-2228: The `ippSetValuetag` function did not validate the default
+  language value.
+- Added a workaround for the scheduler's systemd support (Issue #5640)
+- Fixed spelling of "fold-accordion".
+- Fixed the default common name for TLS certificates used by `ippserver`.
+- The libusb-based USB backend now reports an error when the distribution
+  permissions are wrong (Issue #5658)
+- Default printers set with `lpoptions` did not work in all cases (Issue #5681,
+  Issue #5683, Issue #5684)
+- Fixed an off-by-one error in `ippEnumString` (Issue #5695)
+- Fixed some new compiler warnings (Issue #5700)
+- Fixed a few issues with the Apple Raster support (rdar://55301114)
+- The IPP backend did not detect all cases where a job should be retried using
+  a raster format (rdar://56021091)
 
 
 Changes in CUPS v2.2.12

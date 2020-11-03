@@ -52,6 +52,14 @@
 
 
 /*
+ * Microsoft "safe" functions use a different argument order than POSIX...
+ */
+
+#define gmtime_r(t,tm)	gmtime_s(tm,t)
+#define localtime_r(t,tm) localtime_s(tm,t)
+
+
+/*
  * Map the POSIX strcasecmp() and strncasecmp() functions to the Win32
  * _stricmp() and _strnicmp() functions...
  */
@@ -94,8 +102,8 @@ typedef unsigned long useconds_t;
  * Version of software...
  */
 
-#define CUPS_SVERSION "CUPS v2.2.12"
-#define CUPS_MINIMAL "CUPS/2.2.12"
+#define CUPS_SVERSION "CUPS v2.2.13"
+#define CUPS_MINIMAL "CUPS/2.2.13"
 
 
 /*

@@ -1437,7 +1437,7 @@ cupsdSaveAllPrinters(void)
 			*name;		/* Current user/group name */
   cupsd_printer_t	*printer;	/* Current printer class */
   time_t		curtime;	/* Current time */
-  struct tm		*curdate;	/* Current date */
+  struct tm		curdate;	/* Current date */
   cups_option_t		*option;	/* Current option */
   ipp_attribute_t	*marker;	/* Current marker attribute */
 
@@ -1457,9 +1457,9 @@ cupsdSaveAllPrinters(void)
   * Write a small header to the file...
   */
 
-  curtime = time(NULL);
-  curdate = localtime(&curtime);
-  strftime(temp, sizeof(temp) - 1, "%Y-%m-%d %H:%M", curdate);
+  time(&curtime);
+  localtime_r(&curtime, &curdate);
+  strftime(temp, sizeof(temp) - 1, "%Y-%m-%d %H:%M", &curdate);
 
   cupsFilePuts(fp, "# Printer configuration file for " CUPS_SVERSION "\n");
   cupsFilePrintf(fp, "# Written by cupsd on %s\n", temp);
@@ -4533,7 +4533,7 @@ load_ppd(cupsd_printer_t *p)		/* I - Printer */
       for (fin = (_pwg_finishings_t *)cupsArrayFirst(p->pc->finishings); fin; fin = (_pwg_finishings_t *)cupsArrayNext(p->pc->finishings))
       {
         if (num_finishings < (int)(sizeof(finishings) / sizeof(finishings[0])))
-          finishings[num_finishings++] = fin->value;
+          finishings[num_finishings++] = (int)fin->value;
 
         switch (fin->value)
         {
