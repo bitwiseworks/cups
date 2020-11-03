@@ -1,7 +1,7 @@
 /*
  * Sample IPP Everywhere server for CUPS.
  *
- * Copyright 2010-2018 by Apple Inc.
+ * Copyright 2010-2019 by Apple Inc.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
@@ -696,10 +696,6 @@ main(int  argc,				/* I - Number of command-line args */
       fprintf(stderr, "Using spool directory \"%s\".\n", directory);
   }
 
-#ifdef HAVE_SSL
-  cupsSetServerCredentials(keypath, servername, 1);
-#endif /* HAVE_SSL */
-
  /*
   * Initialize Bonjour...
   */
@@ -714,6 +710,10 @@ main(int  argc,				/* I - Number of command-line args */
                                 formats, ppm, ppm_color, duplex, port, pin,
 				subtype, directory, command, attrfile)) == NULL)
     return (1);
+
+#ifdef HAVE_SSL
+  cupsSetServerCredentials(keypath, printer->hostname, 1);
+#endif /* HAVE_SSL */
 
  /*
   * Run the print service...
@@ -834,7 +834,7 @@ copy_job_attributes(
 
   if (!ra || cupsArrayFind(ra, "job-state"))
     ippAddInteger(client->response, IPP_TAG_JOB, IPP_TAG_ENUM,
-		  "job-state", job->state);
+		  "job-state", (int)job->state);
 
   if (!ra || cupsArrayFind(ra, "job-state-message"))
   {
@@ -3647,7 +3647,7 @@ ipp_get_printer_attributes(
 
   if (!ra || cupsArrayFind(ra, "printer-state"))
     ippAddInteger(client->response, IPP_TAG_PRINTER, IPP_TAG_ENUM,
-                  "printer-state", printer->state);
+                  "printer-state", (int)printer->state);
 
   if (!ra || cupsArrayFind(ra, "printer-state-change-date-time"))
     ippAddDate(client->response, IPP_TAG_PRINTER, "printer-state-change-date-time", ippTimeToDate(printer->state_time));
